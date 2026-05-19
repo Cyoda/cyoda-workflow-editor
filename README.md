@@ -267,13 +267,20 @@ export function EditorPage() {
   local changes, and invalid local state never corrupts the canonical document.
 
 **Processors** (on each transition)
-- Add / edit / delete / reorder processors.
-- Full field editors for `externalized` processors: `executionMode`,
-  `attachEntity`, `responseTimeoutMs`, `calculationNodesTags`, `retryPolicy`,
-  `context`, `asyncResult`, `crossoverToAsyncMs`.
-- Full field editors for `scheduled` processors: `delayMs`, `transition`
-  (dropdown), `timeoutMs`.
-- Type switcher between externalized and scheduled.
+- Add / edit / delete / duplicate / reorder processors.
+- Compact summary rows open a focused modal editor; Apply commits one patch
+  and Cancel discards local edits.
+- Supported processor types are the OpenAPI-documented lowercase literals
+  `externalized` and `scheduled`.
+- Externalized processor editing covers `executionMode`
+  (`SYNC`, `ASYNC_SAME_TX`, `ASYNC_NEW_TX`, `COMMIT_BEFORE_DISPATCH`),
+  `startNewTxOnDispatch`, `attachEntity`, `responseTimeoutMs`,
+  `calculationNodesTags` as a comma-separated string, `retryPolicy`,
+  free-form string `context`, `asyncResult`, and `crossoverToAsyncMs`.
+- Scheduled processor editing uses duration inputs for `delayMs` and
+  optional `timeoutMs`, plus a structured `transition` selector/input.
+- Arbitrary custom processor config JSON is intentionally not supported;
+  unknown keys are stripped to match the documented contract.
 
 **Manual layout**
 - Drag states to reposition — position is persisted as editor metadata.

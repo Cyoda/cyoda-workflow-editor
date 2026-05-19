@@ -87,4 +87,18 @@ describe("keyboard shortcuts", () => {
 
     expect(screen.queryByTestId("add-state-name-input")).toBeNull();
   });
+
+  it("clears selection with Escape", () => {
+    const document = fixtureDoc();
+    currentDoc = document;
+    render(<WorkflowEditor document={document} mode="editor" />);
+
+    fireEvent.click(screen.getByTestId("select-transition"));
+    expect(screen.getByTestId("inspector-transition-name")).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByTestId("workflow-editor"), { key: "Escape", code: "Escape" });
+
+    expect(screen.queryByTestId("inspector")).toBeNull();
+    expect(screen.getByTestId("workflow-canvas-selection-hint")).toBeTruthy();
+  });
 });

@@ -147,6 +147,17 @@ function validateWorkflow(
               message: `Scheduled processor "${p.name}" has empty target transition.`,
             });
           }
+          if (
+            p.type === "externalized" &&
+            p.startNewTxOnDispatch === true &&
+            p.executionMode !== "COMMIT_BEFORE_DISPATCH"
+          ) {
+            issues.push({
+              severity: "warning",
+              code: "start-new-tx-without-commit-before-dispatch",
+              message: `Processor "${p.name}" sets startNewTxOnDispatch but executionMode is not COMMIT_BEFORE_DISPATCH.`,
+            });
+          }
           if (p.type === "externalized" && p.config) {
             if (
               p.config.crossoverToAsyncMs !== undefined &&

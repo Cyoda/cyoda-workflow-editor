@@ -46,6 +46,13 @@ vi.mock("../src/components/Canvas.js", () => ({
         >
           select transition active
         </button>
+        <button
+          type="button"
+          data-testid="clear-selection"
+          onClick={() => latestCanvasProps?.onSelectionChange(null)}
+        >
+          clear selection
+        </button>
       </div>
     );
   },
@@ -108,6 +115,16 @@ afterEach(() => {
 });
 
 describe("inspector selection sync", () => {
+  it("starts with the inspector hidden and shows the canvas hint", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+
+    expect(screen.queryByTestId("inspector")).toBeNull();
+    expect(screen.getByTestId("workflow-canvas-selection-hint").textContent).toContain(
+      "Select a state or transition to edit it.",
+    );
+  });
+
   it("updates the state name field when switching between states", () => {
     currentDoc = fixtureDoc();
     render(<WorkflowEditor document={currentDoc} mode="editor" />);
@@ -130,7 +147,43 @@ describe("inspector selection sync", () => {
     expect((screen.getByTestId("inspector-transition-name") as HTMLInputElement).value).toBe("to_approved");
   });
 
-  it("keeps the transition inspector open when adding a processor", () => {
+  it("hides the inspector again when selection is cleared", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+
+    fireEvent.click(screen.getByTestId("select-state-new"));
+    expect(screen.getByTestId("inspector-state-name")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("clear-selection"));
+    expect(screen.queryByTestId("inspector")).toBeNull();
+    expect(screen.getByTestId("workflow-canvas-selection-hint")).toBeTruthy();
+  });
+
+  it("clears selection when the inspector close button is clicked", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+
+    fireEvent.click(screen.getByTestId("select-transition-new"));
+    expect(screen.getByTestId("inspector-transition-name")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("inspector-close"));
+    expect(screen.queryByTestId("inspector")).toBeNull();
+    expect(screen.getByTestId("workflow-canvas-selection-hint")).toBeTruthy();
+  });
+
+  it("keeps the canvas mounted while toggling the inspector", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+    const canvas = screen.getByTestId("mock-canvas");
+
+    fireEvent.click(screen.getByTestId("select-state-new"));
+    expect(screen.getByTestId("mock-canvas")).toBe(canvas);
+
+    fireEvent.click(screen.getByTestId("clear-selection"));
+    expect(screen.getByTestId("mock-canvas")).toBe(canvas);
+  });
+
+  it("keeps the transition inspector open when opening the add processor modal", () => {
     currentDoc = fixtureDoc();
     render(<WorkflowEditor document={currentDoc} mode="editor" />);
 
@@ -140,10 +193,7 @@ describe("inspector selection sync", () => {
     expect((screen.getByTestId("inspector-transition-name") as HTMLInputElement).value).toBe(
       "to_active",
     );
-    expect(screen.getByTestId("inspector-processor-0")).toBeTruthy();
-    expect(screen.getByTestId("inspector-inline-processor-0")).toBeTruthy();
-    expect((screen.getByTestId("inspector-processor-name") as HTMLInputElement).value).toBe(
-      "proc1",
-    );
+    expect(screen.getByTestId("processor-editor-modal")).toBeTruthy();
+    expect((screen.getByTestId("processor-name-input") as HTMLInputElement).value).toBe("");
   });
 });

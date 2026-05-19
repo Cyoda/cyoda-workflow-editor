@@ -1,4 +1,4 @@
-import { memo, type CSSProperties } from "react";
+import { memo, type CSSProperties, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import type { StateNode } from "@cyoda/workflow-graph";
 import {
@@ -8,6 +8,54 @@ import {
   typography,
   workflowPalette,
 } from "@cyoda/workflow-viewer/theme";
+
+function StateRoleIcon({ label, color }: { label: string; color: string }): ReactNode {
+  const common = {
+    width: 10,
+    height: 10,
+    fill: "none",
+    stroke: color,
+    strokeWidth: 1.6,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (label === "INITIAL") {
+    return (
+      <svg {...common} viewBox="0 0 10 10">
+        <polygon points="2.5,1.5 8.5,5 2.5,8.5" fill={color} stroke="none" />
+      </svg>
+    );
+  }
+  if (label === "TERMINAL") {
+    return (
+      <svg {...common} viewBox="0 0 10 10">
+        <rect x="1.8" y="1.8" width="6.4" height="6.4" rx="1" fill={color} stroke="none" />
+      </svg>
+    );
+  }
+  if (label === "MANUAL REVIEW") {
+    return (
+      <svg {...common} viewBox="0 0 10 10">
+        <path d="M5 2.2 L7 5 L5 7.8 L3 5 Z" />
+        <circle cx="5" cy="5" r="0.8" fill={color} stroke="none" />
+      </svg>
+    );
+  }
+  if (label === "PROCESSING STATE") {
+    return (
+      <svg {...common} viewBox="0 0 10 10">
+        <circle cx="5" cy="5" r="2.6" />
+        <path d="M5 1.4 V2.7 M5 7.3 V8.6 M1.4 5 H2.7 M7.3 5 H8.6" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common} viewBox="0 0 10 10">
+      <circle cx="5" cy="5" r="2.2" fill={color} stroke="none" />
+    </svg>
+  );
+}
 
 export interface RfStateNodeData {
   node: StateNode;
@@ -58,6 +106,8 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
         userSelect: "none",
       }}
       data-testid={`rf-state-${node.stateCode}`}
+      aria-label={`${category} state: ${node.stateCode}`}
+      title={`${category} · ${node.stateCode}`}
     >
       {(denseAnchors ? CARDINAL_ANCHORS : SPLIT_ANCHORS).map((anchor) => (
         <AnchorHandle
@@ -95,8 +145,13 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
             fontSize: typography.stateCategory.size,
             fontWeight: typography.stateCategory.weight,
             letterSpacing: typography.stateCategory.tracking,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
           }}
+          data-testid={`rf-state-${node.stateCode}-category`}
         >
+          <StateRoleIcon label={category} color={palette.meta} />
           {category}
         </div>
         <div

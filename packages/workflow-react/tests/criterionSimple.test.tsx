@@ -164,6 +164,79 @@ describe("SimpleCriterionFields", () => {
     });
   });
 
+  it("date-like path renders date input and dispatches string value", () => {
+    const { getByTestId, onDispatch } = renderWithCriterion();
+    fireEvent.change(getByTestId("criterion-simple-path"), {
+      target: { value: "$.tradeDates.tradeDate" },
+    });
+    const valueInput = getByTestId("criterion-simple-value") as HTMLInputElement;
+    expect(valueInput.type).toBe("date");
+    expect(getByTestId("criterion-simple-date-format").textContent).toContain("YYYY-MM-DD");
+    fireEvent.change(valueInput, { target: { value: "2026-05-16" } });
+    fireEvent.click(getByTestId("criterion-modal-apply"));
+
+    const setCrit = onDispatch.mock.calls
+      .map((c) => c[0])
+      .find((p) => p.op === "setCriterion");
+    expect(setCrit && setCrit.op === "setCriterion" ? setCrit.criterion : null).toEqual({
+      type: "simple",
+      jsonPath: "$.tradeDates.tradeDate",
+      operation: "EQUALS",
+      value: "2026-05-16",
+    });
+  });
+
+  it("timestamp-like path renders datetime-local input", () => {
+    const { getByTestId } = renderWithCriterion();
+    fireEvent.change(getByTestId("criterion-simple-path"), {
+      target: { value: "$.audit.createdAt" },
+    });
+    const valueInput = getByTestId("criterion-simple-value") as HTMLInputElement;
+    expect(valueInput.type).toBe("datetime-local");
+    expect(getByTestId("criterion-simple-date-format").textContent).toContain(
+      "YYYY-MM-DDTHH:mm",
+    );
+  });
+
+  it("date-like BETWEEN renders From/To date inputs and dispatches string range", () => {
+    const { getByTestId, onDispatch } = renderWithCriterion();
+    fireEvent.change(getByTestId("criterion-simple-path"), {
+      target: { value: "$.settlement.settlementDate" },
+    });
+    fireEvent.change(getByTestId("criterion-simple-op"), {
+      target: { value: "BETWEEN" },
+    });
+
+    const from = getByTestId("criterion-simple-low") as HTMLInputElement;
+    const to = getByTestId("criterion-simple-high") as HTMLInputElement;
+    expect(from.type).toBe("date");
+    expect(to.type).toBe("date");
+    expect(getByTestId("criterion-simple-range-start-label").textContent).toBe("From");
+    expect(getByTestId("criterion-simple-range-end-label").textContent).toBe("To");
+
+    fireEvent.change(from, { target: { value: "2026-05-01" } });
+    fireEvent.change(to, { target: { value: "2026-05-16" } });
+    fireEvent.click(getByTestId("criterion-modal-apply"));
+
+    const setCrit = onDispatch.mock.calls
+      .map((c) => c[0])
+      .find((p) => p.op === "setCriterion");
+    expect(setCrit && setCrit.op === "setCriterion" ? setCrit.criterion : null).toEqual({
+      type: "simple",
+      jsonPath: "$.settlement.settlementDate",
+      operation: "BETWEEN",
+      value: ["2026-05-01", "2026-05-16"],
+    });
+  });
+
+  it("non-date path still renders normal text value input", () => {
+    const { getByTestId } = renderWithCriterion();
+    fireEvent.change(getByTestId("criterion-simple-path"), {
+      target: { value: "$.priority" },
+    });
+    expect((getByTestId("criterion-simple-value") as HTMLInputElement).type).toBe("text");
+  });
+
   it("BETWEEN with missing high disables Apply and shows shape error", () => {
     const { getByTestId, queryByTestId } = renderWithCriterion();
     fireEvent.change(getByTestId("criterion-simple-path"), {
@@ -215,6 +288,9 @@ describe("SimpleCriterionFields", () => {
     const { getByTestId, queryByTestId } = renderWithCriterion();
     fireEvent.change(getByTestId("criterion-simple-path"), {
       target: { value: "$.list[*].x" },
+    });
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "ok" },
     });
     expect(queryByTestId("criterion-simple-path-error")).toBeNull();
     expect((getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(false);

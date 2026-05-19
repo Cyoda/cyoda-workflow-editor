@@ -202,6 +202,7 @@ vi.mock("reactflow", () => {
     ConnectionMode: { Loose: "loose" },
     Position,
     useReactFlow: () => ({ fitView, setViewport }),
+    useUpdateNodeInternals: () => vi.fn(),
   };
 });
 

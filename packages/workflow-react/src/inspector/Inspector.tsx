@@ -6,7 +6,7 @@ import type {
   WorkflowEditorDocument,
 } from "@cyoda/workflow-core";
 import { serializeEditorDocument } from "@cyoda/workflow-core";
-import { useMessages } from "../i18n/context.js";
+import { useEditorConfig, useMessages } from "../i18n/context.js";
 import type { Selection } from "../state/types.js";
 import { processorUuidsInOrder, resolveSelection } from "./resolve.js";
 import { WorkflowForm } from "./WorkflowForm.js";
@@ -22,6 +22,7 @@ export interface InspectorProps {
   readOnly: boolean;
   onDispatch: (patch: DomainPatch) => void;
   onSelectionChange: (sel: Selection) => void;
+  onClose?: () => void;
   onRequestDeleteState: (workflow: string, stateCode: string) => void;
   /**
    * Optional model-schema autocomplete source for criterion jsonPath inputs.
@@ -53,11 +54,14 @@ export function Inspector({
   readOnly,
   onDispatch,
   onSelectionChange,
+  onClose,
   onRequestDeleteState,
   hintProvider,
 }: InspectorProps) {
   const messages = useMessages();
+  const { developerMode } = useEditorConfig();
   const [tab, setTab] = useState<"properties" | "json">("properties");
+  const effectiveTab = developerMode ? tab : "properties";
   const resolved = useMemo(() => resolveSelection(doc, selection), [doc, selection]);
 
   const selectionIssueKey = issueKeyForSelection(selection);
@@ -77,7 +81,10 @@ export function Inspector({
         flexDirection: "column",
         background: "#F8FAFC",
         borderLeft: "1px solid #E2E8F0",
-        minWidth: 280,
+        flex: "0 0 384px",
+        width: 384,
+        minWidth: 360,
+        maxWidth: 420,
       }}
       data-testid="inspector"
     >
@@ -87,20 +94,60 @@ export function Inspector({
           borderBottom: "1px solid #E2E8F0",
           fontSize: 12,
           color: "#475569",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
         }}
       >
-        {breadcrumb}
+        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {breadcrumb}
+        </span>
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close inspector"
+            data-testid="inspector-close"
+            onClick={onClose}
+            style={{
+              width: 24,
+              height: 24,
+              border: "1px solid #CBD5E1",
+              borderRadius: 4,
+              background: "white",
+              color: "#334155",
+              cursor: "pointer",
+              fontSize: 18,
+              lineHeight: "18px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+            }}
+          >
+            ×
+          </button>
+        )}
       </header>
-      <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
-        <TabButton active={tab === "properties"} onClick={() => setTab("properties")}>
-          {messages.inspector.properties}
-        </TabButton>
-        <TabButton active={tab === "json"} onClick={() => setTab("json")}>
-          {messages.inspector.json}
-        </TabButton>
-      </div>
+      {developerMode && (
+        <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
+          <TabButton
+            active={effectiveTab === "properties"}
+            onClick={() => setTab("properties")}
+            testId="inspector-tab-properties"
+          >
+            {messages.inspector.properties}
+          </TabButton>
+          <TabButton
+            active={effectiveTab === "json"}
+            onClick={() => setTab("json")}
+            testId="inspector-tab-json"
+          >
+            {messages.inspector.json}
+          </TabButton>
+        </div>
+      )}
       <div style={{ padding: 12, overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-        {tab === "properties" && (
+        {effectiveTab === "properties" && (
           <>
             {!resolved && <EmptyState message={messages.inspector.empty} />}
             {resolved?.kind === "workflow" && (
@@ -151,7 +198,9 @@ export function Inspector({
             )}
           </>
         )}
-        {tab === "json" && <JsonPreview document={doc} resolved={resolved} />}
+        {developerMode && effectiveTab === "json" && (
+          <JsonPreview document={doc} resolved={resolved} />
+        )}
 
         {selectionIssues.length > 0 && (
           <IssuesList issues={selectionIssues} title={messages.inspector.issues} />
@@ -178,15 +227,18 @@ function TabButton({
   active,
   onClick,
   children,
+  testId,
 }: {
   active: boolean;
   onClick: () => void;
   children: React.ReactNode;
+  testId?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      data-testid={testId}
       style={{
         flex: 1,
         padding: "8px 12px",

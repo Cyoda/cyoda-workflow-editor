@@ -128,9 +128,11 @@ function outputExternalizedProcessor(p: ExternalizedProcessor): Record<string, u
     type: "externalized",
     name: p.name,
   };
-  // Omit executionMode when it is the default ASYNC_NEW_TX (spec §8.2).
-  if (p.executionMode !== undefined && p.executionMode !== "ASYNC_NEW_TX") {
+  if (p.executionMode !== undefined) {
     out["executionMode"] = p.executionMode;
+  }
+  if ("startNewTxOnDispatch" in p && p.startNewTxOnDispatch !== undefined) {
+    out["startNewTxOnDispatch"] = p.startNewTxOnDispatch;
   }
   if (p.config !== undefined) {
     const cfg = outputExternalizedConfig(p.config);

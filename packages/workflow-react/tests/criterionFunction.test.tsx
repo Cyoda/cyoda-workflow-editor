@@ -155,13 +155,16 @@ describe("FunctionCriterionFields", () => {
     fireEvent.change(getByTestId("criterion-simple-path"), {
       target: { value: "$.precheck" },
     });
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "ok" },
+    });
     fireEvent.click(getByTestId("criterion-modal-apply"));
     const next = lastSetFunctionCriterion(onDispatch);
     expect(next).toEqual({
       type: "function",
       function: {
         name: "stub",
-        criterion: { type: "simple", jsonPath: "$.precheck", operation: "EQUALS" },
+        criterion: { type: "simple", jsonPath: "$.precheck", operation: "EQUALS", value: "ok" },
       },
     });
   });

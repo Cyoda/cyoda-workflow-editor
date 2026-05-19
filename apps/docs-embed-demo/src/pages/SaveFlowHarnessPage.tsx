@@ -238,6 +238,7 @@ export function SaveFlowHarnessPage() {
               document={currentDocument}
               mode="editor"
               onChange={setCurrentDocument}
+              developerMode
             />
           </div>
         </section>

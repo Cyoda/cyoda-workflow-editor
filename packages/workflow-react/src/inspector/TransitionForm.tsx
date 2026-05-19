@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type {
   DomainPatch,
   EdgeAnchor,
   EdgeAnchorPair,
   HostRef,
+  Processor,
   Transition,
   ValidationIssue,
   Workflow,
@@ -12,7 +13,11 @@ import { NAME_REGEX } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
 import { CheckboxField, FieldGroup, SelectField, TextField } from "./fields.js";
 import { CriterionSection } from "./CriterionForm.js";
-import { ProcessorForm } from "./ProcessorForm.js";
+import {
+  ProcessorEditorModal,
+  duplicateProcessorName,
+  summarizeProcessor,
+} from "./ProcessorForm.js";
 import type { Selection } from "../state/types.js";
 
 export function TransitionForm({
@@ -42,9 +47,11 @@ export function TransitionForm({
 }) {
   const messages = useMessages();
   const [renameError, setRenameError] = useState<string | null>(null);
-  const [expandedProcessorIndex, setExpandedProcessorIndex] = useState<number | null>(null);
-  const [expandNewProcessor, setExpandNewProcessor] = useState(false);
-  const priorProcessorCount = useRef(transition.processors?.length ?? 0);
+  const [processorModal, setProcessorModal] = useState<
+    | { mode: "add" }
+    | { mode: "edit"; processorUuid: string; processorIndex: number }
+    | null
+  >(null);
 
   const update = (updates: Partial<Transition>) =>
     onDispatch({ op: "updateTransition", transitionUuid, updates });
@@ -98,13 +105,32 @@ export function TransitionForm({
     transitionUuid,
   };
 
-  useEffect(() => {
-    if (expandNewProcessor && processorCount > priorProcessorCount.current) {
-      setExpandedProcessorIndex(processorCount - 1);
-      setExpandNewProcessor(false);
+  const processors = transition.processors ?? [];
+  const existingProcessorNames = processors.map((processor) => processor.name);
+
+  const applyProcessor = (processor: Processor) => {
+    if (!processorModal) return;
+    if (processorModal.mode === "add") {
+      onDispatch({ op: "addProcessor", transitionUuid, processor });
+    } else {
+      onDispatch({
+        op: "updateProcessor",
+        processorUuid: processorModal.processorUuid,
+        updates: processor,
+      });
     }
-    priorProcessorCount.current = processorCount;
-  }, [expandNewProcessor, processorCount]);
+    setProcessorModal(null);
+  };
+
+  const duplicateProcessor = (processor: Processor, index: number) => {
+    const nextName = duplicateProcessorName(existingProcessorNames, processor.name);
+    onDispatch({
+      op: "addProcessor",
+      transitionUuid,
+      processor: { ...processor, name: nextName },
+      index: index + 1,
+    });
+  };
 
   return (
     <div style={transitionFormStyle}>
@@ -185,22 +211,35 @@ export function TransitionForm({
           testId="inspector-transition-target-anchor"
         />
 
-        <div style={{ display: "flex", gap: 6 }}>
-          <button type="button" disabled={disabled} onClick={() => reorder(-1)} style={ghostBtn}>
-            {messages.inspector.moveUp}
-          </button>
-          <button type="button" disabled={disabled} onClick={() => reorder(1)} style={ghostBtn}>
-            {messages.inspector.moveDown}
-          </button>
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={removeTransition}
-            style={dangerBtn}
-            data-testid="inspector-transition-delete"
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button type="button" disabled={disabled} onClick={() => reorder(-1)} style={ghostBtn}>
+              {messages.inspector.moveUp}
+            </button>
+            <button type="button" disabled={disabled} onClick={() => reorder(1)} style={ghostBtn}>
+              {messages.inspector.moveDown}
+            </button>
+            <button
+              type="button"
+              disabled={disabled}
+              onClick={removeTransition}
+              style={dangerBtn}
+              data-testid="inspector-transition-delete"
+            >
+              Delete
+            </button>
+          </div>
+          <p
+            style={{
+              fontSize: 11,
+              color: "#64748B",
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+            data-testid="transition-order-help"
           >
-            Delete
-          </button>
+            {messages.inspector.transitionOrderHelp}
+          </p>
         </div>
 
         {/* Inline validation issues */}
@@ -244,68 +283,136 @@ export function TransitionForm({
       </TransitionSection>
 
       <TransitionSection
-        title={`${messages.inspector.processes} (${processorCount})`}
+        title={messages.inspector.processors}
         testId="inspector-transition-processes-section"
       >
-        {(transition.processors ?? []).map((p, i) => (
-          <div key={processorUuids[i] ?? `${p.name}-${i}`} style={processorCardStyle}>
-            <button
-              type="button"
-              onClick={() =>
-                setExpandedProcessorIndex(expandedProcessorIndex === i ? null : i)
-              }
-              style={{
-                ...processorBtn,
-                borderColor: expandedProcessorIndex === i ? "#94A3B8" : "#CBD5E1",
-              }}
-              data-testid={`inspector-processor-${i}`}
-              aria-expanded={expandedProcessorIndex === i}
-            >
-              {p.name}
-              <span style={{ marginLeft: 6, color: "#94a3b8", fontSize: 11 }}>
-                [{p.type}]
-              </span>
-            </button>
-            {expandedProcessorIndex === i && processorUuids[i] && (
-              <div
-                style={inlineProcessorEditorStyle}
-                data-testid={`inspector-inline-processor-${i}`}
-              >
-                <ProcessorForm
-                  processor={p}
-                  processorUuid={processorUuids[i]}
-                  processorIndex={i}
-                  transitionUuid={transitionUuid}
-                  workflow={workflow}
-                  disabled={disabled}
-                  onDispatch={onDispatch}
-                />
-              </div>
-            )}
+        {processorCount === 0 ? (
+          <div style={emptyProcessorStateStyle}>
+            <p style={summaryTextStyle}>No processors run on this transition.</p>
           </div>
-        ))}
+        ) : (
+          <>
+            <p style={processorHelperStyle}>Processors run sequentially in the order shown.</p>
+            {processors.map((processor, index) => (
+              <div key={processorUuids[index] ?? `${processor.name}-${index}`} style={processorRowStyle}>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                  <span style={processorOrderStyle}>{index + 1}.</span>
+                  <span style={processorTypeChipStyle}>{processor.type}</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                    <strong style={{ fontSize: 13 }}>{processor.name}</strong>
+                    <span style={summaryTextStyle}>{summarizeProcessor(processor)}</span>
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() =>
+                      processorUuids[index] &&
+                      setProcessorModal({
+                        mode: "edit",
+                        processorUuid: processorUuids[index]!,
+                        processorIndex: index,
+                      })
+                    }
+                    style={ghostBtn}
+                    data-testid={`processor-edit-${index}`}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => duplicateProcessor(processor, index)}
+                    style={ghostBtn}
+                    data-testid={`processor-duplicate-${index}`}
+                  >
+                    Duplicate
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled || index === 0 || !processorUuids[index]}
+                    onClick={() =>
+                      processorUuids[index] &&
+                      onDispatch({
+                        op: "reorderProcessor",
+                        transitionUuid,
+                        processorUuid: processorUuids[index]!,
+                        toIndex: index - 1,
+                      })
+                    }
+                    style={ghostBtn}
+                    data-testid={`processor-move-up-${index}`}
+                  >
+                    Move up
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled || index === processors.length - 1 || !processorUuids[index]}
+                    onClick={() =>
+                      processorUuids[index] &&
+                      onDispatch({
+                        op: "reorderProcessor",
+                        transitionUuid,
+                        processorUuid: processorUuids[index]!,
+                        toIndex: index + 1,
+                      })
+                    }
+                    style={ghostBtn}
+                    data-testid={`processor-move-down-${index}`}
+                  >
+                    Move down
+                  </button>
+                  <button
+                    type="button"
+                    disabled={disabled || !processorUuids[index]}
+                    onClick={() =>
+                      processorUuids[index] &&
+                      onDispatch({ op: "removeProcessor", processorUuid: processorUuids[index]! })
+                    }
+                    style={dangerBtn}
+                    data-testid={`processor-delete-${index}`}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </>
+        )}
         <button
           type="button"
           disabled={disabled}
-          onClick={() => {
-            setExpandNewProcessor(true);
-            onDispatch({
-              op: "addProcessor",
-              transitionUuid,
-              processor: {
-                type: "externalized",
-                name: `proc${processorCount + 1}`,
-                executionMode: "ASYNC_NEW_TX",
-                config: { attachEntity: false, responseTimeoutMs: 5000 },
-              },
-            });
-          }}
+          onClick={() => setProcessorModal({ mode: "add" })}
           style={ghostBtn}
           data-testid="inspector-add-processor"
         >
           {messages.inspector.addProcessor}
         </button>
       </TransitionSection>
+
+      {processorModal && (
+        <ProcessorEditorModal
+          title={processorModal.mode === "add" ? "Add processor" : "Edit processor"}
+          workflow={workflow}
+          initialProcessor={
+            processorModal.mode === "edit"
+              ? processors[processorModal.processorIndex]
+              : undefined
+          }
+          existingNames={
+            processorModal.mode === "edit"
+              ? existingProcessorNames.filter(
+                  (_name, index) => index !== processorModal.processorIndex,
+                )
+              : existingProcessorNames
+          }
+          disabled={disabled}
+          onCancel={() => setProcessorModal(null)}
+          onApply={applyProcessor}
+        />
+      )}
     </div>
   );
 }
@@ -365,24 +472,50 @@ const dangerBtn = {
   color: "#B91C1C",
 };
 
-const processorBtn = {
-  ...ghostBtn,
-  width: "100%",
-  textAlign: "left" as const,
-  background: "#F8FAFC",
-};
-
-const processorCardStyle = {
+const processorRowStyle = {
   display: "flex",
   flexDirection: "column" as const,
-  gap: 6,
+  gap: 10,
+  padding: 10,
+  border: "1px solid #CBD5E1",
+  borderRadius: 6,
+  background: "white",
 };
 
-const inlineProcessorEditorStyle = {
-  padding: 8,
-  border: "1px solid #E2E8F0",
-  borderRadius: 4,
-  background: "white",
+const processorTypeChipStyle = {
+  fontSize: 11,
+  padding: "2px 6px",
+  borderRadius: 999,
+  background: "#E2E8F0",
+  color: "#334155",
+  textTransform: "lowercase" as const,
+};
+
+const processorOrderStyle = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#475569",
+  minWidth: 18,
+};
+
+const summaryTextStyle = {
+  margin: 0,
+  fontSize: 12,
+  color: "#475569",
+  lineHeight: 1.45,
+};
+
+const processorHelperStyle = {
+  margin: 0,
+  fontSize: 12,
+  color: "#64748B",
+};
+
+const emptyProcessorStateStyle = {
+  padding: 10,
+  border: "1px dashed #CBD5E1",
+  borderRadius: 6,
+  background: "#F8FAFC",
 };
 
 function AnchorSelect({

@@ -377,6 +377,59 @@ describe("WorkflowEditor JSON integration", () => {
     expect(harness.getLastEditor()).toBe(initialEditor);
   });
 
+  it("does not show an empty inspector on the JSON surface", () => {
+    const harness = createMonacoHarness();
+    const document = fixtureDoc();
+    currentDoc = document;
+
+    render(
+      <WorkflowEditor
+        document={document}
+        enableJsonEditor
+        jsonEditorPlacement="tab"
+        jsonEditor={{ monaco: harness.runtime, debounceMs: 0 }}
+        localStorageKey={null}
+      />,
+    );
+
+    expect(screen.queryByTestId("inspector")).toBeNull();
+
+    fireEvent.click(
+      within(screen.getByTestId("workflow-editor-surface-tabs")).getByRole("button", {
+        name: "JSON",
+      }),
+    );
+
+    expect(screen.queryByTestId("inspector")).toBeNull();
+  });
+
+  it("hides the contextual inspector when switching to the JSON surface", () => {
+    const harness = createMonacoHarness();
+    const document = fixtureDoc();
+    currentDoc = document;
+
+    render(
+      <WorkflowEditor
+        document={document}
+        enableJsonEditor
+        jsonEditorPlacement="tab"
+        jsonEditor={{ monaco: harness.runtime, debounceMs: 0 }}
+        localStorageKey={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("select-transition"));
+    expect(screen.getByTestId("inspector-transition-name")).toBeTruthy();
+
+    fireEvent.click(
+      within(screen.getByTestId("workflow-editor-surface-tabs")).getByRole("button", {
+        name: "JSON",
+      }),
+    );
+
+    expect(screen.queryByTestId("inspector")).toBeNull();
+  });
+
   it("reveals the matching JSON range when a graph element is selected", async () => {
     const harness = createMonacoHarness();
     const document = fixtureDoc();

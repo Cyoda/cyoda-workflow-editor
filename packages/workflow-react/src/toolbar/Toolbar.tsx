@@ -1,5 +1,9 @@
+import type { ValidationIssue } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
 import type { DerivedState } from "../state/derive.js";
+import { severityTone } from "../style/tokens.js";
+
+export type IssueSeverity = ValidationIssue["severity"];
 
 export interface ToolbarProps {
   derived: DerivedState;
@@ -7,6 +11,8 @@ export interface ToolbarProps {
   canRedo: boolean;
   readOnly: boolean;
   saveDisabled?: boolean;
+  /** Severity whose issues drawer is currently open, if any. */
+  openIssueSeverity?: IssueSeverity | null;
   onUndo: () => void;
   onRedo: () => void;
   onSave?: () => void;
@@ -14,6 +20,7 @@ export interface ToolbarProps {
   onAddComment?: () => void;
   onResetLayout?: () => void;
   onAutoLayout?: () => void;
+  onIssueBadgeClick?: (severity: IssueSeverity) => void;
 }
 
 export function Toolbar({
@@ -22,6 +29,7 @@ export function Toolbar({
   canRedo,
   readOnly,
   saveDisabled = false,
+  openIssueSeverity = null,
   onUndo,
   onRedo,
   onSave,
@@ -29,6 +37,7 @@ export function Toolbar({
   onAddComment,
   onResetLayout,
   onAutoLayout,
+  onIssueBadgeClick,
 }: ToolbarProps) {
   const messages = useMessages();
   return (
@@ -69,7 +78,7 @@ export function Toolbar({
           data-testid="toolbar-add-state"
           title="Add State (A)"
         >
-          + State
+          {messages.toolbar.addState}
         </button>
       )}
       {!readOnly && onAddComment && (
@@ -80,7 +89,7 @@ export function Toolbar({
           data-testid="toolbar-add-comment"
           title="Add canvas comment"
         >
-          + Note
+          {messages.toolbar.addNote}
         </button>
       )}
       {!readOnly && onAutoLayout && (
@@ -91,7 +100,7 @@ export function Toolbar({
           data-testid="toolbar-auto-layout"
           title="Re-run automatic layout (L)"
         >
-          Auto Layout
+          {messages.toolbar.autoLayout}
         </button>
       )}
       {!readOnly && onResetLayout && (
@@ -102,34 +111,39 @@ export function Toolbar({
           data-testid="toolbar-reset-layout"
           title="Reset all manual positions (Shift+L)"
         >
-          Reset Layout
+          {messages.toolbar.resetLayout}
         </button>
       )}
       <div style={{ flex: 1 }} />
-      <ValidationPill
-        count={derived.errorCount}
-        label={messages.toolbar.errors}
-        background="#FEF2F2"
-        borderColor="#FCA5A5"
-        color="#B91C1C"
-        testId="toolbar-errors"
-      />
-      <ValidationPill
-        count={derived.warningCount}
-        label={messages.toolbar.warnings}
-        background="#FFFBEB"
-        borderColor="#FCD34D"
-        color="#B45309"
-        testId="toolbar-warnings"
-      />
-      <ValidationPill
-        count={derived.infoCount}
-        label={messages.toolbar.infos}
-        background="#EFF6FF"
-        borderColor="#93C5FD"
-        color="#1D4ED8"
-        testId="toolbar-infos"
-      />
+      <span role="status" aria-live="polite" style={{ display: "inline-flex", gap: 6 }}>
+        <ValidationPill
+          severity="error"
+          count={derived.errorCount}
+          label={messages.toolbar.errors}
+          openLabel={messages.issues.openErrors}
+          isOpen={openIssueSeverity === "error"}
+          onClick={onIssueBadgeClick}
+          testId="toolbar-errors"
+        />
+        <ValidationPill
+          severity="warning"
+          count={derived.warningCount}
+          label={messages.toolbar.warnings}
+          openLabel={messages.issues.openWarnings}
+          isOpen={openIssueSeverity === "warning"}
+          onClick={onIssueBadgeClick}
+          testId="toolbar-warnings"
+        />
+        <ValidationPill
+          severity="info"
+          count={derived.infoCount}
+          label={messages.toolbar.infos}
+          openLabel={messages.issues.openInfos}
+          isOpen={openIssueSeverity === "info"}
+          onClick={onIssueBadgeClick}
+          testId="toolbar-infos"
+        />
+      </span>
       {onSave && (
         <button
           type="button"
@@ -146,38 +160,49 @@ export function Toolbar({
 }
 
 function ValidationPill({
+  severity,
   count,
   label,
-  background,
-  borderColor,
-  color,
+  openLabel,
+  isOpen,
+  onClick,
   testId,
 }: {
+  severity: IssueSeverity;
   count: number;
   label: string;
-  background: string;
-  borderColor: string;
-  color: string;
+  openLabel: string;
+  isOpen: boolean;
+  onClick?: (severity: IssueSeverity) => void;
   testId: string;
 }) {
+  const tone = severityTone(severity);
+  const interactive = count > 0 && !!onClick;
   return (
-    <span
-      role="status"
-      aria-live="polite"
-      aria-label={`${count} ${label}`}
+    <button
+      type="button"
+      onClick={interactive ? () => onClick!(severity) : undefined}
+      disabled={!interactive}
+      aria-haspopup={interactive ? "dialog" : undefined}
+      aria-expanded={interactive ? isOpen : undefined}
+      aria-label={`${count} ${label}${interactive ? ` — ${openLabel}` : ""}`}
+      data-testid={testId}
       style={{
         padding: "3px 8px",
-        background,
-        border: `1px solid ${borderColor}`,
-        color,
+        background: tone.bg,
+        border: `1px solid ${tone.border}`,
+        color: tone.fg,
         borderRadius: 999,
         fontSize: 12,
         fontWeight: 600,
+        cursor: interactive ? "pointer" : "default",
+        opacity: interactive ? 1 : 0.7,
+        outline: isOpen ? `2px solid ${tone.fg}` : "none",
+        outlineOffset: 1,
       }}
-      data-testid={testId}
     >
       {count} {label}
-    </span>
+    </button>
   );
 }
 

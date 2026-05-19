@@ -31,6 +31,7 @@ vi.mock("reactflow", () => {
     ConnectionMode: { Loose: "loose" },
     Position: { Top: "top", Right: "right", Bottom: "bottom", Left: "left" },
     useReactFlow: () => ({ fitView, setViewport }),
+    useUpdateNodeInternals: () => vi.fn(),
   };
 });
 
@@ -79,7 +80,7 @@ describe("WorkflowEditor viewport behavior", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
 
     await waitFor(() => {
-      expect(fitView).toHaveBeenCalledWith({ padding: 0.12, maxZoom: 1 });
+      expect(fitView).toHaveBeenCalledWith({ padding: 0.2, maxZoom: 1 });
     });
     expect(setViewport).not.toHaveBeenCalled();
   });

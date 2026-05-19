@@ -8,6 +8,24 @@ export const defaultMessages = {
     infos: "infos",
     save: "Save",
     addWorkflow: "Add workflow",
+    autoLayout: "Auto-arrange",
+    resetLayout: "Reset positions",
+    addState: "+ State",
+    addNote: "+ Note",
+  },
+  issues: {
+    title: "Issues",
+    none: "No issues to show.",
+    errors: "Errors",
+    warnings: "Warnings",
+    infos: "Information",
+    jumpTo: "Jump to",
+    relatedState: "State",
+    relatedTransition: "Transition",
+    close: "Close issues panel",
+    openErrors: "Open errors panel",
+    openWarnings: "Open warnings panel",
+    openInfos: "Open information panel",
   },
   inspector: {
     empty: "Select a node or edge to edit its properties.",
@@ -29,6 +47,8 @@ export const defaultMessages = {
     removeProcessor: "Remove",
     moveUp: "Move up",
     moveDown: "Move down",
+    transitionOrderHelp:
+      "Order controls how Cyoda evaluates outgoing transitions.",
     issues: "Issues",
     sourceAnchor: "Source anchor",
     targetAnchor: "Target anchor",
@@ -124,7 +144,11 @@ export const defaultMessages = {
     },
     invalidJson: "Invalid JSON",
     valueIgnored: "Value is ignored; null will be sent on save.",
-    legacySuffix: "(legacy — not implemented)",
+    legacySuffix: "Deprecated operator",
+    legacyOperatorBanner:
+      "This condition uses a deprecated operator. Replace it with a supported AND/OR shape.",
+    legacyNotBanner:
+      "This rule uses a deprecated NOT shape. Replace it with supported AND/OR conditions.",
     likeHelp:
       "% matches any sequence, _ matches any single character. No escape mechanism.",
     matchesPatternHelpAlways:
@@ -150,16 +174,18 @@ export const defaultMessages = {
       addGroup: "+ Add group",
       edit: "Edit",
       editing: "Editing",
+      complete: "Complete condition",
       duplicate: "Duplicate",
       moveUp: "Move up",
       moveDown: "Move down",
       remove: "Remove",
       valid: "Valid",
       invalid: "Needs fix",
+      empty: "No conditions yet. Add a condition or nested group.",
       condition: "Condition",
       depthWarning:
         "Deeply-nested criteria are hard to read. Consider flattening or extracting parts.",
-      legacyNotSuffix: "(legacy — not implemented)",
+      legacyNotSuffix: "Deprecated NOT",
     },
     function: {
       name: "Function name",

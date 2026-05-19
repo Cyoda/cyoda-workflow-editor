@@ -43,12 +43,14 @@ export function AddStateModal({ existingNames, onCreate, onCancel }: AddStateMod
         Add State
       </h2>
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ fontSize: 12, color: "#475569" }}>State name</label>
+        <label htmlFor="add-state-name-input" style={{ fontSize: 12, color: "#475569" }}>
+          State name
+        </label>
         <input
           ref={inputRef}
+          id="add-state-name-input"
           type="text"
           value={name}
-          aria-label="State name"
           aria-invalid={error !== null}
           aria-describedby={error ? "add-state-error" : undefined}
           onChange={(e) => {

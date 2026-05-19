@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import {
   parseImportPayload,
   type Criterion,
@@ -130,9 +130,8 @@ describe("GroupCriterionFields", () => {
       operator: "NOT",
       conditions: [SIMPLE_A],
     });
-    expect(getByTestId("criterion-group-legacy-operator").textContent).toContain("NOT");
     expect(getByTestId("criterion-group-legacy-operator").textContent).toContain(
-      defaultMessages.criterion.group.legacyNotSuffix,
+      defaultMessages.criterion.legacyNotBanner,
     );
 
     fireEvent.click(getByTestId("criterion-group-or"));
@@ -161,17 +160,26 @@ describe("GroupCriterionFields", () => {
     expect(next?.conditions).toEqual([SIMPLE_A, SIMPLE_B]);
   });
 
-  it("Add condition appends a default simple", () => {
+  it("Add condition appends, expands, and focuses a default simple", () => {
     const { getByTestId, getAllByTestId, onDispatch } = renderGroup({
       type: "group",
       operator: "AND",
       conditions: [SIMPLE_A],
     });
     fireEvent.click(getByTestId("criterion-group-add-condition"));
-    fireEvent.click(getByTestId("criterion-add-simple"));
+    expect(getByTestId("criterion-group-editor-1")).toBeTruthy();
+    expect(getByTestId("criterion-group-edit-1").textContent).toBe("Complete condition");
+    expect(getByTestId("criterion-rule-done-criterion.conditions.1").textContent).toBe(
+      "Done",
+    );
+    expect(document.activeElement).toBe(getAllByTestId("criterion-simple-path").at(-1));
+    expect(getByTestId("criterion-group-row-error-1").textContent).toContain("Path is required");
     expect(onDispatch).not.toHaveBeenCalled();
-    fireEvent.change(getAllByTestId("criterion-simple-path")[0]!, {
+    fireEvent.change(getAllByTestId("criterion-simple-path").at(-1)!, {
       target: { value: "$.new" },
+    });
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "10" },
     });
     applyModal(getByTestId);
     expect(onDispatch).toHaveBeenCalledTimes(1);
@@ -181,6 +189,7 @@ describe("GroupCriterionFields", () => {
       type: "simple",
       jsonPath: "$.new",
       operation: "EQUALS",
+      value: 10,
     });
   });
 
@@ -191,9 +200,133 @@ describe("GroupCriterionFields", () => {
       conditions: [SIMPLE_A],
     });
     fireEvent.click(getByTestId("criterion-group-add-condition"));
-    fireEvent.click(getByTestId("criterion-add-simple"));
     fireEvent.click(getByTestId("criterion-modal-cancel"));
     expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("clicking an invalid row opens it for editing", () => {
+    const { getByTestId, queryByTestId } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [SIMPLE_A],
+    });
+    fireEvent.click(getByTestId("criterion-group-add-condition"));
+    fireEvent.click(getByTestId("criterion-group-edit-0"));
+    expect(queryByTestId("criterion-group-editor-1")).toBeNull();
+
+    fireEvent.click(getByTestId("criterion-group-row-1"));
+
+    expect(getByTestId("criterion-group-editor-1")).toBeTruthy();
+    expect(getByTestId("criterion-simple-path-error").textContent).toBe("Path is required.");
+  });
+
+  it("Done collapses the expanded editor while keeping draft summary changes", () => {
+    const { getByTestId, queryByTestId } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [SIMPLE_A, SIMPLE_B],
+    });
+
+    fireEvent.click(getByTestId("criterion-group-edit-1"));
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "22" },
+    });
+    fireEvent.click(getByTestId("criterion-rule-done-criterion.conditions.1"));
+
+    expect(queryByTestId("criterion-group-editor-1")).toBeNull();
+    expect(getByTestId("criterion-group-summary-1").textContent).toContain("$.b is 22");
+    expect(getByTestId("criterion-editor-modal")).toBeTruthy();
+  });
+
+  it("keeps a top-level condition expanded when its operator changes", () => {
+    const { getByTestId, onDispatch } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [SIMPLE_A, SIMPLE_B],
+    });
+
+    fireEvent.click(getByTestId("criterion-group-edit-1"));
+    fireEvent.change(getByTestId("criterion-simple-op"), {
+      target: { value: "GREATER_THAN" },
+    });
+
+    expect(getByTestId("criterion-group-editor-1")).toBeTruthy();
+    expect(getByTestId("criterion-simple-path")).toBeTruthy();
+    expect(getByTestId("criterion-simple-value")).toBeTruthy();
+    expect(getByTestId("criterion-editor-modal")).toBeTruthy();
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a newly added nested condition expanded when its operator changes", () => {
+    const { getByTestId, getAllByTestId, onDispatch } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [SIMPLE_A],
+    });
+
+    fireEvent.click(getByTestId("criterion-group-add-group"));
+    const nestedGroup = getByTestId("criterion-group-nested-criterion.conditions.1");
+    fireEvent.click(within(nestedGroup).getByTestId("criterion-group-add-condition"));
+    expect(getByTestId("criterion-group-editor-0")).toBeTruthy();
+    fireEvent.change(getAllByTestId("criterion-simple-path").at(-1)!, {
+      target: { value: "$.amount" },
+    });
+    fireEvent.change(getAllByTestId("criterion-simple-op").at(-1)!, {
+      target: { value: "GREATER_THAN" },
+    });
+
+    expect(getByTestId("criterion-group-editor-0")).toBeTruthy();
+    expect(getAllByTestId("criterion-simple-path").at(-1)).toBeTruthy();
+    expect(getAllByTestId("criterion-simple-value").at(-1)).toBeTruthy();
+    expect(getByTestId("criterion-editor-modal")).toBeTruthy();
+    expect(onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps the editor expanded while operator value shapes change", () => {
+    const { getByTestId, queryByTestId } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [SIMPLE_A],
+    });
+
+    fireEvent.click(getByTestId("criterion-group-edit-0"));
+    fireEvent.change(getByTestId("criterion-simple-op"), {
+      target: { value: "BETWEEN" },
+    });
+    expect(getByTestId("criterion-group-editor-0")).toBeTruthy();
+    expect(getByTestId("criterion-simple-low")).toBeTruthy();
+    expect(getByTestId("criterion-simple-high")).toBeTruthy();
+
+    fireEvent.change(getByTestId("criterion-simple-op"), {
+      target: { value: "IS_NULL" },
+    });
+    expect(getByTestId("criterion-group-editor-0")).toBeTruthy();
+    expect(queryByTestId("criterion-simple-value")).toBeNull();
+    expect(queryByTestId("criterion-simple-low")).toBeNull();
+    expect(queryByTestId("criterion-simple-high")).toBeNull();
+
+    fireEvent.change(getByTestId("criterion-simple-op"), {
+      target: { value: "EQUALS" },
+    });
+    expect(getByTestId("criterion-group-editor-0")).toBeTruthy();
+    expect(getByTestId("criterion-simple-value")).toBeTruthy();
+  });
+
+  it("renders AND connector chips between sibling rows and updates to OR", () => {
+    const { getByTestId, queryAllByTestId } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [SIMPLE_A, SIMPLE_B, SIMPLE_C],
+    });
+
+    expect(queryAllByTestId(/criterion-group-connector-/)).toHaveLength(2);
+    expect(getByTestId("criterion-group-connector-0").textContent).toBe("AND");
+    expect(getByTestId("criterion-group-connector-1").textContent).toBe("AND");
+
+    fireEvent.click(getByTestId("criterion-group-or"));
+
+    expect(getByTestId("criterion-group-connector-0").textContent).toBe("OR");
+    expect(getByTestId("criterion-group-connector-1").textContent).toBe("OR");
   });
 
   it("only the selected condition expands and the readable summary updates while editing", () => {
@@ -229,6 +362,10 @@ describe("GroupCriterionFields", () => {
     fireEvent.click(getByTestId("criterion-group-add-group"));
     expect(onDispatch).not.toHaveBeenCalled();
     expect(getByTestId("criterion-group-editor-1")).toBeTruthy();
+    expect(getByTestId("criterion-group-nested-criterion.conditions.1")).toBeTruthy();
+    expect(getByTestId("criterion-group-empty-criterion.conditions.1").textContent).toContain(
+      "No conditions yet. Add a condition or nested group.",
+    );
     applyModal(getByTestId);
     const next = lastSetCriterion(onDispatch);
     expect(next?.conditions[1]).toEqual({
@@ -338,9 +475,11 @@ describe("Wrap-in-AND-group action", () => {
 
     fireEvent.click(getByTestId("criterion-wrap-and"));
     expect(onDispatch).not.toHaveBeenCalled();
-    fireEvent.click(getByTestId("criterion-group-edit-1"));
     fireEvent.change(getAllByTestId("criterion-simple-path").at(-1)!, {
-      target: { value: "$.settledate" },
+      target: { value: "$.settleStatus" },
+    });
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "ok" },
     });
     applyModal(getByTestId);
 
@@ -350,7 +489,7 @@ describe("Wrap-in-AND-group action", () => {
       operator: "AND",
       conditions: [
         original,
-        { type: "simple", jsonPath: "$.settledate", operation: "EQUALS" },
+        { type: "simple", jsonPath: "$.settleStatus", operation: "EQUALS", value: "ok" },
       ],
     });
   });
@@ -371,9 +510,11 @@ describe("Wrap-in-AND-group action", () => {
     };
     const { getByTestId, getAllByTestId, onDispatch } = renderEditor(fn);
     fireEvent.click(getByTestId("criterion-wrap-and"));
-    fireEvent.click(getByTestId("criterion-group-edit-1"));
     fireEvent.change(getAllByTestId("criterion-simple-path").at(-1)!, {
       target: { value: "$.new" },
+    });
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "ok" },
     });
     applyModal(getByTestId);
     const next = lastSetCriterion(onDispatch);
@@ -389,9 +530,11 @@ describe("Wrap-in-AND-group action", () => {
     };
     const { getByTestId, getAllByTestId, onDispatch } = renderEditor(original);
     fireEvent.click(getByTestId("criterion-wrap-and"));
-    fireEvent.click(getByTestId("criterion-group-edit-1"));
     fireEvent.change(getAllByTestId("criterion-simple-path").at(-1)!, {
       target: { value: "$.new" },
+    });
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "ok" },
     });
     applyModal(getByTestId);
     const next = lastSetCriterion(onDispatch);

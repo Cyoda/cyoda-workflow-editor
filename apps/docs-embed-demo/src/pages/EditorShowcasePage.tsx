@@ -62,7 +62,7 @@ export function EditorShowcasePage() {
       <PageIntro
         eyebrow="Editor showcase"
         title="WorkflowEditor — full editing surface"
-        description="Exercise every editing capability: add/rename/delete states (toolbar or A key), drag-connect transitions, edit criteria (simple/group/function/lifecycle/array), edit externalized and scheduled processors, drag states to persist layout, add canvas comments, and verify undo/redo. The exported JSON panel at the bottom proves that layout positions and comments are never written to Cyoda workflow JSON."
+        description="Exercise every editing capability: add/rename/delete states (toolbar or A key), drag-connect transitions, edit criteria (simple/group/function/lifecycle/array), edit OpenAPI-backed externalized and scheduled processors in modal drafts, drag states to persist layout, add canvas comments, and verify undo/redo. The exported JSON panel at the bottom proves that layout positions and comments are never written to Cyoda workflow JSON."
       />
 
       <FixtureSelector fixtures={fixtures} selectedSlug={selectedSlug} onSelect={handleFixtureChange} />
@@ -148,6 +148,7 @@ export function EditorShowcasePage() {
             jsonEditor={{ monaco, modelUri: `cyoda://editor-showcase/${selectedFixture.slug}.json` }}
             onChange={setCurrentDocument}
             onSave={() => {}}
+            developerMode
           />
         </div>
       </section>

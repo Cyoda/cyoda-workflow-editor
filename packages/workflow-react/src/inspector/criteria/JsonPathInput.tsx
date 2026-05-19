@@ -14,6 +14,7 @@ export interface JsonPathInputProps {
   onChange: (next: string) => void;
   disabled?: boolean;
   hasError?: boolean;
+  autoFocus?: boolean;
   inputStyle?: CSSProperties;
   testIdPrefix: string;
 }
@@ -23,6 +24,7 @@ export function JsonPathInput({
   onChange,
   disabled,
   hasError,
+  autoFocus,
   inputStyle,
   testIdPrefix,
 }: JsonPathInputProps) {
@@ -42,6 +44,11 @@ export function JsonPathInput({
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus && !disabled) inputRef.current?.focus();
+  }, [autoFocus, disabled]);
 
   const filtered = useMemo(() => {
     if (!enabled || status !== "ready") return hints;
@@ -83,6 +90,7 @@ export function JsonPathInput({
   return (
     <div ref={wrapperRef} style={wrapperStyle}>
       <input
+        ref={inputRef}
         type="text"
         value={value}
         disabled={disabled}

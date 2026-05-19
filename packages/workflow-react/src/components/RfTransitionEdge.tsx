@@ -119,6 +119,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           }}
           className="nodrag nopan"
           data-testid={`rf-edge-label-${edge.id}`}
+          title={edge.summary.full !== edge.summary.display ? edge.summary.full : undefined}
         >
           <div
             style={{

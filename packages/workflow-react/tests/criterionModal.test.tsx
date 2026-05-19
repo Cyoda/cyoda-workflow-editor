@@ -255,7 +255,9 @@ describe("criterion modal UX", () => {
     const view = renderTransitionForm({ manual: false });
     fireEvent.click(view.getByTestId("inspector-criterion-add"));
     expect(view.queryByTestId("criterion-edit-json")).toBeNull();
+    expect(view.getByTestId("criterion-advanced-toggle").textContent).toBe("▸ Advanced");
     fireEvent.click(view.getByTestId("criterion-advanced-toggle"));
+    expect(view.getByTestId("criterion-advanced-toggle").textContent).toBe("▾ Advanced");
     fireEvent.click(view.getByTestId("criterion-edit-json"));
     fireEvent.change(view.getByTestId("criterion-json-editor"), {
       target: { value: "{not-json" },
@@ -304,6 +306,19 @@ describe("criterion modal UX", () => {
     fireEvent.click(screen.getByTestId("criterion-modal-cancel"));
 
     expect((screen.getByTestId("inspector-transition-name") as HTMLInputElement).value).toBe("guarded");
+    const edge = latestCanvasProps?.graph.edges.find((candidate) => candidate.id === transitionId("wf", "start", "guarded"));
+    expect(edge && edge.kind === "transition" ? edge.summary.criterion?.path : undefined).toBe("$.status");
+  });
+
+  it("Cancel after adding an invalid condition leaves canonical criterion unchanged", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+
+    fireEvent.click(screen.getByTestId("select-guarded-transition"));
+    fireEvent.click(screen.getByTestId("inspector-criterion-edit"));
+    fireEvent.click(screen.getByTestId("criterion-wrap-and"));
+    fireEvent.click(screen.getByTestId("criterion-modal-cancel"));
+
     const edge = latestCanvasProps?.graph.edges.find((candidate) => candidate.id === transitionId("wf", "start", "guarded"));
     expect(edge && edge.kind === "transition" ? edge.summary.criterion?.path : undefined).toBe("$.status");
   });

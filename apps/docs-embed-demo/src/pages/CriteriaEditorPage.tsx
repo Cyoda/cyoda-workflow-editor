@@ -29,12 +29,35 @@ function withEntity(
   return applyPatch(doc, { op: "setEntity", entity });
 }
 
+function readCleanParam(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return new URLSearchParams(window.location.search).get("clean") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export function CriteriaEditorPage() {
   const monaco = useMemo(() => getMonacoRuntime(), []);
   const fixtures = fixturesFor("criteria");
   const defaultSlug = fixtures[0]?.slug ?? "trade-criteria-demo";
   const [selectedSlug, setSelectedSlug] = useState(defaultSlug);
   const [docVersion, setDocVersion] = useState(0);
+  const [cleanMode, setCleanMode] = useState<boolean>(() => readCleanParam());
+
+  const toggleCleanMode = () => {
+    setCleanMode((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        if (next) url.searchParams.set("clean", "1");
+        else url.searchParams.delete("clean");
+        window.history.replaceState(null, "", url.toString());
+      }
+      return next;
+    });
+  };
 
   const hintProvider = useMemo(
     () =>
@@ -91,8 +114,82 @@ export function CriteriaEditorPage() {
 
   const entitySampleText = JSON.stringify(tradeEntitySample, null, 2);
 
+  const viewToggle = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "8px 12px",
+        background: "#F1F5F9",
+        border: "1px solid #E2E8F0",
+        borderRadius: 6,
+        marginBottom: 12,
+        fontSize: 13,
+      }}
+      data-testid="criteria-view-toggle"
+    >
+      <span style={{ color: "#475569" }}>
+        {cleanMode ? "Clean editor view" : "Development demo view"}
+      </span>
+      <span style={{ flex: 1 }} />
+      <button
+        type="button"
+        onClick={toggleCleanMode}
+        data-testid="criteria-toggle-clean"
+        style={{
+          padding: "4px 10px",
+          background: "white",
+          border: "1px solid #CBD5E1",
+          borderRadius: 4,
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        {cleanMode ? "Show development demo" : "Show clean editor view"}
+      </button>
+    </div>
+  );
+
+  if (cleanMode) {
+    const wfName = Object.keys(currentDocument.session.workflows)[0]
+      ?? currentDocument.session.workflows[0]?.name
+      ?? "Workflow";
+    return (
+      <section className="page-section" data-testid="criteria-page" data-mode="clean">
+        {viewToggle}
+        <div
+          style={{
+            padding: "8px 12px",
+            fontSize: 13,
+            color: "#0F172A",
+            borderBottom: "1px solid #E2E8F0",
+          }}
+          data-testid="criteria-clean-title"
+        >
+          <strong>{currentDocument.session.workflows[0]?.name ?? wfName}</strong>
+          <span style={{ color: "#64748B", marginLeft: 8 }}>
+            · {ENTITY.entityName} v{ENTITY.modelVersion}
+          </span>
+        </div>
+        <div className="editor-shell" data-testid="workflow-editor-shell">
+          <WorkflowEditor
+            key={`clean-${selectedFixture.slug}-${docVersion}`}
+            document={currentDocument}
+            mode="editor"
+            hintProvider={hintProvider}
+            onChange={setCurrentDocument}
+            onSave={() => {}}
+            developerMode={false}
+          />
+        </div>
+      </section>
+    );
+  }
+
   return (
-    <section className="page-section" data-testid="criteria-page">
+    <section className="page-section" data-testid="criteria-page" data-mode="harness">
+      {viewToggle}
       <PageIntro
         eyebrow="Criteria editor"
         title="Criterion editor — full coverage demo"
@@ -203,6 +300,7 @@ export function CriteriaEditorPage() {
             hintProvider={hintProvider}
             onChange={setCurrentDocument}
             onSave={() => {}}
+            developerMode
           />
         </div>
       </section>

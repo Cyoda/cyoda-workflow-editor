@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import type {
   ArrayCriterion,
   Criterion,
   DomainPatch,
+  FieldHint,
   FunctionCriterion,
   GroupCriterion,
   HostRef,
@@ -23,6 +24,7 @@ import {
 import { useMessages } from "../i18n/context.js";
 import { ModalFrame } from "../modals/DeleteStateModal.js";
 import type { Selection } from "../state/types.js";
+import { useFieldHints } from "./criteria/FieldHintsContext.js";
 import { JsonPathInput } from "./criteria/JsonPathInput.js";
 
 const LIFECYCLE_FIELDS = ["state", "creationDate", "previousTransition"] as const;
@@ -323,7 +325,7 @@ function CriterionEditorModal({
                 style={advancedSummaryStyle}
                 data-testid="criterion-advanced-toggle"
               >
-                {messages.criterion.advanced}
+                {advancedOpen ? "▾" : "▸"} {messages.criterion.advanced}
               </button>
               {advancedOpen && (
                 <button
@@ -378,6 +380,12 @@ function CriterionEditorBody({
   const [activeKey, setActiveKey] = useState(() =>
     criterion.type === "group" ? "" : pathKey,
   );
+
+  useEffect(() => {
+    if (criterion.type !== "group" || activeKey !== pathKey) return;
+    const lastIndex = criterion.conditions.length - 1;
+    setActiveKey(lastIndex >= 0 ? `${pathKey}.conditions.${lastIndex}` : "");
+  }, [activeKey, criterion, pathKey]);
 
   return (
     <CriterionBuilder
@@ -435,6 +443,8 @@ function CriterionBuilder({
           onChange={onChange}
           reportLocalError={reportLocalError}
           allowWrap={depth === 0}
+          autoFocus={false}
+          onDone={undefined}
         />
       )}
     </div>
@@ -459,6 +469,8 @@ function RuleEditorPanel({
   onChange,
   reportLocalError,
   allowWrap,
+  autoFocus = false,
+  onDone,
 }: {
   criterion: Criterion;
   disabled: boolean;
@@ -467,6 +479,8 @@ function RuleEditorPanel({
   onChange: (criterion: Criterion) => void;
   reportLocalError: (key: string, hasError: boolean) => void;
   allowWrap: boolean;
+  autoFocus?: boolean;
+  onDone?: () => void;
 }) {
   const messages = useMessages();
   const [changingType, setChangingType] = useState(false);
@@ -512,7 +526,12 @@ function RuleEditorPanel({
       )}
 
       {criterion.type === "simple" && (
-        <SimpleCriterionFields criterion={criterion} disabled={disabled} onChange={onChange} />
+        <SimpleCriterionFields
+          criterion={criterion}
+          disabled={disabled}
+          onChange={onChange}
+          autoFocus={autoFocus}
+        />
       )}
       {criterion.type === "group" && (
         <RuleGroupBlock
@@ -553,6 +572,22 @@ function RuleEditorPanel({
           {messages.criterion.wrapInGroup}
         </button>
       )}
+
+      {onDone && (
+        <div style={ruleEditorActionsStyle}>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDone();
+            }}
+            style={ghostBtn}
+            data-testid={`criterion-rule-done-${pathKey}`}
+          >
+            Done
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -561,14 +596,19 @@ function SimpleCriterionFields({
   criterion,
   disabled,
   onChange,
+  autoFocus,
 }: {
   criterion: SimpleCriterion;
   disabled: boolean;
   onChange: (c: Criterion) => void;
+  autoFocus?: boolean;
 }) {
   const messages = useMessages();
+  const { hints } = useFieldHints();
   const m = messages.criterion;
   const shape = OPERATOR_VALUE_SHAPE[criterion.operation];
+  const valueEditorKind = getValueEditorKind(criterion.jsonPath, hints);
+  const isDateLikeValue = valueEditorKind !== "text";
   const pathError = jsonPathError(criterion.jsonPath, m);
   const range = Array.isArray(criterion.value) ? criterion.value : [];
   const low = formatScalar(range[0]);
@@ -607,6 +647,7 @@ function SimpleCriterionFields({
           onChange={(jsonPath) => onChange({ ...criterion, jsonPath })}
           disabled={disabled}
           hasError={!!pathError}
+          autoFocus={autoFocus}
           inputStyle={inputStyle}
           testIdPrefix="criterion-simple"
         />
@@ -646,15 +687,35 @@ function SimpleCriterionFields({
       {shape === "scalar" && (
         <label style={labelStyle}>
           <span>{m.value}</span>
-          <ValueEditor
-            value={criterion.value}
-            disabled={disabled}
-            testId="criterion-simple-value"
-            onChange={(raw) => {
-              const { value: _value, ...base } = criterion;
-              onChange(raw === undefined ? base : { ...criterion, value: raw as never });
-            }}
-          />
+          {isDateLikeValue ? (
+            <>
+              <input
+                type={valueEditorKind}
+                value={scalarValue}
+                disabled={disabled}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const { value: _value, ...base } = criterion;
+                  onChange(raw.trim() === "" ? base : { ...criterion, value: raw as never });
+                }}
+                style={inputStyle}
+                data-testid="criterion-simple-value"
+              />
+              <span style={hintStyle} data-testid="criterion-simple-date-format">
+                {dateFormatHint(valueEditorKind)}. Stored as a string value. Use the format expected by your entity data.
+              </span>
+            </>
+          ) : (
+            <ValueEditor
+              value={criterion.value}
+              disabled={disabled}
+              testId="criterion-simple-value"
+              onChange={(raw) => {
+                const { value: _value, ...base } = criterion;
+                onChange(raw === undefined ? base : { ...criterion, value: raw as never });
+              }}
+            />
+          )}
           {likeValueWarning && (
             <span style={warningStyle} data-testid="criterion-simple-like-warning">
               {likeValueWarning}
@@ -672,28 +733,43 @@ function SimpleCriterionFields({
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ display: "flex", gap: 8 }}>
             <label style={{ ...labelStyle, flex: 1 }}>
-              <span>{m.low}</span>
+              <span data-testid="criterion-simple-range-start-label">
+                {isDateLikeValue ? "From" : m.low}
+              </span>
               <input
-                type="text"
+                type={isDateLikeValue ? valueEditorKind : "text"}
                 value={low}
                 disabled={disabled}
-                onChange={(e) => onChange({ ...criterion, value: [parseScalar(e.target.value), range[1] ?? ""] as never })}
+                onChange={(e) => {
+                  const value = isDateLikeValue ? e.target.value : parseScalar(e.target.value);
+                  onChange({ ...criterion, value: [value, range[1] ?? ""] as never });
+                }}
                 style={betweenError ? { ...inputStyle, borderColor: "#FCA5A5" } : inputStyle}
                 data-testid="criterion-simple-low"
               />
             </label>
             <label style={{ ...labelStyle, flex: 1 }}>
-              <span>{m.high}</span>
+              <span data-testid="criterion-simple-range-end-label">
+                {isDateLikeValue ? "To" : m.high}
+              </span>
               <input
-                type="text"
+                type={isDateLikeValue ? valueEditorKind : "text"}
                 value={high}
                 disabled={disabled}
-                onChange={(e) => onChange({ ...criterion, value: [range[0] ?? "", parseScalar(e.target.value)] as never })}
+                onChange={(e) => {
+                  const value = isDateLikeValue ? e.target.value : parseScalar(e.target.value);
+                  onChange({ ...criterion, value: [range[0] ?? "", value] as never });
+                }}
                 style={betweenError ? { ...inputStyle, borderColor: "#FCA5A5" } : inputStyle}
                 data-testid="criterion-simple-high"
               />
             </label>
           </div>
+          {isDateLikeValue && (
+            <span style={hintStyle} data-testid="criterion-simple-date-format">
+              {dateFormatHint(valueEditorKind)}. Stored as a string value. Use the format expected by your entity data.
+            </span>
+          )}
           {betweenError && (
             <span role="alert" style={errorStyle} data-testid="criterion-simple-between-error">
               {betweenError}
@@ -720,6 +796,7 @@ function RuleGroupBlock({
   onActiveKeyChange,
   onChange,
   reportLocalError,
+  onDone,
 }: {
   criterion: GroupCriterion;
   disabled: boolean;
@@ -729,8 +806,10 @@ function RuleGroupBlock({
   onActiveKeyChange: (key: string) => void;
   onChange: (c: Criterion) => void;
   reportLocalError: (key: string, hasError: boolean) => void;
+  onDone?: () => void;
 }) {
   const messages = useMessages();
+  const m = messages.criterion;
   const g = messages.criterion.group;
   const isLegacyOperator = criterion.operator !== "AND" && criterion.operator !== "OR";
   const showDepthWarning = depth >= CRITERION_DEPTH_WARNING_THRESHOLD;
@@ -753,7 +832,14 @@ function RuleGroupBlock({
   };
 
   return (
-    <div style={{ ...groupBlockStyle, marginLeft: depth > 0 ? 16 : 0 }} data-testid="criterion-group-block">
+    <div
+      style={{
+        ...groupBlockStyle,
+        ...(depth > 0 ? nestedGroupBlockStyle : {}),
+        marginLeft: depth > 0 ? 16 : 0,
+      }}
+      data-testid={depth > 0 ? `criterion-group-nested-${pathKey}` : "criterion-group-block"}
+    >
       {showDepthWarning && (
         <div role="status" style={depthWarningStyle} data-testid="criterion-group-depth-warning">
           {g.depthWarning}
@@ -792,14 +878,32 @@ function RuleGroupBlock({
       </div>
       {isLegacyOperator && (
         <div role="status" style={warningStyle} data-testid="criterion-group-legacy-operator">
-          {`${criterion.operator} ${g.legacyNotSuffix}`}
+          {m.legacyNotBanner}
         </div>
       )}
 
       <div style={ruleListStyle}>
+        {criterion.conditions.length === 0 && (
+          <div
+            style={emptyGroupStyle}
+            data-testid={`criterion-group-empty-${pathKey}`}
+          >
+            {g.empty}
+          </div>
+        )}
         {criterion.conditions.map((cond, idx) => (
-          <RuleRow
-            key={idx}
+          <Fragment key={idx}>
+            {idx > 0 && (
+              <div style={connectorRowStyle} aria-hidden="true">
+                <span
+                  style={connectorChipStyle}
+                  data-testid={`criterion-group-connector-${idx - 1}`}
+                >
+                  {criterion.operator === "OR" ? "OR" : "AND"}
+                </span>
+              </div>
+            )}
+            <RuleRow
             criterion={cond}
             disabled={disabled}
             index={idx}
@@ -832,7 +936,11 @@ function RuleGroupBlock({
             }}
           >
             {isActivePath(activeKey, `${pathKey}.conditions.${idx}`) && (
-              <div style={nestedEditorStyle} data-testid={`criterion-group-editor-${idx}`}>
+              <div
+                style={nestedEditorStyle}
+                data-testid={`criterion-group-editor-${idx}`}
+                onClick={(event) => event.stopPropagation()}
+              >
                 {cond.type === "group" ? (
                   <RuleGroupBlock
                     criterion={cond}
@@ -843,6 +951,7 @@ function RuleGroupBlock({
                     onActiveKeyChange={onActiveKeyChange}
                     onChange={(next) => updateCondition(idx, next)}
                     reportLocalError={reportLocalError}
+                    onDone={() => onActiveKeyChange("")}
                   />
                 ) : (
                   <RuleEditorPanel
@@ -853,19 +962,37 @@ function RuleGroupBlock({
                     onChange={(next) => updateCondition(idx, next)}
                     reportLocalError={reportLocalError}
                     allowWrap={false}
+                    autoFocus={cond.type === "simple" && cond.jsonPath === ""}
+                    onDone={() => onActiveKeyChange("")}
                   />
                 )}
               </div>
             )}
-          </RuleRow>
+            </RuleRow>
+          </Fragment>
         ))}
       </div>
+      {onDone && (
+        <div style={ruleEditorActionsStyle}>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDone();
+            }}
+            style={ghostBtn}
+            data-testid={`criterion-rule-done-${pathKey}`}
+          >
+            Done
+          </button>
+        </div>
+      )}
       {!disabled && (
         <div style={groupActionsStyle}>
           <div>
             <button
               type="button"
-              onClick={() => setShowAddMenu((current) => !current)}
+              onClick={() => addCriterion(defaultCriterion("simple"))}
               style={ghostBtn}
               data-testid="criterion-group-add-condition"
             >
@@ -919,7 +1046,23 @@ function RuleRow({
   const g = useMessages().criterion.group;
   const blockingError = criterionBlockingError(criterion);
   return (
-    <div style={active ? activeRuleRowStyle : ruleRowStyle}>
+    <div
+      style={blockingError ? invalidRuleRowStyle : active ? activeRuleRowStyle : ruleRowStyle}
+      data-testid={`criterion-group-row-${index}`}
+      role="button"
+      tabIndex={disabled ? undefined : 0}
+      onClick={disabled ? undefined : onEdit}
+      onKeyDown={
+        disabled
+          ? undefined
+          : (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onEdit();
+              }
+            }
+      }
+    >
       <div style={ruleRowHeaderStyle}>
         <span style={conditionIndexStyle}>{index + 1}</span>
         <span style={criterionTypeBadgeStyle}>{criterion.type}</span>
@@ -932,14 +1075,14 @@ function RuleRow({
           <span style={okPillStyle}>{g.valid}</span>
         )}
         {!disabled && (
-          <div style={rowActionsStyle}>
+          <div style={rowActionsStyle} onClick={(event) => event.stopPropagation()}>
             <button type="button" onClick={onEdit} style={compactGhostBtn} data-testid={`criterion-group-edit-${index}`}>
-              {active ? g.editing : g.edit}
+              {blockingError ? g.complete : active ? g.editing : g.edit}
             </button>
-            <button type="button" onClick={onMoveUp} disabled={index === 0} style={compactGhostBtn} data-testid={`criterion-group-move-up-${index}`}>
+            <button type="button" onClick={onMoveUp} disabled={index === 0} style={index === 0 ? disabledCompactGhostBtn : compactGhostBtn} data-testid={`criterion-group-move-up-${index}`}>
               ↑
             </button>
-            <button type="button" onClick={onMoveDown} disabled={!canMoveDown} style={compactGhostBtn} data-testid={`criterion-group-move-down-${index}`}>
+            <button type="button" onClick={onMoveDown} disabled={!canMoveDown} style={!canMoveDown ? disabledCompactGhostBtn : compactGhostBtn} data-testid={`criterion-group-move-down-${index}`}>
               ↓
             </button>
             <details style={rowMenuStyle}>
@@ -958,6 +1101,11 @@ function RuleRow({
           </div>
         )}
       </div>
+      {blockingError && (
+        <div role="alert" style={errorStyle} data-testid={`criterion-group-row-error-${index}`}>
+          {blockingError}
+        </div>
+      )}
       {children}
     </div>
   );
@@ -1478,6 +1626,21 @@ function summarizeCriterionForInspector(criterion: Criterion): string {
 
 function summarizeCriterionReadable(criterion: Criterion): string {
   if (criterion.type === "simple") {
+    const missing: string[] = [];
+    if (!criterion.jsonPath) missing.push("path");
+    const shape = OPERATOR_VALUE_SHAPE[criterion.operation];
+    if (
+      shape === "scalar" &&
+      (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
+    ) {
+      missing.push("value");
+    }
+    if (missing.length > 0) {
+      if (criterion.jsonPath) {
+        return `${criterion.jsonPath} ${operatorLabel(criterion.operation)} [missing ${missing.join("/")}]`;
+      }
+      return `Incomplete simple condition: ${missing.join("/")} required`;
+    }
     const value = criterion.value !== undefined && OPERATOR_VALUE_SHAPE[criterion.operation] !== "none"
       ? ` ${formatScalar(criterion.value)}`
       : "";
@@ -1506,6 +1669,12 @@ function criterionBlockingError(criterion: Criterion): string | null {
     case "simple": {
       const pathError = jsonPathBlockingError(criterion.jsonPath);
       if (pathError) return pathError;
+      if (
+        OPERATOR_VALUE_SHAPE[criterion.operation] === "scalar" &&
+        (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
+      ) {
+        return "Value is required.";
+      }
       return rangeBlockingError(criterion.operation, criterion.value);
     }
     case "array":
@@ -1563,6 +1732,32 @@ function parseScalar(s: string): unknown {
   } catch {
     return s;
   }
+}
+
+type ValueEditorKind = "text" | "date" | "datetime-local";
+
+function getValueEditorKind(jsonPath: string, hints: FieldHint[]): ValueEditorKind {
+  const path = jsonPath.trim();
+  if (!path) return "text";
+  const hint = hints.find((h) => h.jsonPath === path);
+  const descriptor = `${hint?.type ?? ""} ${hint?.description ?? ""} ${path}`.toLowerCase();
+  const lastSegment = path.split(/[.[\]]+/).filter(Boolean).at(-1) ?? path;
+  const normalizedSegment = lastSegment.toLowerCase();
+  const isDateTime =
+    /\b(date.?time|datetime|timestamp|local_date_time|instant)\b/.test(descriptor) ||
+    normalizedSegment.includes("timestamp") ||
+    normalizedSegment.includes("datetime") ||
+    normalizedSegment.includes("time") ||
+    normalizedSegment.endsWith("at");
+  if (isDateTime) return "datetime-local";
+  const isDate =
+    /\b(date|local_date)\b/.test(descriptor) ||
+    normalizedSegment.includes("date");
+  return isDate ? "date" : "text";
+}
+
+function dateFormatHint(kind: ValueEditorKind): string {
+  return kind === "datetime-local" ? "YYYY-MM-DDTHH:mm" : "YYYY-MM-DD";
 }
 
 function renderOperatorOptions() {
@@ -1653,7 +1848,16 @@ const modalBodyStyle: React.CSSProperties = {
   borderRadius: 6,
   background: "#F8FAFC",
 };
-const modalFooterStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 8 };
+const modalFooterStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  position: "sticky",
+  bottom: 0,
+  paddingTop: 10,
+  borderTop: "1px solid #E2E8F0",
+  background: "white",
+};
 const advancedStyle: React.CSSProperties = { minWidth: 130 };
 const advancedSummaryStyle: React.CSSProperties = {
   padding: 0,
@@ -1674,6 +1878,7 @@ const primaryBtn: React.CSSProperties = { ...ghostBtn, background: "#0F172A", co
 const disabledPrimaryBtn: React.CSSProperties = { ...primaryBtn, opacity: 0.5, cursor: "not-allowed" };
 const dangerBtn: React.CSSProperties = { ...ghostBtn, background: "#FEF2F2", borderColor: "#FCA5A5", color: "#B91C1C" };
 const compactGhostBtn: React.CSSProperties = { ...ghostBtn, padding: "4px 7px", fontSize: 11 };
+const disabledCompactGhostBtn: React.CSSProperties = { ...compactGhostBtn, opacity: 0.35, cursor: "not-allowed" };
 const compactDangerBtn: React.CSSProperties = { ...dangerBtn, padding: "4px 7px", fontSize: 11 };
 const errorStyle: React.CSSProperties = { color: "#B91C1C", fontSize: 11 };
 const warningStyle: React.CSSProperties = { color: "#92400E", fontSize: 11 };
@@ -1718,6 +1923,11 @@ const ruleEditorHeaderStyle: React.CSSProperties = {
   gap: 8,
   alignItems: "center",
 };
+const ruleEditorActionsStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "flex-end",
+  paddingTop: 2,
+};
 const groupBlockStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -1725,6 +1935,12 @@ const groupBlockStyle: React.CSSProperties = {
   padding: 10,
   borderRadius: 6,
   background: "white",
+};
+const nestedGroupBlockStyle: React.CSSProperties = {
+  borderLeft: "3px solid #CBD5E1",
+  borderRadius: 0,
+  background: "#F8FAFC",
+  paddingLeft: 12,
 };
 const groupHeaderStyle: React.CSSProperties = {
   display: "flex",
@@ -1761,6 +1977,21 @@ const ruleListStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 6,
 };
+const connectorRowStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "center",
+  pointerEvents: "none",
+  margin: "-2px 0",
+};
+const connectorChipStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 700,
+  padding: "2px 7px",
+  borderRadius: 999,
+  color: "#475569",
+  background: "#E2E8F0",
+  letterSpacing: "0.04em",
+};
 const ruleRowStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -1774,6 +2005,12 @@ const activeRuleRowStyle: React.CSSProperties = {
   ...ruleRowStyle,
   background: "#FFFFFF",
   border: "1px solid #94A3B8",
+};
+const invalidRuleRowStyle: React.CSSProperties = {
+  ...ruleRowStyle,
+  background: "#FFFBEB",
+  border: "1px solid #FCD34D",
+  cursor: "pointer",
 };
 const ruleRowHeaderStyle: React.CSSProperties = {
   display: "grid",
@@ -1836,6 +2073,14 @@ const groupActionsStyle: React.CSSProperties = {
   display: "flex",
   flexWrap: "wrap",
   gap: 8,
+};
+const emptyGroupStyle: React.CSSProperties = {
+  padding: "8px 10px",
+  borderRadius: 6,
+  border: "1px dashed #CBD5E1",
+  background: "#F8FAFC",
+  color: "#64748B",
+  fontSize: 12,
 };
 const conditionIndexStyle: React.CSSProperties = {
   display: "inline-flex",

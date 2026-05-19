@@ -15,14 +15,21 @@ import {
   type WorkflowUiMeta,
 } from "@cyoda/workflow-core";
 import type { LayoutOptions, PinnedNode } from "@cyoda/workflow-layout";
-import { I18nContext, mergeMessages, type PartialMessages } from "../i18n/context.js";
+import {
+  EditorConfigContext,
+  I18nContext,
+  mergeMessages,
+  type PartialMessages,
+} from "../i18n/context.js";
 import { useEditorStore } from "../state/store.js";
 import { deriveFromDocument } from "../state/derive.js";
 import type { EditorMode, Selection } from "../state/types.js";
 import { Canvas } from "./Canvas.js";
 import { resolveConnection, type PendingConnect } from "./resolveConnection.js";
 import { Inspector } from "../inspector/Inspector.js";
-import { Toolbar } from "../toolbar/Toolbar.js";
+import { resolveSelection } from "../inspector/resolve.js";
+import { Toolbar, type IssueSeverity } from "../toolbar/Toolbar.js";
+import { IssuesDrawer } from "../toolbar/IssuesDrawer.js";
 import { WorkflowTabs } from "../toolbar/WorkflowTabs.js";
 import { DeleteStateModal } from "../modals/DeleteStateModal.js";
 import { DragConnectModal } from "../modals/DragConnectModal.js";
@@ -83,6 +90,13 @@ export interface WorkflowEditorProps {
    * When omitted, jsonPath inputs render as plain free-text fields.
    */
   hintProvider?: EntityFieldHintProvider;
+  /**
+   * Show developer-oriented affordances (raw JSON tab in the inspector and
+   * other diagnostics). Defaults to `false` so SMEs/BAs see a clean view.
+   * Existing demo and admin surfaces that previously relied on the JSON tab
+   * should opt in explicitly with `developerMode={true}`.
+   */
+  developerMode?: boolean;
 }
 
 interface PendingDelete {
@@ -132,8 +146,10 @@ export function WorkflowEditor({
   jsonEditor = null,
   onJsonStatusChange,
   hintProvider,
+  developerMode = false,
 }: WorkflowEditorProps) {
   const mergedMessages = useMemo(() => mergeMessages(messages), [messages]);
+  const editorConfig = useMemo(() => ({ developerMode }), [developerMode]);
 
   // Merge localStorage layout into the initial document on first render only.
   const initialDocumentWithLayout = useMemo(() => {
@@ -164,6 +180,7 @@ export function WorkflowEditor({
   const [layoutKey, setLayoutKey] = useState(0);
   const [activeSurface, setActiveSurface] = useState<WorkflowEditorSurface>("graph");
   const [jsonStatus, setJsonStatus] = useState<JsonEditStatus>({ status: "idle" });
+  const [openIssueSeverity, setOpenIssueSeverity] = useState<IssueSeverity | null>(null);
   const selectionRef = useRef<Selection>(state.selection);
   const documentStateRef = useRef(state.document);
   const activeWorkflowRef = useRef(state.activeWorkflow);
@@ -252,6 +269,14 @@ export function WorkflowEditor({
     enableJsonEditor && (jsonEditorPlacement === "split" || activeSurface === "json");
   const graphVisible =
     !enableJsonEditor || jsonEditorPlacement === "split" || activeSurface === "graph";
+  const hasEditableSelection = useMemo(
+    () => resolveSelection(state.document, state.selection) !== null,
+    [state.document, state.selection],
+  );
+  const inspectorVisible =
+    chrome?.inspector !== false &&
+    hasEditableSelection &&
+    (!enableJsonEditor || jsonEditorPlacement !== "tab" || activeSurface === "graph");
   const saveBlockedByJson =
     jsonStatus.status === "invalid-json" || jsonStatus.status === "invalid-schema";
   const saveDisabled = readOnly || derived.errorCount > 0 || saveBlockedByJson;
@@ -474,6 +499,10 @@ export function WorkflowEditor({
         setPendingAddState(true);
         return;
       }
+      if (e.key === "Escape" && state.selection) {
+        e.preventDefault();
+        handleSelectionChange(null);
+      }
     },
     [
       anyModalOpen,
@@ -486,6 +515,8 @@ export function WorkflowEditor({
       saveDisabled,
       handleAutoLayout,
       handleResetLayout,
+      handleSelectionChange,
+      state.selection,
     ],
   );
 
@@ -624,9 +655,35 @@ export function WorkflowEditor({
         onNodeDragStop={!readOnly ? handleNodeDragStop : undefined}
         layoutKey={layoutKey}
         readOnly={readOnly}
-        showMinimap={chrome?.minimap !== false}
+        showMinimap={chrome?.minimap !== false && !inspectorVisible}
         showControls={chrome?.controls !== false}
+        resizeKey={inspectorVisible ? 1 : 0}
       />
+      {graphVisible && !hasEditableSelection && (
+        <div
+          data-testid="workflow-canvas-selection-hint"
+          data-placement="top-right"
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            zIndex: 15,
+            maxWidth: 280,
+            padding: "8px 10px",
+            borderRadius: 6,
+            border: "1px solid #CBD5E1",
+            background: "rgba(255, 255, 255, 0.92)",
+            color: "#475569",
+            fontSize: 12,
+            lineHeight: 1.4,
+            boxShadow: "0 2px 8px rgba(15,23,42,0.10)",
+            pointerEvents: "none",
+          }}
+        >
+          <div>Select a state or transition to edit it.</div>
+          <div style={{ color: "#64748B" }}>Drag states to arrange the workflow.</div>
+        </div>
+      )}
       {reconnectError && (
         <div
           role="alert"
@@ -699,6 +756,7 @@ export function WorkflowEditor({
 
   return (
     <I18nContext.Provider value={mergedMessages}>
+     <EditorConfigContext.Provider value={editorConfig}>
       <div
         style={{
           height: "100%",
@@ -714,20 +772,36 @@ export function WorkflowEditor({
         tabIndex={-1}
       >
         {chrome?.toolbar !== false && (
-          <Toolbar
-            derived={derived}
-            canUndo={state.undoStack.length > 0}
-            canRedo={state.redoStack.length > 0}
-            readOnly={readOnly}
-            saveDisabled={saveDisabled}
-            onUndo={actions.undo}
-            onRedo={actions.redo}
-            onSave={onSave ? () => onSave(state.document) : undefined}
-            onAddState={!readOnly ? () => setPendingAddState(true) : undefined}
-            onAddComment={!readOnly ? handleAddComment : undefined}
-            onResetLayout={!readOnly ? handleResetLayout : undefined}
-            onAutoLayout={!readOnly ? handleAutoLayout : undefined}
-          />
+          <div style={{ position: "relative" }}>
+            <Toolbar
+              derived={derived}
+              canUndo={state.undoStack.length > 0}
+              canRedo={state.redoStack.length > 0}
+              readOnly={readOnly}
+              saveDisabled={saveDisabled}
+              openIssueSeverity={openIssueSeverity}
+              onUndo={actions.undo}
+              onRedo={actions.redo}
+              onSave={onSave ? () => onSave(state.document) : undefined}
+              onAddState={!readOnly ? () => setPendingAddState(true) : undefined}
+              onAddComment={!readOnly ? handleAddComment : undefined}
+              onResetLayout={!readOnly ? handleResetLayout : undefined}
+              onAutoLayout={!readOnly ? handleAutoLayout : undefined}
+              onIssueBadgeClick={(severity) =>
+                setOpenIssueSeverity((prev) => (prev === severity ? null : severity))
+              }
+            />
+            <IssuesDrawer
+              open={openIssueSeverity !== null}
+              severity={openIssueSeverity ?? "error"}
+              issues={derived.issues}
+              document={state.document}
+              onClose={() => setOpenIssueSeverity(null)}
+              onJumpTo={(selection) => {
+                handleSelectionChange(selection);
+              }}
+            />
+          </div>
         )}
         {chrome?.tabs !== false && showTabs && (
           <WorkflowTabs
@@ -817,7 +891,7 @@ export function WorkflowEditor({
               </div>
             )}
           </div>
-          {chrome?.inspector !== false && (
+          {inspectorVisible && (
             <Inspector
               document={state.document}
               selection={state.selection}
@@ -825,6 +899,7 @@ export function WorkflowEditor({
               readOnly={readOnly}
               onDispatch={dispatch}
               onSelectionChange={handleSelectionChange}
+              onClose={() => handleSelectionChange(null)}
               onRequestDeleteState={requestDeleteState}
               {...(hintProvider ? { hintProvider } : {})}
             />
@@ -860,6 +935,7 @@ export function WorkflowEditor({
           />
         )}
       </div>
+     </EditorConfigContext.Provider>
     </I18nContext.Provider>
   );
 }

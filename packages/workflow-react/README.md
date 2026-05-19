@@ -44,8 +44,14 @@ export function App() {
   for `simple`, `group` (recursive), `function`, `lifecycle`, and `array`
   types; raw JSON escape hatch; draft editing where Apply commits one patch
   and Cancel discards local changes.
-- **Processors**: `externalized` (all config fields) and `scheduled`
-  (delayMs, transition, timeoutMs); type switcher; reorder.
+- **Processors**: compact transition summary rows for the documented
+  `externalized` and `scheduled` processor types; modal-local draft editing
+  where Apply commits one patch and Cancel discards local changes;
+  externalized support for `SYNC`, `ASYNC_SAME_TX`, `ASYNC_NEW_TX`, and
+  `COMMIT_BEFORE_DISPATCH` plus `startNewTxOnDispatch`; scheduled duration
+  inputs for `delayMs` and `timeoutMs`; `calculationNodesTags` serialized as
+  a comma-separated string; free-form string `context`; no arbitrary custom
+  config keys.
 - **Manual layout**: drag states to persist positions; Reset Layout /
   Auto Layout toolbar buttons; `L` / `Shift+L` keyboard shortcuts.
 - **Comments**: add free-floating sticky notes via `+ Note` toolbar

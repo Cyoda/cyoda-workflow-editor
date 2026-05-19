@@ -73,7 +73,7 @@ function loadDocWithProcessor() {
 afterEach(() => cleanup());
 
 describe("TransitionForm anchor dropdowns", () => {
-  it("groups transition criteria and processes into clear sections", () => {
+  it("groups transition criteria and processors into clear sections", () => {
     const doc = loadDoc();
     const workflow = doc.session.workflows[0]!;
     const uuid = Object.keys(doc.meta.ids.transitions)[0]!;
@@ -99,10 +99,11 @@ describe("TransitionForm anchor dropdowns", () => {
     expect(getByTestId("inspector-transition-criteria-section")).toBeTruthy();
     expect(getByText("Criteria")).toBeTruthy();
     expect(getByTestId("inspector-transition-processes-section")).toBeTruthy();
-    expect(getByText("Processes (0)")).toBeTruthy();
+    expect(getByText("Processors")).toBeTruthy();
+    expect(getByText("No processors run on this transition.")).toBeTruthy();
   });
 
-  it("edits a processor inline inside the transition processes section", () => {
+  it("opens the processor modal from the transition processor summary row", () => {
     const doc = loadDocWithProcessor();
     const workflow = doc.session.workflows[0]!;
     const transitionUuid = Object.keys(doc.meta.ids.transitions)[0]!;
@@ -126,14 +127,12 @@ describe("TransitionForm anchor dropdowns", () => {
       </I18nContext.Provider>,
     );
 
-    expect(queryByTestId("inspector-processor-name")).toBeNull();
+    expect(queryByTestId("processor-editor-modal")).toBeNull();
 
-    fireEvent.click(getByTestId("inspector-processor-0"));
+    fireEvent.click(getByTestId("processor-edit-0"));
 
-    expect(getByTestId("inspector-inline-processor-0")).toBeTruthy();
-    expect((getByTestId("inspector-processor-name") as HTMLInputElement).value).toBe(
-      "notify",
-    );
+    expect(getByTestId("processor-editor-modal")).toBeTruthy();
+    expect((getByTestId("processor-name-input") as HTMLInputElement).value).toBe("notify");
   });
 
   it("dispatches setEdgeAnchors with the chosen side", () => {

@@ -37,10 +37,7 @@
     "terminationDate": "2031-04-30",
     "firstPaymentDate": "2026-07-31",
     "finalPaymentDate": "2031-04-30",
-    "businessCenters": [
-      "USNY",
-      "GBLO"
-    ],
+    "businessCenters": ["USNY", "GBLO"],
     "businessDayConvention": "MODIFIED_FOLLOWING"
   },
   "parties": [
@@ -149,10 +146,7 @@
     "acceptedAt": "2026-04-28T15:24:29Z",
     "originalBilateralTradeId": "TRADE-IRS-2026-00018472",
     "novationEventId": "EVENT-CLRG-20260428-000392",
-    "resultingClearedTradeIds": [
-      "LCH-IRS-98277164-BANK",
-      "LCH-IRS-98277164-CLIENT"
-    ]
+    "resultingClearedTradeIds": ["LCH-IRS-98277164-BANK", "LCH-IRS-98277164-CLIENT"]
   },
   "settlement": {
     "settlementStatus": "PENDING_CASHFLOW_RELEASE",
@@ -186,10 +180,7 @@
       "currency": "USD",
       "payerPartyId": "BANK_EXEC_ENTITY",
       "receiverPartyId": "CORPORATE_COUNTERPARTY",
-      "cashflowIds": [
-        "CF-FIXED-20260731",
-        "CF-FLOAT-20260731"
-      ],
+      "cashflowIds": ["CF-FIXED-20260731", "CF-FLOAT-20260731"],
       "releaseStatus": "AWAITING_RATE_FINALISATION"
     }
   },
@@ -250,54 +241,6 @@
     },
     "exceptions": []
   },
-  "workflow": {
-    "stateMachine": "StructuredTradeSettlementWorkflow",
-    "currentState": "SETTLEMENT_PENDING",
-    "allowedTransitions": [
-      {
-        "event": "FINAL_RATE_FIXING_RECEIVED",
-        "targetState": "CASHFLOW_READY_FOR_APPROVAL"
-      },
-      {
-        "event": "SETTLEMENT_EXCEPTION_RAISED",
-        "targetState": "SETTLEMENT_EXCEPTION"
-      },
-      {
-        "event": "TRADE_CANCELLED",
-        "targetState": "CANCELLED"
-      }
-    ],
-    "completedTransitions": [
-      {
-        "event": "TRADE_CAPTURED",
-        "fromState": "NEW",
-        "toState": "VALIDATION_PENDING",
-        "timestamp": "2026-04-28T14:07:33Z",
-        "actor": "MurexAdapter"
-      },
-      {
-        "event": "ECONOMICS_VALIDATED",
-        "fromState": "VALIDATION_PENDING",
-        "toState": "CONFIRMATION_PENDING",
-        "timestamp": "2026-04-28T14:08:12Z",
-        "actor": "TradeValidationService"
-      },
-      {
-        "event": "CONFIRMATION_MATCHED",
-        "fromState": "CONFIRMATION_PENDING",
-        "toState": "CLEARING_PENDING",
-        "timestamp": "2026-04-28T15:18:44Z",
-        "actor": "MarkitWireAdapter"
-      },
-      {
-        "event": "CLEARING_ACCEPTED",
-        "fromState": "CLEARING_PENDING",
-        "toState": "SETTLEMENT_PENDING",
-        "timestamp": "2026-04-28T15:24:29Z",
-        "actor": "LchClearingAdapter"
-      }
-    ]
-  },
   "controls": {
     "validationResults": [
       {
@@ -331,13 +274,5 @@
       }
     }
   },
-  "exceptions": [],
-  "audit": {
-    "createdAt": "2026-04-28T14:07:33Z",
-    "createdBy": "MurexAdapter",
-    "lastUpdatedAt": "2026-04-30T09:42:18Z",
-    "lastUpdatedBy": "SettlementWorkflowService",
-    "immutableEventCount": 42,
-    "lastEventId": "EVENT-SETTLEMENT-20260430-001126"
-  }
+  "exceptions": []
 }

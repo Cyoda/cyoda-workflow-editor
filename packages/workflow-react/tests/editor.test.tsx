@@ -49,7 +49,7 @@ const MULTI = JSON.stringify({
 afterEach(() => cleanup());
 
 describe("WorkflowEditor", () => {
-  it("renders toolbar + canvas + inspector in editor mode", () => {
+  it("renders toolbar + canvas in editor mode", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.getByTestId("workflow-editor")).toBeTruthy();
     expect(screen.getByTestId("toolbar")).toBeTruthy();
@@ -104,9 +104,15 @@ describe("WorkflowEditor chrome suppression", () => {
     expect(screen.queryByTestId("workflow-tabs")).toBeNull();
   });
 
-  it("shows all chrome by default (no chrome prop)", () => {
+  it("shows default toolbar chrome and contextual inspector hint", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.getByTestId("toolbar")).toBeTruthy();
-    expect(screen.getByTestId("inspector")).toBeTruthy();
+    expect(screen.queryByTestId("inspector")).toBeNull();
+    const hint = screen.getByTestId("workflow-canvas-selection-hint");
+    expect(hint).toBeTruthy();
+    expect(hint.getAttribute("data-placement")).toBe("top-right");
+    expect(hint.style.pointerEvents).toBe("none");
+    expect(hint.style.top).toBe("16px");
+    expect(hint.style.bottom).toBe("");
   });
 });

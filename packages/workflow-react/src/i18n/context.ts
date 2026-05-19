@@ -21,3 +21,22 @@ export function mergeMessages(overrides?: PartialMessages): Messages {
   }
   return next as Messages;
 }
+
+/**
+ * Editor configuration that is non-i18n but should still be available through
+ * a single context to inner components — primarily the SME/developer split.
+ */
+export interface EditorConfig {
+  /**
+   * When true, surfaces developer-oriented affordances such as the inspector's
+   * raw JSON tab. Defaults to false so the editor reads as a business-user tool
+   * unless the host opts in.
+   */
+  developerMode: boolean;
+}
+
+export const EditorConfigContext = createContext<EditorConfig>({ developerMode: false });
+
+export function useEditorConfig(): EditorConfig {
+  return useContext(EditorConfigContext);
+}

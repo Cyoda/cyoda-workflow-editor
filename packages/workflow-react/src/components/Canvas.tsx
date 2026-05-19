@@ -8,6 +8,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useUpdateNodeInternals,
   type Viewport,
   type Connection,
   type Edge,
@@ -57,6 +58,11 @@ export interface CanvasProps {
   readOnly?: boolean;
   showMinimap?: boolean;
   showControls?: boolean;
+  /**
+   * Increment when the canvas container changes size without changing graph
+   * data, so React Flow can recompute handles and edge attachments.
+   */
+  resizeKey?: number;
 }
 
 function toRfNodes(
@@ -496,6 +502,7 @@ function CanvasInner({
   readOnly,
   showMinimap = true,
   showControls = true,
+  resizeKey = 0,
 }: CanvasProps) {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
@@ -505,6 +512,7 @@ function CanvasInner({
   // the dependent `edges` useMemo recomputes at most twice per drag gesture.
   const [draggingIds, setDraggingIds] = useState<ReadonlySet<string>>(new Set<string>());
   const rf = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
 
   // Extract primitive fields so the effect dep array is stable even when the
   // consumer passes a new object literal on every parent render.
@@ -570,8 +578,8 @@ function CanvasInner({
         ).length;
         const fitOptions =
           stateCount <= 6
-            ? { padding: 0.12, maxZoom: 1 }
-            : { padding: 0.12 };
+            ? { padding: 0.2, maxZoom: 1 }
+            : { padding: 0.18 };
         // fitView returns false if nodes are not yet initialized in the
         // ReactFlow store (nodesInitialized guard). Only mark the key as
         // handled when the fit actually ran, so a retry happens if needed.
@@ -652,6 +660,14 @@ function CanvasInner({
         : [],
     [graph, layout, displayPositions, activeWorkflow, selection, orientation],
   );
+
+  useEffect(() => {
+    if (!layout) return;
+    const rafId = requestAnimationFrame(() => {
+      for (const node of nodes) updateNodeInternals(node.id);
+    });
+    return () => cancelAnimationFrame(rafId);
+  }, [layout, nodes, resizeKey, updateNodeInternals]);
 
   const onNodeClick: NodeMouseHandler = (_, node) => {
     const data = node.data as RfStateNodeData;
