@@ -119,6 +119,23 @@ describe("processor OpenAPI contract", () => {
     });
   });
 
+  test("externalized processor without executionMode emits ASYNC_NEW_TX in serialized output", () => {
+    const doc = parseDocument(
+      basePayload([
+        {
+          type: "externalized",
+          name: "proc",
+          // no executionMode field
+          config: { calculationNodesTags: "probe" },
+        },
+      ]),
+    );
+
+    const serialized = JSON.parse(serializeImportPayload(doc));
+    const processor = serialized.workflows[0].states.start.transitions[0].processors[0];
+    expect(processor.executionMode).toBe("ASYNC_NEW_TX");
+  });
+
   test("unknown externalized config keys are not preserved", () => {
     const doc = parseDocument(
       basePayload([
