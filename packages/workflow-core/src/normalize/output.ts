@@ -128,9 +128,7 @@ function outputExternalizedProcessor(p: ExternalizedProcessor): Record<string, u
     type: "externalized",
     name: p.name,
   };
-  if (p.executionMode !== undefined) {
-    out["executionMode"] = p.executionMode;
-  }
+  out["executionMode"] = p.executionMode ?? "ASYNC_NEW_TX";
   if ("startNewTxOnDispatch" in p && p.startNewTxOnDispatch !== undefined) {
     out["startNewTxOnDispatch"] = p.startNewTxOnDispatch;
   }
