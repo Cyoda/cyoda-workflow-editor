@@ -530,12 +530,14 @@ Current test counts (all green):
 | `workflow-monaco` | 12 |
 | **Total** | **186** |
 
-Perf budgets (verified on M1 via `pnpm bench`):
+Perf budgets (M1-class CPU, `pnpm bench`; budgets match `packages/workflow-core/tests/perf/bench.bench.ts`):
 
 - parse + validate at 50 states: < 30 ms
-- parse + validate at 500 states: < 150 ms
-- serialize at 500 states: < 40 ms
-- applyPatch on 100-state graph: < 5 ms
+- parse + validate at 500 states: < 250 ms (dense `generateGrid(500, 4)` fixture; typical real workflows are faster)
+- serialize at 500 states: < 100 ms
+- applyPatch on 100-state graph: < 8 ms
+
+> **Note:** The 500-state parse benchmark uses an artificially dense grid fixture (~2000 transitions). Measured mean on M1 Pro at the time of the v0.1 release review was ~630 ms, which exceeds this budget. This is a known tracking item; the budget will be revised or the fixture replaced in a follow-up.
 
 Visual regression: `apps/docs-embed-demo/tests/visual/` drives Playwright
 against the running dev server. Capture baselines with
