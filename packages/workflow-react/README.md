@@ -79,6 +79,8 @@ export function App() {
 | `jsonEditorPlacement` | `"tab" \| "split"` | `"tab"` | Renders JSON as a tab or alongside the graph. |
 | `jsonEditor` | `WorkflowJsonEditorConfig \| null` | `null` | Host-supplied Monaco runtime/config. Pass `monaco` here to enable editing. |
 | `onJsonStatusChange` | `(status: JsonEditStatus) => void` | – | Reports JSON parse/schema/apply state for host UX. |
+| `hintProvider` | `EntityFieldHintProvider` | – | Optional model-schema autocomplete source for criterion `jsonPath` inputs. Omit for plain free-text `jsonPath` fields. |
+| `developerMode` | `boolean` | `false` | Show developer-oriented affordances (raw JSON tab in the inspector). Defaults to `false`. Opt in to restore the JSON tab for developer/admin surfaces. |
 
 ## JSON editor
 

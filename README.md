@@ -189,6 +189,8 @@ export function EditorPage() {
 | `jsonEditorPlacement` | `"tab" \| "split"` | `"tab"` | Places JSON in a tab or split pane. |
 | `jsonEditor` | `WorkflowJsonEditorConfig \| null` | `null` | Host-supplied Monaco runtime/configuration. |
 | `onJsonStatusChange` | `(status: JsonEditStatus) => void` | – | Reports invalid JSON/schema or successful apply state. |
+| `hintProvider` | `EntityFieldHintProvider` | – | Optional model-schema autocomplete source for criterion `jsonPath` inputs. When omitted, `jsonPath` fields render as plain free-text. |
+| `developerMode` | `boolean` | `false` | Show developer-oriented affordances (raw JSON tab in the inspector). Defaults to `false` so business users see a clean view. Hosts that need the JSON tab must opt in explicitly. |
 
 ### JSON editor
 
