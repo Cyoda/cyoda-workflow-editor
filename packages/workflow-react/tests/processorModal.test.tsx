@@ -117,14 +117,11 @@ describe("processor modal UX", () => {
     fireEvent.change(screen.getByTestId("processor-execution-mode"), {
       target: { value: "COMMIT_BEFORE_DISPATCH" },
     });
-    fireEvent.click(screen.getByTestId("processor-start-new-tx"));
+    // startNewTxOnDispatch checkbox removed from UI — not interactable
     fireEvent.change(screen.getByTestId("processor-tags-input"), {
       target: { value: "alpha, beta" },
     });
-    fireEvent.blur(screen.getByTestId("processor-tags-input"));
-    fireEvent.change(screen.getByTestId("processor-context-input"), {
-      target: { value: "tenant=demo" },
-    });
+    // context textarea removed from UI — not interactable
     fireEvent.click(screen.getByTestId("processor-modal-apply"));
 
     expect(onDispatch).toHaveBeenCalledTimes(1);
@@ -135,10 +132,10 @@ describe("processor modal UX", () => {
         type: "externalized",
         name: "notify",
         executionMode: "COMMIT_BEFORE_DISPATCH",
-        startNewTxOnDispatch: true,
+        // startNewTxOnDispatch omitted — false by default, only included when true
         config: {
           calculationNodesTags: "alpha,beta",
-          context: "tenant=demo",
+          // context omitted — not set via form
         },
       },
     });
@@ -176,16 +173,18 @@ describe("processor modal UX", () => {
     });
   });
 
-  it("execution mode dropdown includes COMMIT_BEFORE_DISPATCH and startNewTxOnDispatch only appears for that mode", () => {
+  it("execution mode dropdown includes all four modes", () => {
     renderTransitionForm();
 
     fireEvent.click(screen.getByTestId("inspector-add-processor"));
     const select = screen.getByTestId("processor-execution-mode") as HTMLSelectElement;
-    expect(Array.from(select.options).some((option) => option.value === "COMMIT_BEFORE_DISPATCH")).toBe(true);
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values).toContain("COMMIT_BEFORE_DISPATCH");
+    expect(values).toContain("ASYNC_NEW_TX");
+    expect(values).toContain("ASYNC_SAME_TX");
+    expect(values).toContain("SYNC");
+    // startNewTxOnDispatch checkbox removed from UI
     expect(screen.queryByTestId("processor-start-new-tx")).toBeNull();
-
-    fireEvent.change(select, { target: { value: "COMMIT_BEFORE_DISPATCH" } });
-    expect(screen.getByTestId("processor-start-new-tx")).toBeTruthy();
   });
 
   it("asyncResult toggles crossoverToAsyncMs availability", () => {
