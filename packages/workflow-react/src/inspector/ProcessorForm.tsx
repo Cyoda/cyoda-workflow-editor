@@ -183,8 +183,8 @@ function toProcessor(draft: ProcessorDraft): Processor {
     type: "externalized",
     name: draft.name.trim(),
     executionMode: draft.executionMode,
-    ...(draft.executionMode === "COMMIT_BEFORE_DISPATCH"
-      ? { startNewTxOnDispatch: draft.startNewTxOnDispatch }
+    ...(draft.executionMode === "COMMIT_BEFORE_DISPATCH" && draft.startNewTxOnDispatch
+      ? { startNewTxOnDispatch: true }
       : {}),
     ...(Object.keys(config).length > 0 ? { config } : {}),
   };
@@ -234,9 +234,6 @@ export function summarizeProcessor(processor: Processor): string {
     parts.push(`tags ${processor.config.calculationNodesTags}`);
   }
   if (processor.config?.asyncResult) parts.push("async result");
-  if (processor.executionMode === "COMMIT_BEFORE_DISPATCH" && processor.startNewTxOnDispatch) {
-    parts.push("new tx on dispatch");
-  }
   return parts.join(" · ");
 }
 
@@ -342,10 +339,6 @@ export function ProcessorEditorModal({
                     setDraft((current) => ({
                       ...current,
                       executionMode: next,
-                      startNewTxOnDispatch:
-                        next === "COMMIT_BEFORE_DISPATCH"
-                          ? current.startNewTxOnDispatch
-                          : false,
                     }));
                   }}
                   data-testid="processor-execution-mode"
@@ -358,26 +351,6 @@ export function ProcessorEditorModal({
                   ))}
                 </select>
               </FormField>
-
-              {draft.executionMode === "COMMIT_BEFORE_DISPATCH" && (
-                <label style={checkboxRowStyle}>
-                  <input
-                    type="checkbox"
-                    checked={draft.startNewTxOnDispatch}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        startNewTxOnDispatch: event.target.checked,
-                      }))
-                    }
-                    data-testid="processor-start-new-tx"
-                  />
-                  <span>Start new transaction on dispatch</span>
-                  <small style={helperTextStyle}>
-                    Only meaningful with COMMIT_BEFORE_DISPATCH
-                  </small>
-                </label>
-              )}
 
               <label style={checkboxRowStyle}>
                 <input
@@ -427,18 +400,6 @@ export function ProcessorEditorModal({
                     setDraft((current) => ({ ...current, retryPolicy: event.target.value }))
                   }
                   style={inputStyle}
-                />
-              </FormField>
-
-              <FormField label="Context">
-                <textarea
-                  value={draft.context}
-                  onChange={(event) =>
-                    setDraft((current) => ({ ...current, context: event.target.value }))
-                  }
-                  data-testid="processor-context-input"
-                  rows={4}
-                  style={textAreaStyle}
                 />
               </FormField>
 
