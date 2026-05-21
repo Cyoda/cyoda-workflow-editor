@@ -40,11 +40,17 @@ test("editor drag keeps connected edge geometry attached without a follow-up cli
   expect(box).not.toBeNull();
   const startX = box!.x + box!.width / 2;
   const startY = box!.y + box!.height / 2;
+  const canvas = page.getByTestId("workflow-canvas");
+  const canvasBox = await canvas.boundingBox();
+  expect(canvasBox).not.toBeNull();
 
   const before = await pathData(page);
 
-  await active.dragTo(page.getByTestId("workflow-canvas"), {
-    targetPosition: { x: startX - 160, y: startY + 20 },
+  await active.dragTo(canvas, {
+    targetPosition: {
+      x: startX - 160 - canvasBox!.x,
+      y: startY + 20 - canvasBox!.y,
+    },
     force: true,
   });
 

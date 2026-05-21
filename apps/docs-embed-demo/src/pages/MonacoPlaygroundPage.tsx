@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { applyPatch, type ValidationIssue, type WorkflowEditorDocument } from "@cyoda/workflow-core";
 import { projectToGraph } from "@cyoda/workflow-graph";
+import type { WorkflowJsonMonacoRuntime } from "@cyoda/workflow-react";
 import {
   attachCursorSelectionBridge,
   attachWorkflowJsonController,
@@ -18,7 +19,7 @@ export function MonacoPlaygroundPage() {
   const monaco = useMemo(() => getMonacoRuntime(), []);
   const fixtures = fixturesFor("monaco");
   const [selectedSlug, setSelectedSlug] = useState(fixtures[0]?.slug ?? "");
-  const selectedFixture = fixtureBySlug(selectedSlug) ?? fixtures[0];
+  const selectedFixture = fixtureBySlug(selectedSlug) ?? fixtures[0] ?? null;
   const loaded = useMemo(() => (selectedFixture ? loadFixture(selectedFixture) : null), [selectedFixture]);
   const initialDocument = loaded?.document ?? null;
   const [document, setDocument] = useState<WorkflowEditorDocument | null>(initialDocument);
@@ -27,7 +28,7 @@ export function MonacoPlaygroundPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const documentRef = useRef<WorkflowEditorDocument | null>(initialDocument);
-  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<ReturnType<WorkflowJsonMonacoRuntime["editor"]["create"]> | null>(null);
   const controllerRef = useRef<ReturnType<typeof attachWorkflowJsonController> | null>(null);
   const schemaHandleRef = useRef<ReturnType<typeof registerWorkflowSchema> | null>(null);
   const cursorBridgeRef = useRef<{ dispose(): void } | null>(null);
@@ -38,6 +39,7 @@ export function MonacoPlaygroundPage() {
   }, [document]);
 
   useEffect(() => {
+    if (!selectedFixture) return;
     if (!containerRef.current || editorRef.current) return;
 
     schemaHandleRef.current = registerWorkflowSchema(monaco);
@@ -88,7 +90,7 @@ export function MonacoPlaygroundPage() {
       model.dispose();
       schemaHandleRef.current?.dispose();
     };
-  }, [initialDocument, loaded?.text, monaco, selectedFixture.slug]);
+  }, [initialDocument, loaded?.text, monaco, selectedFixture]);
 
   useEffect(() => {
     if (!controllerRef.current) return;
@@ -129,6 +131,18 @@ export function MonacoPlaygroundPage() {
     const result = controllerRef.current?.apply() ?? null;
     if (result) setLiftResult(result);
   };
+
+  if (!selectedFixture || !loaded) {
+    return (
+      <section className="page-section" data-testid="monaco-page">
+        <PageIntro
+          eyebrow="Monaco playground"
+          title="JSON schema, markers, and selection bridging"
+          description="No Monaco fixture could be loaded."
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="page-section" data-testid="monaco-page">

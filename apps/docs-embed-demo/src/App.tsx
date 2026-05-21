@@ -4,6 +4,7 @@ import { EmbedViewerPage } from "./pages/EmbedViewerPage.js";
 import { EditorShowcasePage } from "./pages/EditorShowcasePage.js";
 import { HomePage } from "./pages/HomePage.js";
 import { LayoutShowcasePage } from "./pages/LayoutShowcasePage.js";
+import { LocalFileEditorPage } from "./pages/LocalFileEditorPage.js";
 import { MonacoPlaygroundPage } from "./pages/MonacoPlaygroundPage.js";
 import { SaveFlowHarnessPage } from "./pages/SaveFlowHarnessPage.js";
 import { UtilitiesPage } from "./pages/UtilitiesPage.js";
@@ -18,7 +19,8 @@ type RoutePath =
   | "/monaco"
   | "/save-flow"
   | "/utilities"
-  | "/embed";
+  | "/embed"
+  | "/local-file-editor";
 
 interface RouteDefinition {
   path: RoutePath;
@@ -63,6 +65,11 @@ const routes: RouteDefinition[] = [
     description: "Simulate save confirmations, warnings, and conflict handling.",
   },
   {
+    path: "/local-file-editor",
+    label: "Local file editor",
+    description: "Open a real workflow JSON file from disk, edit it in the full editor, and write back clean workflow JSON with overwrite protection.",
+  },
+  {
     path: "/utilities",
     label: "Developer utilities",
     description: "Verify lower-level public helpers and patches.",
@@ -83,6 +90,7 @@ function normalizePath(pathname: string): RoutePath | null {
   if (pathname === "/criteria") return "/criteria";
   if (pathname === "/monaco") return "/monaco";
   if (pathname === "/save-flow") return "/save-flow";
+  if (pathname === "/local-file-editor") return "/local-file-editor";
   if (pathname === "/utilities") return "/utilities";
   if (pathname === "/embed") return "/embed";
   return null;
@@ -148,6 +156,8 @@ function CurrentPage({ path }: { path: RoutePath }) {
       return <MonacoPlaygroundPage />;
     case "/save-flow":
       return <SaveFlowHarnessPage />;
+    case "/local-file-editor":
+      return <LocalFileEditorPage />;
     case "/utilities":
       return <UtilitiesPage />;
     case "/embed":
@@ -158,30 +168,33 @@ function CurrentPage({ path }: { path: RoutePath }) {
 export function App() {
   const { routePath, navigate } = useRoutePath();
   const currentPath = routePath ?? "/";
+  const immersiveRoute = currentPath === "/local-file-editor";
 
   return (
-    <div className="app-shell">
-      <header className="app-shell__header">
-        <div className="app-shell__header-inner">
-          <div className="brand-lockup">
-            <strong>Cyoda Workflow Capability Showcase</strong>
-            <span>Internal demo and regression harness for `apps/docs-embed-demo`</span>
+    <div className={`app-shell${immersiveRoute ? " app-shell--immersive" : ""}`}>
+      {!immersiveRoute && (
+        <header className="app-shell__header">
+          <div className="app-shell__header-inner">
+            <div className="brand-lockup">
+              <strong>Cyoda Workflow Capability Showcase</strong>
+              <span>Internal demo and regression harness for `apps/docs-embed-demo`</span>
+            </div>
+            <nav className="nav-links" aria-label="Demo pages">
+              {routes.map((route) => (
+                <NavLink
+                  key={route.path}
+                  href={route.path}
+                  currentPath={routePath}
+                  label={route.label}
+                  onNavigate={navigate}
+                />
+              ))}
+            </nav>
           </div>
-          <nav className="nav-links" aria-label="Demo pages">
-            {routes.map((route) => (
-              <NavLink
-                key={route.path}
-                href={route.path}
-                currentPath={routePath}
-                label={route.label}
-                onNavigate={navigate}
-              />
-            ))}
-          </nav>
-        </div>
-      </header>
+        </header>
+      )}
 
-      <main className="app-shell__main">
+      <main className={`app-shell__main${immersiveRoute ? " app-shell__main--immersive" : ""}`}>
         <CurrentPage path={currentPath} />
         {!routePath && (
           <section className="page-section">

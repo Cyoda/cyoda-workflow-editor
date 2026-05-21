@@ -51,6 +51,10 @@ a {
   min-height: 100vh;
 }
 
+.app-shell--immersive {
+  min-height: 100vh;
+}
+
 .app-shell__header {
   position: sticky;
   top: 0;
@@ -126,6 +130,12 @@ a {
 
 .app-shell__main {
   padding: 28px 0 40px;
+}
+
+.app-shell__main--immersive {
+  width: 100vw;
+  min-height: 100vh;
+  padding: 0;
 }
 
 .page-section {
@@ -470,6 +480,170 @@ a {
   color: #516178;
 }
 
+.local-file-editor {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background:
+    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 22%),
+    linear-gradient(180deg, #f8fbff 0%, #edf4fb 100%);
+}
+
+.local-file-editor__toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(248, 251, 255, 0.94);
+  backdrop-filter: blur(14px);
+}
+
+.local-file-editor__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.local-file-editor__toolbar-group--meta {
+  flex: 1 1 320px;
+  justify-content: center;
+}
+
+.local-file-editor__back-link {
+  color: #0f766e;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.local-file-editor__file-name,
+.local-file-editor__status-chip,
+.local-file-editor__dirty {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.9rem;
+}
+
+.local-file-editor__file-name,
+.local-file-editor__status-chip {
+  border: 1px solid #d7e0ea;
+  background: rgba(255, 255, 255, 0.92);
+  color: #334155;
+}
+
+.local-file-editor__dirty {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-weight: 600;
+}
+
+.local-file-editor__message {
+  margin: 12px 18px 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  font-size: 0.95rem;
+}
+
+.local-file-editor__message--error {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
+
+.local-file-editor__message--info {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.local-file-editor__message--success {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.local-file-editor__workspace {
+  min-height: 0;
+  padding: 0 18px 18px;
+}
+
+.local-file-editor__editor-shell {
+  height: calc(100vh - 104px);
+  min-height: 560px;
+  border: 1px solid #dbe4f0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+}
+
+.local-file-editor__empty {
+  min-height: calc(100vh - 74px);
+  display: grid;
+  place-items: center;
+  padding: 28px 18px 18px;
+}
+
+.local-file-editor__empty-card {
+  width: min(540px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 30px;
+  border: 1px solid rgba(203, 213, 225, 0.88);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.97);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.08);
+  text-align: center;
+}
+
+.local-file-editor__empty-card h1,
+.local-file-editor__modal-frame h2 {
+  margin: 0;
+}
+
+.local-file-editor__empty-card p,
+.local-file-editor__modal-frame p {
+  margin: 0;
+  color: #516178;
+}
+
+.local-file-editor__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(6px);
+}
+
+.local-file-editor__modal-frame {
+  width: min(460px, 100%);
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+}
+
+.local-file-editor__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 @media (max-width: 1120px) {
   .app-shell__header-inner {
     flex-direction: column;
@@ -481,6 +655,14 @@ a {
 
   .playground-grid {
     grid-template-columns: 1fr;
+  }
+
+  .local-file-editor__toolbar {
+    align-items: flex-start;
+  }
+
+  .local-file-editor__toolbar-group--meta {
+    justify-content: flex-start;
   }
 }
 
@@ -496,5 +678,24 @@ a {
   .monaco-host {
     min-height: 560px;
     height: 560px;
+  }
+
+  .local-file-editor__workspace {
+    padding: 0 12px 12px;
+  }
+
+  .local-file-editor__editor-shell {
+    height: calc(100vh - 154px);
+    min-height: 480px;
+    border-radius: 14px;
+  }
+
+  .local-file-editor__empty {
+    min-height: calc(100vh - 116px);
+    padding: 16px 12px 12px;
+  }
+
+  .local-file-editor__empty-card {
+    padding: 22px;
   }
 }

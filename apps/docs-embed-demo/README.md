@@ -21,6 +21,7 @@ Dev server listens on [http://localhost:5173](http://localhost:5173).
 - `/editor` exercise `WorkflowEditor` modes, tabs, chrome, and editing shell
 - `/monaco` wire Monaco JSON editing to controller, markers, and selection sync
 - `/save-flow` simulate `useSaveFlow`, `SaveConfirmModal`, and `ConflictBanner`
+- `/local-file-editor` open a real local workflow JSON file, edit it in the full editor, and save back clean workflow JSON with overwrite protection
 - `/utilities` expose lower-level helpers like patches, graph edits, migrations, and identity lookup
 - `/embed` preserve the original minimal read-only viewer example
 
@@ -62,3 +63,19 @@ Routes most worth capturing:
 - `/layout`
 - `/editor`
 - `/monaco`
+
+## Local file editor
+
+`/local-file-editor` is a demo-only developer utility for manual testing
+against workflow JSON files on the local drive. It is intentionally scoped to
+`apps/docs-embed-demo` and does not change any published package surface.
+
+- The page uses the browser File System Access API when available to open a
+  file handle, reload from disk, and write back to the same file.
+- Every direct overwrite requires an explicit `Overwrite local file?`
+  confirmation first.
+- In browsers without File System Access API support, open falls back to a file
+  input and save falls back to a download.
+- Saved files always come from `serializeImportPayload(document)`, so editor
+  layout metadata, comments, edge anchors, and viewports are excluded from the
+  written JSON.
