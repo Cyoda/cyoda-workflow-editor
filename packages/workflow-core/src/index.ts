@@ -82,6 +82,8 @@ export {
 } from "./schema/index.js";
 
 export {
+  MAX_JSON_BYTES,
+  MAX_JSON_OBJECT_DEPTH,
   ParseJsonError,
   SchemaError,
   normalizeOperatorAlias,

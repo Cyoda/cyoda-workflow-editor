@@ -698,12 +698,6 @@ const disabledInputStyle = {
   color: "#94A3B8",
 };
 
-const textAreaStyle = {
-  ...inputStyle,
-  resize: "vertical" as const,
-  minHeight: 88,
-};
-
 const modalStyle = {
   width: "min(760px, calc(100vw - 48px))",
   display: "flex",
@@ -721,11 +715,6 @@ const modalFooterStyle = {
   display: "flex",
   justifyContent: "flex-end",
   gap: 8,
-};
-
-const helperTextStyle = {
-  fontSize: 11,
-  color: "#64748B",
 };
 
 const checkboxRowStyle = {
