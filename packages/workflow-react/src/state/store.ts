@@ -285,8 +285,16 @@ function reconcileSelection(
     }
     case "state": {
       const wf = doc.session.workflows.find((w) => w.name === selection.workflow);
-      if (!wf || !wf.states[selection.stateCode]) return null;
-      return selection;
+      if (!wf) return null;
+      if (wf.states[selection.stateCode]) return selection;
+      // State may have been renamed — nodeId (UUID) is stable, look up new code
+      if (selection.nodeId) {
+        const ptr = ids.states[selection.nodeId];
+        if (ptr && ptr.workflow === selection.workflow && wf.states[ptr.state]) {
+          return { ...selection, stateCode: ptr.state };
+        }
+      }
+      return null;
     }
     case "transition":
       return ids.transitions[selection.transitionUuid] ? selection : null;

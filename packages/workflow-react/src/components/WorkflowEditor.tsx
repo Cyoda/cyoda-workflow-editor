@@ -258,6 +258,17 @@ export function WorkflowEditor({
         });
         return;
       }
+      if (patch.op === "moveTransitionSource") {
+        const nextDoc = applyPatch(state.document, patch);
+        const newUuid = transitionUuidByName(nextDoc, patch.workflow, patch.toState, patch.transitionName);
+        actions.dispatchTransaction({
+          summary: `Move transition "${patch.transitionName}" to "${patch.toState}"`,
+          patches: [patch],
+          inverses: [{ op: "moveTransitionSource", workflow: patch.workflow, fromState: patch.toState, toState: patch.fromState, transitionName: patch.transitionName }],
+          selectionAfter: newUuid ? { kind: "transition", transitionUuid: newUuid } : null,
+        });
+        return;
+      }
       actions.dispatch(patch);
     },
     [actions, state.document],
