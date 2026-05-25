@@ -8,6 +8,7 @@ import {
   type Workflow,
 } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { CustomSelectInput } from "./fields.js";
 import { ModalFrame } from "../modals/DeleteStateModal.js";
 
 const EXECUTION_MODES: ExecutionMode[] = [
@@ -300,23 +301,12 @@ export function ProcessorEditorModal({
 
         <div style={modalBodyStyle}>
           <FormField label="Processor type">
-            <select
+            <CustomSelectInput
               value={draft.type}
-              onChange={(event) =>
-                setDraft((current) => ({
-                  ...current,
-                  type: event.target.value as ProcessorType,
-                }))
-              }
-              data-testid="processor-type-select"
-              style={inputStyle}
-            >
-              {PROCESSOR_TYPES.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={PROCESSOR_TYPES}
+              onChange={(next) => setDraft((current) => ({ ...current, type: next as ProcessorType }))}
+              testId="processor-type-select"
+            />
           </FormField>
 
           <FormField label="Name">
@@ -332,24 +322,12 @@ export function ProcessorEditorModal({
           {draft.type === "externalized" ? (
             <>
               <FormField label="Execution mode">
-                <select
+                <CustomSelectInput
                   value={draft.executionMode}
-                  onChange={(event) => {
-                    const next = event.target.value as ExecutionMode;
-                    setDraft((current) => ({
-                      ...current,
-                      executionMode: next,
-                    }));
-                  }}
-                  data-testid="processor-execution-mode"
-                  style={inputStyle}
-                >
-                  {EXECUTION_MODES.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
+                  options={EXECUTION_MODES.map((mode) => ({ value: mode, label: mode }))}
+                  onChange={(next) => setDraft((current) => ({ ...current, executionMode: next as ExecutionMode }))}
+                  testId="processor-execution-mode"
+                />
               </FormField>
 
               <label style={checkboxRowStyle}>
@@ -447,21 +425,15 @@ export function ProcessorEditorModal({
 
               <FormField label="Transition to trigger">
                 {transitionNames.length > 0 ? (
-                  <select
+                  <CustomSelectInput
                     value={draft.transition}
-                    onChange={(event) =>
-                      setDraft((current) => ({ ...current, transition: event.target.value }))
-                    }
-                    data-testid="processor-scheduled-transition"
-                    style={inputStyle}
-                  >
-                    <option value="">Select transition</option>
-                    {transitionNames.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "", label: "Select transition" },
+                      ...transitionNames.map((name) => ({ value: name, label: name })),
+                    ]}
+                    onChange={(next) => setDraft((current) => ({ ...current, transition: next }))}
+                    testId="processor-scheduled-transition"
+                  />
                 ) : (
                   <input
                     type="text"
@@ -535,18 +507,14 @@ function DurationField({
           data-testid={amountTestId}
           style={{ ...inputStyle, flex: 1 }}
         />
-        <select
-          value={draft.unit}
-          onChange={(event) => onChange({ ...draft, unit: event.target.value as DurationUnit })}
-          data-testid={unitTestId}
-          style={{ ...inputStyle, width: 160 }}
-        >
-          {DURATION_UNITS.map((unit) => (
-            <option key={unit.value} value={unit.value}>
-              {unit.label}
-            </option>
-          ))}
-        </select>
+        <div style={{ width: 160 }}>
+          <CustomSelectInput
+            value={draft.unit}
+            options={DURATION_UNITS.map((u) => ({ value: u.value, label: u.label }))}
+            onChange={(next) => onChange({ ...draft, unit: next as DurationUnit })}
+            testId={unitTestId}
+          />
+        </div>
       </div>
     </div>
   );
