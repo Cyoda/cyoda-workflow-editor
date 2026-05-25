@@ -42,7 +42,7 @@ function StateRoleIcon({ label, color }: { label: string; color: string }): Reac
       </svg>
     );
   }
-  if (label === "PROCESSING STATE") {
+  if (label === "PROCESSING" || label === "PROCESSING STATE") {
     return (
       <svg {...common} viewBox="0 0 10 10">
         <circle cx="5" cy="5" r="2.6" />
@@ -155,7 +155,10 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
             letterSpacing: typography.stateCategory.tracking,
             display: "inline-flex",
             alignItems: "center",
+            justifyContent: "center",
             gap: 4,
+            width: "100%",
+            textAlign: "center",
           }}
           data-testid={`rf-state-${node.stateCode}-category`}
         >

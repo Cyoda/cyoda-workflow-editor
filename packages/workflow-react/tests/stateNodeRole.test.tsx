@@ -68,7 +68,7 @@ describe("state node role icons", () => {
     );
     const cat = screen.getByTestId("rf-state-processing-category");
     expect(cat.querySelector("svg")).not.toBeNull();
-    expect(cat.textContent).toContain("PROCESSING STATE");
+    expect(cat.textContent).toContain("PROCESSING");
   });
 
   it("uses the TERMINAL label for terminal states", () => {
