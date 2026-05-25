@@ -19,6 +19,23 @@ import type {
 import { useMessages } from "../i18n/context.js";
 import type { Selection } from "../state/types.js";
 
+// Monaco's editor.dispose() cancels internal async operations which produce
+// "Canceled" unhandled promise rejections. This is a Monaco-internal issue
+// that surfaces in React StrictMode's double-invoke cleanup. We suppress it
+// via a module-level handler (so it survives React's effect lifecycle) that
+// is only active during the brief disposal window.
+let _monacoDisposalCount = 0;
+if (typeof window !== "undefined") {
+  window.addEventListener("unhandledrejection", (e) => {
+    if (
+      _monacoDisposalCount > 0 &&
+      (e.reason?.name === "Canceled" || String(e.reason).startsWith("Canceled"))
+    ) {
+      e.preventDefault();
+    }
+  });
+}
+
 export type JsonEditStatus = LiftResult | { status: "idle" };
 
 export interface MonacoUriLike {
@@ -159,16 +176,8 @@ export function WorkflowJsonEditor({
     controllerRef.current.renderIssues(issuesRef.current, documentRef.current);
 
     return () => {
-      // Monaco's dispose() cancels internal async operations which produce
-      // unhandled "Canceled" promise rejections. Suppress them for the duration
-      // of disposal (primarily a React StrictMode / double-invoke issue in dev).
-      const suppressCanceled = (e: PromiseRejectionEvent) => {
-        if (e.reason?.name === "Canceled" || String(e.reason).startsWith("Canceled")) {
-          e.preventDefault();
-        }
-      };
-      window.addEventListener("unhandledrejection", suppressCanceled);
-      window.setTimeout(() => window.removeEventListener("unhandledrejection", suppressCanceled), 0);
+      _monacoDisposalCount++;
+      window.setTimeout(() => { _monacoDisposalCount--; }, 100);
 
       cursorBridgeRef.current?.dispose();
       cursorBridgeRef.current = null;
