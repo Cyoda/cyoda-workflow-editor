@@ -11,7 +11,7 @@ import type {
 } from "@cyoda/workflow-core";
 import { NAME_REGEX } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
-import { CheckboxField, FieldGroup, SelectField, TextField } from "./fields.js";
+import { CheckboxField, CustomSelectInput, FieldGroup, SelectField, TextField } from "./fields.js";
 import { CriterionSection } from "./CriterionForm.js";
 import {
   ProcessorEditorModal,
@@ -533,24 +533,25 @@ function AnchorSelect({
   onChange: (next: EdgeAnchor | "") => void;
   testId: string;
 }) {
+  const options = [
+    { value: "" as const, label: messages.inspector.anchorDefault },
+    { value: "top" as const, label: messages.inspector.anchorTop },
+    { value: "right" as const, label: messages.inspector.anchorRight },
+    { value: "bottom" as const, label: messages.inspector.anchorBottom },
+    { value: "left" as const, label: messages.inspector.anchorLeft },
+  ] as const;
+
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "#334155" }}>
       <span style={{ fontWeight: 500 }}>{label}</span>
-      <select
+      <CustomSelectInput
         value={value ?? ""}
+        options={options}
+        onChange={onChange}
         disabled={disabled}
-        onChange={(event) =>
-          onChange(event.target.value === "" ? "" : (event.target.value as EdgeAnchor))
-        }
-        data-testid={testId}
-        style={{ padding: "4px 6px", border: "1px solid #CBD5E1", borderRadius: 4, background: "white", fontSize: 12 }}
-      >
-        <option value="">{messages.inspector.anchorDefault}</option>
-        <option value="top">{messages.inspector.anchorTop}</option>
-        <option value="right">{messages.inspector.anchorRight}</option>
-        <option value="bottom">{messages.inspector.anchorBottom}</option>
-        <option value="left">{messages.inspector.anchorLeft}</option>
-      </select>
+        testId={testId}
+        small
+      />
     </label>
   );
 }

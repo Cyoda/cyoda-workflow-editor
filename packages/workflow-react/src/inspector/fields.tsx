@@ -1,4 +1,4 @@
-import { useEffect, useState, type ChangeEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
 /** Minimal uncontrolled field wrappers used by the per-selection forms. */
 export function TextField({
@@ -89,20 +89,160 @@ export function SelectField<T extends string>({
   return (
     <label style={rowStyle}>
       <span style={labelStyle}>{label}</span>
+      <CustomSelectInput
+        value={value}
+        options={options}
+        onChange={onChange}
+        disabled={disabled}
+        testId={testId}
+      />
+    </label>
+  );
+}
+
+/** Reusable custom dropdown without a label — use directly when you need a bare select. */
+export function CustomSelectInput<T extends string>({
+  value,
+  options,
+  onChange,
+  disabled,
+  testId,
+  small,
+}: {
+  value: T;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  onChange: (next: T) => void;
+  disabled?: boolean;
+  testId?: string;
+  small?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
+  const triggerStyle = small ? smallSelectStyle : selectTriggerStyle;
+  const optionPad = small ? "4px 8px" : "6px 8px";
+  const optionFontSize = small ? 12 : 13;
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+        setHighlightedIndex(options.findIndex((o) => o.value === value));
+      } else if (highlightedIndex >= 0) {
+        onChange(options[highlightedIndex]!.value);
+        setOpen(false);
+      }
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+        setHighlightedIndex(0);
+      } else {
+        setHighlightedIndex((i) => Math.min(i + 1, options.length - 1));
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIndex((i) => Math.max(i - 1, 0));
+    }
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: "relative" }}>
+      {/* Hidden native select keeps fireEvent.change compatibility in tests */}
       <select
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value as T)}
         data-testid={testId}
-        style={inputStyle}
+        style={{ display: "none" }}
+        aria-hidden="true"
+        tabIndex={-1}
       >
         {options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
+          <option key={o.value} value={o.value}>{o.label}</option>
         ))}
       </select>
-    </label>
+
+      {/* Custom visual trigger */}
+      <div
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        tabIndex={disabled ? -1 : 0}
+        onClick={() => !disabled && setOpen((o) => !o)}
+        onKeyDown={handleKeyDown}
+        style={{
+          ...triggerStyle,
+          opacity: disabled ? 0.5 : 1,
+          cursor: disabled ? "not-allowed" : "pointer",
+        }}
+      >
+        {selectedLabel}
+      </div>
+
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 200,
+            marginTop: 2,
+            background: "white",
+            border: "1px solid #CBD5E1",
+            borderRadius: 4,
+            boxShadow: "0 4px 12px rgba(15,23,42,0.12)",
+            overflow: "hidden",
+          }}
+        >
+          {options.map((opt, index) => (
+            <div
+              key={opt.value}
+              role="option"
+              aria-selected={opt.value === value}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(opt.value);
+                setOpen(false);
+              }}
+              onMouseEnter={() => setHighlightedIndex(index)}
+              style={{
+                padding: optionPad,
+                fontSize: optionFontSize,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                background:
+                  highlightedIndex === index
+                    ? "#F1F5F9"
+                    : opt.value === value
+                      ? "#EFF6FF"
+                      : "white",
+                color: opt.value === value ? "#1D4ED8" : "#0F172A",
+              }}
+            >
+              {opt.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -132,7 +272,30 @@ const labelStyle = {
 const inputStyle = {
   padding: "6px 8px",
   fontSize: 13,
+  fontFamily: "inherit",
+  color: "inherit",
   border: "1px solid #CBD5E1",
   borderRadius: 4,
   background: "white",
+};
+
+const chevronBg = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpolyline points='2,4 6,8 10,4' fill='none' stroke='%23475569' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`;
+
+const selectTriggerStyle = {
+  ...inputStyle,
+  paddingRight: 28,
+  backgroundImage: chevronBg,
+  backgroundRepeat: "no-repeat" as const,
+  backgroundPosition: "right 8px center",
+  userSelect: "none" as const,
+};
+
+const smallSelectStyle = {
+  ...inputStyle,
+  padding: "4px 24px 4px 6px",
+  fontSize: 12,
+  backgroundImage: chevronBg,
+  backgroundRepeat: "no-repeat" as const,
+  backgroundPosition: "right 6px center",
+  userSelect: "none" as const,
 };
