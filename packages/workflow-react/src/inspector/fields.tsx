@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 
+type SelectOptionItem<T extends string> = { value: T; label: string };
+type SelectOptionGroup<T extends string> = { groupLabel: string; options: ReadonlyArray<SelectOptionItem<T>> };
+type SelectRenderItem<T extends string> =
+  | { kind: "header"; label: string }
+  | { kind: "option"; value: T; label: string; flatIndex: number };
+
 /** Minimal uncontrolled field wrappers used by the per-selection forms. */
 export function TextField({
   label,
@@ -103,24 +109,48 @@ export function SelectField<T extends string>({
 /** Reusable custom dropdown without a label — use directly when you need a bare select. */
 export function CustomSelectInput<T extends string>({
   value,
-  options,
+  options: optionsProp,
+  groups,
+  disabledOption,
   onChange,
   disabled,
   testId,
   small,
 }: {
   value: T;
-  options: ReadonlyArray<{ value: T; label: string }>;
+  options?: ReadonlyArray<SelectOptionItem<T>>;
+  groups?: ReadonlyArray<SelectOptionGroup<T>>;
+  /** Extra disabled option added to the hidden native select (e.g., legacy operators). */
+  disabledOption?: SelectOptionItem<T>;
   onChange: (next: T) => void;
   disabled?: boolean;
   testId?: string;
   small?: boolean;
 }) {
+  const flatOptions: ReadonlyArray<SelectOptionItem<T>> = groups
+    ? groups.flatMap((g) => g.options)
+    : (optionsProp ?? []);
+
+  const renderItems: SelectRenderItem<T>[] = [];
+  if (groups) {
+    let i = 0;
+    for (const g of groups) {
+      renderItems.push({ kind: "header", label: g.groupLabel });
+      for (const o of g.options) {
+        renderItems.push({ kind: "option", value: o.value, label: o.label, flatIndex: i++ });
+      }
+    }
+  } else {
+    flatOptions.forEach((o, i) =>
+      renderItems.push({ kind: "option", value: o.value, label: o.label, flatIndex: i }),
+    );
+  }
+
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedLabel = options.find((o) => o.value === value)?.label ?? value;
+  const selectedLabel = flatOptions.find((o) => o.value === value)?.label ?? value;
   const triggerStyle = small ? smallSelectStyle : selectTriggerStyle;
   const optionPad = small ? "4px 8px" : "6px 8px";
   const optionFontSize = small ? 12 : 13;
@@ -140,9 +170,9 @@ export function CustomSelectInput<T extends string>({
       e.preventDefault();
       if (!open) {
         setOpen(true);
-        setHighlightedIndex(options.findIndex((o) => o.value === value));
+        setHighlightedIndex(flatOptions.findIndex((o) => o.value === value));
       } else if (highlightedIndex >= 0) {
-        onChange(options[highlightedIndex]!.value);
+        onChange(flatOptions[highlightedIndex]!.value);
         setOpen(false);
       }
     } else if (e.key === "Escape") {
@@ -153,7 +183,7 @@ export function CustomSelectInput<T extends string>({
         setOpen(true);
         setHighlightedIndex(0);
       } else {
-        setHighlightedIndex((i) => Math.min(i + 1, options.length - 1));
+        setHighlightedIndex((i) => Math.min(i + 1, flatOptions.length - 1));
       }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
@@ -173,9 +203,20 @@ export function CustomSelectInput<T extends string>({
         aria-hidden="true"
         tabIndex={-1}
       >
-        {options.map((o) => (
-          <option key={o.value} value={o.value}>{o.label}</option>
-        ))}
+        {disabledOption && (
+          <option value={disabledOption.value} disabled>{disabledOption.label}</option>
+        )}
+        {groups
+          ? groups.map((g) => (
+              <optgroup key={g.groupLabel} label={g.groupLabel}>
+                {g.options.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </optgroup>
+            ))
+          : flatOptions.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
       </select>
 
       {/* Custom visual trigger */}
@@ -210,36 +251,56 @@ export function CustomSelectInput<T extends string>({
             borderRadius: 4,
             boxShadow: "0 4px 12px rgba(15,23,42,0.12)",
             overflow: "hidden",
+            maxHeight: 280,
+            overflowY: "auto",
           }}
         >
-          {options.map((opt, index) => (
-            <div
-              key={opt.value}
-              role="option"
-              aria-selected={opt.value === value}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onChange(opt.value);
-                setOpen(false);
-              }}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              style={{
-                padding: optionPad,
-                fontSize: optionFontSize,
-                fontFamily: "inherit",
-                cursor: "pointer",
-                background:
-                  highlightedIndex === index
-                    ? "#F1F5F9"
-                    : opt.value === value
-                      ? "#EFF6FF"
-                      : "white",
-                color: opt.value === value ? "#1D4ED8" : "#0F172A",
-              }}
-            >
-              {opt.label}
-            </div>
-          ))}
+          {renderItems.map((item, i) =>
+            item.kind === "header" ? (
+              <div
+                key={`header-${item.label}`}
+                style={{
+                  padding: "4px 8px 2px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: "0.06em",
+                  textTransform: "uppercase",
+                  color: "#94A3B8",
+                  background: "#F8FAFC",
+                  borderTop: i > 0 ? "1px solid #E2E8F0" : undefined,
+                }}
+              >
+                {item.label}
+              </div>
+            ) : (
+              <div
+                key={item.value}
+                role="option"
+                aria-selected={item.value === value}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(item.value);
+                  setOpen(false);
+                }}
+                onMouseEnter={() => setHighlightedIndex(item.flatIndex)}
+                style={{
+                  padding: optionPad,
+                  fontSize: optionFontSize,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  background:
+                    highlightedIndex === item.flatIndex
+                      ? "#F1F5F9"
+                      : item.value === value
+                        ? "#EFF6FF"
+                        : "white",
+                  color: item.value === value ? "#1D4ED8" : "#0F172A",
+                }}
+              >
+                {item.label}
+              </div>
+            ),
+          )}
         </div>
       )}
     </div>

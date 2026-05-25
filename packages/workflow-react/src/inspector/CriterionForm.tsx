@@ -22,6 +22,7 @@ import {
   validateJsonPathSubset,
 } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { CustomSelectInput } from "./fields.js";
 import { ModalFrame } from "../modals/DeleteStateModal.js";
 import type { Selection } from "../state/types.js";
 import { useFieldHints } from "./criteria/FieldHintsContext.js";
@@ -629,9 +630,6 @@ function SimpleCriterionFields({
     !scalarValue.endsWith("$")
       ? m.matchesPatternHelp
       : null;
-  const isLegacyOperation =
-    UNSUPPORTED_OPERATORS.has(criterion.operation);
-
   const updateOperation = (operation: OperatorType) => {
     const next: SimpleCriterion = { type: "simple", jsonPath: criterion.jsonPath, operation };
     if (OPERATOR_VALUE_SHAPE[operation] === "range") next.value = ["", ""];
@@ -660,20 +658,18 @@ function SimpleCriterionFields({
 
       <label style={labelStyle}>
         <span>{m.operation}</span>
-        <select
+        <CustomSelectInput
           value={criterion.operation}
+          groups={buildOperatorGroups()}
+          disabledOption={
+            UNSUPPORTED_OPERATORS.has(criterion.operation)
+              ? { value: criterion.operation, label: `${criterion.operation} ${m.legacySuffix}` }
+              : undefined
+          }
           disabled={disabled}
-          onChange={(e) => updateOperation(e.target.value as OperatorType)}
-          style={selectStyle}
-          data-testid="criterion-simple-op"
-        >
-          {isLegacyOperation && (
-            <option value={criterion.operation} disabled>
-              {`${criterion.operation} ${m.legacySuffix}`}
-            </option>
-          )}
-          {renderOperatorOptions()}
-        </select>
+          onChange={(next) => updateOperation(next as OperatorType)}
+          testId="criterion-simple-op"
+        />
         {criterion.operation === "LIKE" && (
           <span style={hintStyle} data-testid="criterion-simple-like-help">{m.likeHelp}</span>
         )}
@@ -1216,9 +1212,9 @@ function FunctionCriterionFields({
           value={configText}
           onChange={(e) => updateConfig(e.target.value)}
           disabled={disabled}
-          rows={3}
+          rows={6}
           data-testid="criterion-fn-config"
-          style={{ ...jsonTextAreaStyle, minHeight: 72, borderColor: configError ? "#FCA5A5" : "#CBD5E1" }}
+          style={{ ...jsonTextAreaStyle, minHeight: 140, borderColor: configError ? "#FCA5A5" : "#CBD5E1" }}
           aria-invalid={configError ? true : undefined}
         />
         {configError && (
@@ -1295,8 +1291,6 @@ function LifecycleCriterionFields({
   const betweenError = shape === "range" && (low.trim() === "" || high.trim() === "")
     ? m.betweenShape
     : null;
-  const isLegacyOperation = UNSUPPORTED_OPERATORS.has(criterion.operation);
-
   const updateOperation = (operation: OperatorType) => {
     const next: LifecycleCriterion = { type: "lifecycle", field: criterion.field, operation };
     if (OPERATOR_VALUE_SHAPE[operation] === "range") next.value = ["", ""];
@@ -1307,35 +1301,29 @@ function LifecycleCriterionFields({
     <>
       <label style={labelStyle}>
         <span>{l.field}</span>
-        <select
+        <CustomSelectInput
           value={criterion.field}
+          options={LIFECYCLE_FIELDS.map((f) => ({ value: f, label: f }))}
           disabled={disabled}
-          onChange={(e) => onChange({ ...criterion, field: e.target.value as LifecycleCriterion["field"] })}
-          style={selectStyle}
-          data-testid="criterion-lifecycle-field"
-        >
-          {LIFECYCLE_FIELDS.map((f) => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
+          onChange={(next) => onChange({ ...criterion, field: next as LifecycleCriterion["field"] })}
+          testId="criterion-lifecycle-field"
+        />
       </label>
 
       <label style={labelStyle}>
         <span>{m.operation}</span>
-        <select
+        <CustomSelectInput
           value={criterion.operation}
+          groups={buildOperatorGroups()}
+          disabledOption={
+            UNSUPPORTED_OPERATORS.has(criterion.operation)
+              ? { value: criterion.operation, label: `${criterion.operation} ${m.legacySuffix}` }
+              : undefined
+          }
           disabled={disabled}
-          onChange={(e) => updateOperation(e.target.value as OperatorType)}
-          style={selectStyle}
-          data-testid="criterion-lifecycle-op"
-        >
-          {isLegacyOperation && (
-            <option value={criterion.operation} disabled>
-              {`${criterion.operation} ${m.legacySuffix}`}
-            </option>
-          )}
-          {renderOperatorOptions()}
-        </select>
+          onChange={(next) => updateOperation(next as OperatorType)}
+          testId="criterion-lifecycle-op"
+        />
         {criterion.operation === "LIKE" && (
           <span style={hintStyle} data-testid="criterion-lifecycle-like-help">{m.likeHelp}</span>
         )}
@@ -1419,7 +1407,6 @@ function ArrayCriterionFields({
   const g = messages.criterion.group;
   const [newItem, setNewItem] = useState("");
   const pathError = jsonPathError(criterion.jsonPath, m);
-  const isLegacyOperation = UNSUPPORTED_OPERATORS.has(criterion.operation);
 
   return (
     <>
@@ -1442,20 +1429,18 @@ function ArrayCriterionFields({
 
       <label style={labelStyle}>
         <span>{m.operation}</span>
-        <select
+        <CustomSelectInput
           value={criterion.operation}
+          groups={buildOperatorGroups()}
+          disabledOption={
+            UNSUPPORTED_OPERATORS.has(criterion.operation)
+              ? { value: criterion.operation, label: `${criterion.operation} ${m.legacySuffix}` }
+              : undefined
+          }
           disabled={disabled}
-          onChange={(e) => onChange({ ...criterion, operation: e.target.value as OperatorType })}
-          style={selectStyle}
-          data-testid="criterion-array-op"
-        >
-          {isLegacyOperation && (
-            <option value={criterion.operation} disabled>
-              {`${criterion.operation} ${m.legacySuffix}`}
-            </option>
-          )}
-          {renderOperatorOptions()}
-        </select>
+          onChange={(next) => onChange({ ...criterion, operation: next as OperatorType })}
+          testId="criterion-array-op"
+        />
       </label>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -1760,22 +1745,19 @@ function dateFormatHint(kind: ValueEditorKind): string {
   return kind === "datetime-local" ? "YYYY-MM-DDTHH:mm" : "YYYY-MM-DD";
 }
 
-function renderOperatorOptions() {
-  return OPERATOR_GROUPS.map((group) => (
-    <optgroup key={group.id} label={group.label}>
-      {group.operators
-        .filter((o) => SUPPORTED_SIMPLE_OPERATORS.has(o))
-        .map((o) => (
-          <option key={o} value={o}>
-            {operatorLabel(o)}
-          </option>
-        ))}
-    </optgroup>
-  ));
-}
-
 function operatorLabel(operator: OperatorType): string {
   return OPERATOR_LABELS[operator] ?? operator;
+}
+
+function buildOperatorGroups() {
+  return OPERATOR_GROUPS
+    .map((g) => ({
+      groupLabel: g.label,
+      options: g.operators
+        .filter((o) => SUPPORTED_SIMPLE_OPERATORS.has(o))
+        .map((o) => ({ value: o, label: operatorLabel(o) })),
+    }))
+    .filter((g) => g.options.length > 0);
 }
 
 function isActivePath(activeKey: string, pathKey: string): boolean {
@@ -1869,7 +1851,6 @@ const advancedSummaryStyle: React.CSSProperties = {
 };
 const subheadingStyle: React.CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" };
 const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "#334155" };
-const selectStyle: React.CSSProperties = { padding: "6px 8px", border: "1px solid #CBD5E1", borderRadius: 4, background: "white", fontSize: 13 };
 const inputStyle: React.CSSProperties = { padding: "6px 8px", fontSize: 13, borderWidth: 1, borderStyle: "solid", borderColor: "#CBD5E1", borderRadius: 4, background: "white" };
 const jsonTextAreaStyle: React.CSSProperties = { fontFamily: "monospace", fontSize: 12, padding: 8, borderWidth: 1, borderStyle: "solid", borderColor: "#CBD5E1", borderRadius: 4, background: "white", resize: "vertical" };
 const ghostBtn: React.CSSProperties = { padding: "6px 10px", background: "white", border: "1px solid #CBD5E1", borderRadius: 4, fontSize: 12, cursor: "pointer" };
