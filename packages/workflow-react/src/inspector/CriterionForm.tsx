@@ -1766,8 +1766,9 @@ function isActivePath(activeKey: string, pathKey: string): boolean {
 
 const OPERATOR_LABELS: Partial<Record<OperatorType, string>> = {
   EQUALS: "is",
-  IEQUALS: "is",
+  IEQUALS: "is (ignore case)",
   NOT_EQUAL: "is not",
+  INOT_EQUAL: "is not (ignore case)",
   GREATER_THAN: "is greater than",
   LESS_THAN: "is less than",
   GREATER_OR_EQUAL: "is greater than or equal to",
@@ -1780,8 +1781,16 @@ const OPERATOR_LABELS: Partial<Record<OperatorType, string>> = {
   NOT_NULL: "is not empty",
   CONTAINS: "contains",
   NOT_CONTAINS: "does not contain",
+  ICONTAINS: "contains (ignore case)",
+  INOT_CONTAINS: "does not contain (ignore case)",
   STARTS_WITH: "starts with",
+  NOT_STARTS_WITH: "does not start with",
+  ISTARTS_WITH: "starts with (ignore case)",
+  INOT_STARTS_WITH: "does not start with (ignore case)",
   ENDS_WITH: "ends with",
+  NOT_ENDS_WITH: "does not end with",
+  IENDS_WITH: "ends with (ignore case)",
+  INOT_ENDS_WITH: "does not end with (ignore case)",
 };
 
 function SectionHeader({ label, badge }: { label: string; badge: string }) {
