@@ -185,6 +185,7 @@ export function WorkflowEditor({
   const [activeSurface, setActiveSurface] = useState<WorkflowEditorSurface>("graph");
   const [jsonStatus, setJsonStatus] = useState<JsonEditStatus>({ status: "idle" });
   const [openIssueSeverity, setOpenIssueSeverity] = useState<IssueSeverity | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
   const selectionRef = useRef<Selection>(state.selection);
   const documentStateRef = useRef(state.document);
   const activeWorkflowRef = useRef(state.activeWorkflow);
@@ -258,6 +259,17 @@ export function WorkflowEditor({
         });
         return;
       }
+      if (patch.op === "renameState" && selectionRef.current?.kind === "state" && selectionRef.current.stateCode === patch.from && selectionRef.current.workflow === patch.workflow) {
+        const nextDoc = applyPatch(state.document, patch);
+        const newNodeId = Object.entries(nextDoc.meta.ids.states).find(([, ptr]) => ptr.workflow === patch.workflow && ptr.state === patch.to)?.[0] ?? "";
+        actions.dispatchTransaction({
+          summary: `Rename state "${patch.from}" → "${patch.to}"`,
+          patches: [patch],
+          inverses: [{ op: "renameState", workflow: patch.workflow, from: patch.to, to: patch.from }],
+          selectionAfter: { kind: "state", workflow: patch.workflow, stateCode: patch.to, nodeId: newNodeId },
+        });
+        return;
+      }
       if (patch.op === "moveTransitionSource") {
         const nextDoc = applyPatch(state.document, patch);
         const newUuid = transitionUuidByName(nextDoc, patch.workflow, patch.toState, patch.transitionName);
@@ -290,7 +302,7 @@ export function WorkflowEditor({
   );
   const inspectorVisible =
     chrome?.inspector !== false &&
-    hasEditableSelection &&
+    inspectorOpen &&
     (!enableJsonEditor || jsonEditorPlacement !== "tab" || activeSurface === "graph");
   const saveBlockedByJson =
     jsonStatus.status === "invalid-json" || jsonStatus.status === "invalid-schema";
@@ -450,6 +462,8 @@ export function WorkflowEditor({
         return;
       }
       if (selection && pendingRestore) pendingSelectionRestoreRef.current = null;
+      if (selection) setInspectorOpen(true);
+      else setInspectorOpen(false);
       const workflow = workflowForSelection(documentStateRef.current, selection);
       if (workflow && workflow !== activeWorkflowRef.current) {
         actions.setActiveWorkflow(workflow);
@@ -531,7 +545,7 @@ export function WorkflowEditor({
         openAddStateModal();
         return;
       }
-      if (e.key === "Escape" && state.selection) {
+      if (e.key === "Escape" && (state.selection || inspectorOpen)) {
         e.preventDefault();
         handleSelectionChange(null);
       }
@@ -549,6 +563,7 @@ export function WorkflowEditor({
       handleResetLayout,
       handleSelectionChange,
       state.selection,
+      inspectorOpen,
     ],
   );
 

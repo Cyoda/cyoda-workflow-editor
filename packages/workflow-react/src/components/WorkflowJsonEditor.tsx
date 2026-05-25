@@ -94,11 +94,13 @@ export function WorkflowJsonEditor({
   const schemaHandleRef = useRef<ReturnType<typeof registerWorkflowSchema> | null>(null);
   const cursorBridgeRef = useRef<{ dispose(): void } | null>(null);
   const applyingGraphSelectionRef = useRef(false);
+  const visibleRef = useRef(visible);
   const [status, setStatus] = useState<JsonEditStatus>({ status: "idle" });
 
   documentRef.current = document;
   issuesRef.current = issues;
   readOnlyRef.current = readOnly;
+  visibleRef.current = visible;
   onPatchRef.current = onPatch;
   onSelectionChangeRef.current = onSelectionChange;
   onStatusChangeRef.current = onStatusChange;
@@ -149,6 +151,7 @@ export function WorkflowJsonEditor({
       () => documentRef.current,
       (id) => {
         if (applyingGraphSelectionRef.current) return;
+        if (!visibleRef.current) return;
         onSelectionChangeRef.current(selectionFromJsonId(documentRef.current, id));
       },
     );
@@ -156,6 +159,17 @@ export function WorkflowJsonEditor({
     controllerRef.current.renderIssues(issuesRef.current, documentRef.current);
 
     return () => {
+      // Monaco's dispose() cancels internal async operations which produce
+      // unhandled "Canceled" promise rejections. Suppress them for the duration
+      // of disposal (primarily a React StrictMode / double-invoke issue in dev).
+      const suppressCanceled = (e: PromiseRejectionEvent) => {
+        if (e.reason?.name === "Canceled" || String(e.reason).startsWith("Canceled")) {
+          e.preventDefault();
+        }
+      };
+      window.addEventListener("unhandledrejection", suppressCanceled);
+      window.setTimeout(() => window.removeEventListener("unhandledrejection", suppressCanceled), 0);
+
       cursorBridgeRef.current?.dispose();
       cursorBridgeRef.current = null;
       controllerRef.current?.dispose();

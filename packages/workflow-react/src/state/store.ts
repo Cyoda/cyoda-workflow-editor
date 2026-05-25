@@ -139,13 +139,14 @@ export function useEditorStore(
       summary: summary ?? summarize(patch),
     };
     const undoStack = [...current.undoStack, entry].slice(-MAX_UNDO);
+    const nextSelection = reconcileSelection(current.selection, nextDoc);
     setState({
       ...current,
       document: nextDoc,
       undoStack,
       redoStack: [],
       activeWorkflow: reconcileActiveWorkflow(current.activeWorkflow, nextDoc),
-      selection: reconcileSelection(current.selection, nextDoc),
+      selection: nextSelection,
     });
   }, []);
 

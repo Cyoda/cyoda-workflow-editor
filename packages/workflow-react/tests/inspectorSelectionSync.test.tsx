@@ -196,4 +196,48 @@ describe("inspector selection sync", () => {
     expect(screen.getByTestId("processor-editor-modal")).toBeTruthy();
     expect((screen.getByTestId("processor-name-input") as HTMLInputElement).value).toBe("");
   });
+
+  it("keeps inspector open and updates name after renaming the selected state", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+
+    fireEvent.click(screen.getByTestId("select-state-new"));
+    expect(screen.getByTestId("inspector")).toBeTruthy();
+    expect((screen.getByTestId("inspector-state-name") as HTMLInputElement).value).toBe("new");
+
+    const nameInput = screen.getByTestId("inspector-state-name") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "renamed" } });
+    fireEvent.blur(nameInput);
+
+    // Inspector must still be visible and show the renamed state
+    expect(screen.getByTestId("inspector")).toBeTruthy();
+    expect((screen.getByTestId("inspector-state-name") as HTMLInputElement).value).toBe("renamed");
+  });
+
+  it("keeps inspector open after dispatching a non-rename patch from the inspector", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+
+    fireEvent.click(screen.getByTestId("select-state-active"));
+    expect(screen.getByTestId("inspector")).toBeTruthy();
+
+    // Click "Set as Initial State" — dispatches setInitialState patch
+    fireEvent.click(screen.getByTestId("inspector-state-set-initial"));
+
+    expect(screen.getByTestId("inspector")).toBeTruthy();
+    expect((screen.getByTestId("inspector-state-name") as HTMLInputElement).value).toBe("active");
+  });
+
+  it("keeps inspector open after toggling manual on a transition", () => {
+    currentDoc = fixtureDoc();
+    render(<WorkflowEditor document={currentDoc} mode="editor" />);
+
+    fireEvent.click(screen.getByTestId("select-transition-new"));
+    expect(screen.getByTestId("inspector")).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId("inspector-transition-manual"));
+
+    expect(screen.getByTestId("inspector")).toBeTruthy();
+    expect((screen.getByTestId("inspector-transition-name") as HTMLInputElement).value).toBe("to_active");
+  });
 });
