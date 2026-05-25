@@ -14,7 +14,7 @@ import {
   type WorkflowEditorDocument,
   type WorkflowUiMeta,
 } from "@cyoda/workflow-core";
-import type { LayoutOptions, PinnedNode } from "@cyoda/workflow-layout";
+import { estimateNodeSize, type LayoutOptions, type PinnedNode } from "@cyoda/workflow-layout";
 import {
   EditorConfigContext,
   I18nContext,
@@ -104,6 +104,10 @@ interface PendingDelete {
   stateCode: string;
 }
 
+interface PendingAddState {
+  position?: { x: number; y: number };
+}
+
 type WorkflowEditorSurface = "graph" | "json";
 
 function hasPersistedWorkflowUi(meta: WorkflowUiMeta | undefined): meta is WorkflowUiMeta {
@@ -175,7 +179,7 @@ export function WorkflowEditor({
   const [state, actions] = useEditorStore(initialDocumentWithLayout, mode);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null);
-  const [pendingAddState, setPendingAddState] = useState(false);
+  const [pendingAddState, setPendingAddState] = useState<PendingAddState | null>(null);
   const [reconnectError, setReconnectError] = useState<string | null>(null);
   const [layoutKey, setLayoutKey] = useState(0);
   const [activeSurface, setActiveSurface] = useState<WorkflowEditorSurface>("graph");
@@ -326,6 +330,10 @@ export function WorkflowEditor({
     });
   }, [state.activeWorkflow, actions]);
 
+  const openAddStateModal = useCallback((position?: { x: number; y: number }) => {
+    setPendingAddState(position ? { position } : {});
+  }, []);
+
   // Build pinned nodes from workflowUi layout metadata for the active workflow.
   const pinnedNodes = useMemo((): PinnedNode[] | undefined => {
     const workflow = state.activeWorkflow;
@@ -444,19 +452,32 @@ export function WorkflowEditor({
   const confirmAddState = useCallback(
     (name: string) => {
       const workflow = state.activeWorkflow;
-      setPendingAddState(false);
+      const requestedPosition = pendingAddState?.position;
+      setPendingAddState(null);
       if (!workflow) return;
+      const patches: DomainPatch[] = [{ op: "addState", workflow, stateCode: name }];
+      if (requestedPosition) {
+        const size = estimateNodeSize(name);
+        patches.push({
+          op: "setNodePosition",
+          workflow,
+          stateCode: name,
+          x: snapToGrid(requestedPosition.x - size.width / 2),
+          y: snapToGrid(requestedPosition.y - size.height / 2),
+          pinned: true,
+        });
+      }
       actions.dispatchTransaction({
         summary: `Add state "${name}"`,
-        patches: [{ op: "addState", workflow, stateCode: name }],
+        patches,
         inverses: [{ op: "removeState", workflow, stateCode: name }],
         selectionAfter: { kind: "state", workflow, stateCode: name, nodeId: "" },
       });
     },
-    [state.activeWorkflow, actions],
+    [pendingAddState, state.activeWorkflow, actions],
   );
 
-  const anyModalOpen = pendingDelete !== null || pendingConnect !== null || pendingAddState;
+  const anyModalOpen = pendingDelete !== null || pendingConnect !== null || pendingAddState !== null;
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -496,7 +517,7 @@ export function WorkflowEditor({
       }
       if (!readOnly && !mod && e.key === "a") {
         e.preventDefault();
-        setPendingAddState(true);
+        openAddStateModal();
         return;
       }
       if (e.key === "Escape" && state.selection) {
@@ -626,6 +647,11 @@ export function WorkflowEditor({
     [actions, orientation, state.activeWorkflow, state.document],
   );
 
+  const handlePaneDoubleClick = useCallback((x: number, y: number) => {
+    if (readOnly || anyModalOpen) return;
+    openAddStateModal({ x, y });
+  }, [anyModalOpen, openAddStateModal, readOnly]);
+
   const graphPane = (
     <div
       data-testid="workflow-editor-graph-pane"
@@ -652,6 +678,7 @@ export function WorkflowEditor({
           const edge = edges[0];
           if (edge) dispatch({ op: "removeTransition", transitionUuid: edge.id });
         }}
+        onPaneDoubleClick={handlePaneDoubleClick}
         onNodeDragStop={!readOnly ? handleNodeDragStop : undefined}
         layoutKey={layoutKey}
         readOnly={readOnly}
@@ -783,7 +810,7 @@ export function WorkflowEditor({
               onUndo={actions.undo}
               onRedo={actions.redo}
               onSave={onSave ? () => onSave(state.document) : undefined}
-              onAddState={!readOnly ? () => setPendingAddState(true) : undefined}
+              onAddState={!readOnly ? () => openAddStateModal() : undefined}
               onAddComment={!readOnly ? handleAddComment : undefined}
               onResetLayout={!readOnly ? handleResetLayout : undefined}
               onAutoLayout={!readOnly ? handleAutoLayout : undefined}
@@ -905,7 +932,7 @@ export function WorkflowEditor({
             />
           )}
         </div>
-        {pendingAddState && state.activeWorkflow && (
+        {pendingAddState !== null && state.activeWorkflow && (
           <AddStateModal
             existingNames={Object.keys(
               state.document.session.workflows.find(
@@ -913,7 +940,7 @@ export function WorkflowEditor({
               )?.states ?? {},
             )}
             onCreate={confirmAddState}
-            onCancel={() => setPendingAddState(false)}
+            onCancel={() => setPendingAddState(null)}
           />
         )}
         {pendingDelete && (
@@ -1213,4 +1240,8 @@ function normalizeViewport(viewport: EditorViewport): EditorViewport {
 
 function sameViewport(a: EditorViewport, b: EditorViewport): boolean {
   return a.x === b.x && a.y === b.y && a.zoom === b.zoom;
+}
+
+function snapToGrid(value: number, grid = 16): number {
+  return Math.round(value / grid) * grid;
 }

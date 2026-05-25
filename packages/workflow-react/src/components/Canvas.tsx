@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
   applyNodeChanges,
   Background,
@@ -50,6 +50,8 @@ export interface CanvasProps {
   onEdgesDelete?: (edges: Edge<RfEdgeData>[]) => void;
   /** Called once per completed drag with the node UUID and its final position. */
   onNodeDragStop?: (nodeId: string, x: number, y: number) => void;
+  /** Called when the user double-clicks an empty canvas pane location. */
+  onPaneDoubleClick?: (x: number, y: number) => void;
   /**
    * Increment this counter to force a layout re-run without changing the graph.
    * Useful for the "Auto Layout" toolbar button.
@@ -498,6 +500,7 @@ function CanvasInner({
   onNodesDelete,
   onEdgesDelete,
   onNodeDragStop,
+  onPaneDoubleClick,
   layoutKey = 0,
   readOnly,
   showMinimap = true,
@@ -709,8 +712,24 @@ function CanvasInner({
     setDraggingIds(new Set<string>());
   };
 
+  const handleCanvasDoubleClick = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!onPaneDoubleClick) return;
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest(".react-flow__node, .react-flow__edge, .react-flow__controls, .react-flow__minimap")) {
+      return;
+    }
+    if (!target.closest(".react-flow__pane, .react-flow__background") && target !== event.currentTarget) return;
+    const position = rf.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+    onPaneDoubleClick(position.x, position.y);
+  }, [onPaneDoubleClick, rf]);
+
   return (
-    <div style={{ width: "100%", height: "100%" }} data-testid="workflow-canvas">
+    <div
+      style={{ width: "100%", height: "100%" }}
+      data-testid="workflow-canvas"
+      onDoubleClick={readOnly ? undefined : handleCanvasDoubleClick}
+    >
       <ArrowMarkers />
       <ReactFlow
         nodes={nodes}
@@ -736,6 +755,7 @@ function CanvasInner({
         elementsSelectable
         // fitView is intentionally absent — handled imperatively after layout.
         // See the fitView useEffect above for the reasoning.
+        zoomOnDoubleClick={false}
         snapToGrid
         snapGrid={[16, 16]}
         minZoom={0.1}
