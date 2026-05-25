@@ -148,20 +148,10 @@ export function TransitionForm({
           </div>
         )}
 
-        {/* Target state — dropdown instead of free text */}
-        <SelectField
-          label="Target state"
-          value={transition.next as (typeof allStateNames)[number]}
-          options={stateOptions}
-          disabled={disabled}
-          onChange={(next) => update({ next })}
-          testId="inspector-transition-next"
-        />
-
         {/* Move to different source state */}
         {!disabled && (
           <SelectField
-            label="Source state (move)"
+            label="Source state"
             value={stateCode as (typeof allStateNames)[number]}
             options={stateOptions}
             disabled={disabled}
@@ -178,6 +168,16 @@ export function TransitionForm({
             testId="inspector-transition-source-state"
           />
         )}
+
+        {/* Target state — dropdown instead of free text */}
+        <SelectField
+          label="Target state"
+          value={transition.next as (typeof allStateNames)[number]}
+          options={stateOptions}
+          disabled={disabled}
+          onChange={(next) => update({ next })}
+          testId="inspector-transition-next"
+        />
 
         <CheckboxField
           label={messages.inspector.manual}
@@ -219,15 +219,6 @@ export function TransitionForm({
             <button type="button" disabled={disabled} onClick={() => reorder(1)} style={ghostBtn}>
               {messages.inspector.moveDown}
             </button>
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={removeTransition}
-              style={dangerBtn}
-              data-testid="inspector-transition-delete"
-            >
-              Delete
-            </button>
           </div>
           <p
             style={{
@@ -241,6 +232,20 @@ export function TransitionForm({
             {messages.inspector.transitionOrderHelp}
           </p>
         </div>
+
+        <hr style={{ border: "none", borderTop: "1px solid #E2E8F0", margin: 0 }} />
+
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={removeTransition}
+          style={dangerBtn}
+          data-testid="inspector-transition-delete"
+        >
+          Delete transition
+        </button>
+
+        <hr style={{ border: "none", borderTop: "1px solid #E2E8F0", margin: 0 }} />
 
         {/* Inline validation issues */}
         {issues && issues.length > 0 && (
