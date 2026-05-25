@@ -687,10 +687,12 @@ const modalFooterStyle = {
 
 const checkboxRowStyle = {
   display: "flex",
-  flexDirection: "column" as const,
-  gap: 4,
+  flexDirection: "row" as const,
+  alignItems: "center",
+  gap: 6,
   fontSize: 12,
   color: "#334155",
+  cursor: "pointer",
 };
 
 const errorStyle = {
