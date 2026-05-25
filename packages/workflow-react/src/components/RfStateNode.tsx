@@ -1,4 +1,4 @@
-import { memo, type CSSProperties, type ReactNode } from "react";
+import { memo, useState, type CSSProperties, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import type { StateNode } from "@cyoda/workflow-graph";
 import {
@@ -78,7 +78,7 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
   const width = size?.width ?? geometry.node.width;
   const height = size?.height ?? geometry.node.height;
   const category = roleCategoryLabel(node);
-  const isTerminal = node.role === "terminal" || node.role === "initial-terminal";
+  const [showAnchors, setShowAnchors] = useState(false);
 
   const borderColor = hasError
     ? "#DC2626"
@@ -88,18 +88,14 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
         ? workflowPalette.neutrals.slate900
         : palette.border;
   const borderWidth = selected ? strokeWidth + 1 : strokeWidth;
+  const visibleAnchors = denseAnchors ? ALL_VISIBLE_ANCHORS : CARDINAL_ANCHORS;
+  const hiddenAnchors = denseAnchors ? [] : SPLIT_ANCHORS;
 
   return (
     <div
       style={{
         width,
         height,
-        background: palette.fill,
-        border: `${borderWidth}px solid ${borderColor}`,
-        borderRadius: radius,
-        boxShadow: selected
-          ? "0 2px 4px rgba(15,23,42,0.14)"
-          : "0 1px 2px rgba(15,23,42,0.08)",
         position: "relative",
         boxSizing: "border-box",
         fontFamily: typography.fontFamily,
@@ -108,8 +104,10 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
       data-testid={`rf-state-${node.stateCode}`}
       aria-label={`${category} state: ${node.stateCode}`}
       title={`${category} · ${node.stateCode}`}
+      onMouseEnter={() => setShowAnchors(true)}
+      onMouseLeave={() => setShowAnchors(false)}
     >
-      {(denseAnchors ? CARDINAL_ANCHORS : SPLIT_ANCHORS).map((anchor) => (
+      {hiddenAnchors.map((anchor) => (
         <AnchorHandle
           key={`compat-${anchor.side}`}
           side={anchor.side}
@@ -119,17 +117,27 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
           hidden
         />
       ))}
-      {(denseAnchors ? SPLIT_ANCHORS : CARDINAL_ANCHORS).map(({ side, position, inset }) => (
+      {visibleAnchors.map(({ side, position, inset }) => (
         <AnchorHandle
           key={side}
           side={side}
           position={position}
           inset={inset}
           color={palette.border}
+          active={showAnchors}
         />
       ))}
       <div
         style={{
+          position: "absolute",
+          inset: 0,
+          background: palette.fill,
+          border: `${borderWidth}px solid ${borderColor}`,
+          borderRadius: radius,
+          boxShadow: selected
+            ? "0 2px 4px rgba(15,23,42,0.14)"
+            : "0 1px 2px rgba(15,23,42,0.08)",
+          boxSizing: "border-box",
           display: "flex",
           flexDirection: "column",
           justifyContent: "center",
@@ -171,17 +179,6 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
           {node.stateCode}
         </div>
       </div>
-      {isTerminal && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 3,
-            borderRadius: 8,
-            border: `1px solid ${"innerRing" in palette ? palette.innerRing : workflowPalette.neutrals.white75}`,
-            pointerEvents: "none",
-          }}
-        />
-      )}
     </div>
   );
 }
@@ -224,38 +221,102 @@ const SPLIT_ANCHORS: ReadonlyArray<AnchorSpec> = [
   { side: "left-bottom", position: Position.Left, inset: 0.72 },
 ];
 
+const ALL_VISIBLE_ANCHORS: ReadonlyArray<AnchorSpec> = [
+  ...CARDINAL_ANCHORS,
+  ...SPLIT_ANCHORS,
+];
+
+const DOT_SIZE = 8;
+const VISIBLE_HANDLE_THICKNESS = 16;
+const SPLIT_HANDLE_SIZE = 18;
+const COMPATIBILITY_HANDLE_SIZE = 2;
+
+/**
+ * The outer node border is the canonical anchor line for the interactive canvas.
+ * Keep the visible dot, the real React Flow handle, and the hidden compatibility
+ * handle centered on that same line so the user sees the true edge attachment.
+ */
+function anchorGeometry(position: Position, inset: number) {
+  return {
+    dotOffset: {
+      ...dotEdgeOffset(position, DOT_SIZE / 2),
+      ...dotAlongEdgeOffset(position, inset, DOT_SIZE / 2),
+    },
+    visibleHandleOffset: {
+      ...handleEdgeOffset(position),
+      ...handleAlongEdgeOffset(position, inset),
+    },
+    compatibilityHandleOffset: {
+      ...dotEdgeOffset(position, COMPATIBILITY_HANDLE_SIZE / 2),
+      ...handleAlongEdgeOffset(position, inset),
+    },
+  } satisfies Record<string, CSSProperties>;
+}
+
+function dotEdgeOffset(position: Position, halfThickness: number): CSSProperties {
+  if (position === Position.Top) return { top: -halfThickness };
+  if (position === Position.Bottom) return { bottom: -halfThickness };
+  if (position === Position.Left) return { left: -halfThickness };
+  return { right: -halfThickness };
+}
+
+function dotAlongEdgeOffset(
+  position: Position,
+  inset: number,
+  halfSize: number,
+): CSSProperties {
+  if (position === Position.Top || position === Position.Bottom) {
+    return { left: `calc(${inset * 100}% - ${halfSize}px)` };
+  }
+  return { top: `calc(${inset * 100}% - ${halfSize}px)` };
+}
+
+function handleEdgeOffset(position: Position): CSSProperties {
+  if (position === Position.Top) return { top: -(VISIBLE_HANDLE_THICKNESS / 2) };
+  if (position === Position.Bottom) return { bottom: -(VISIBLE_HANDLE_THICKNESS / 2) };
+  if (position === Position.Left) return { left: -(VISIBLE_HANDLE_THICKNESS / 2) };
+  return { right: -(VISIBLE_HANDLE_THICKNESS / 2) };
+}
+
+function handleAlongEdgeOffset(position: Position, inset: number): CSSProperties {
+  if (position === Position.Top || position === Position.Bottom) {
+    return { left: `${inset * 100}%` };
+  }
+  return { top: `${inset * 100}%` };
+}
+
 function AnchorHandle({
   side,
   position,
   inset,
   color,
   hidden = false,
+  active = true,
 }: {
   side: AnchorSide;
   position: Position;
   inset: number;
   color: string;
   hidden?: boolean;
+  active?: boolean;
 }) {
+  const geometry = anchorGeometry(position, inset);
   const handleStyle = hidden
-    ? compatibilityHandleStyle(position, inset)
-    : visibleHandleStyle(position, inset, side.includes("-"));
+    ? compatibilityHandleStyle(geometry.compatibilityHandleOffset)
+    : visibleHandleStyle(position, geometry.visibleHandleOffset, side.includes("-"), active);
 
   // Small visible dot centered on the edge, non-interactive.
   const dotStyle: CSSProperties = {
     position: "absolute",
-    width: 8,
-    height: 8,
+    width: DOT_SIZE,
+    height: DOT_SIZE,
     background: color,
     borderRadius: "50%",
     pointerEvents: "none",
-    ...(position === Position.Top
-      ? { top: -4, left: `calc(${inset * 100}% - 4px)` }
-      : position === Position.Bottom
-        ? { bottom: -4, left: `calc(${inset * 100}% - 4px)` }
-        : position === Position.Left
-          ? { left: -4, top: `calc(${inset * 100}% - 4px)` }
-          : { right: -4, top: `calc(${inset * 100}% - 4px)` }),
+    zIndex: 3,
+    opacity: hidden || active ? 1 : 0,
+    transition: "opacity 120ms ease",
+    ...geometry.dotOffset,
   };
 
   return (
@@ -283,44 +344,36 @@ function AnchorHandle({
 
 function visibleHandleStyle(
   position: Position,
-  inset: number,
+  offset: CSSProperties,
   isSplit: boolean,
+  active: boolean,
 ): CSSProperties {
   const isVertical = position === Position.Top || position === Position.Bottom;
   return {
     background: "transparent",
     border: "none",
     borderRadius: 0,
-    width: isVertical ? (isSplit ? 18 : "80%") : 16,
-    height: isVertical ? 16 : isSplit ? 18 : "80%",
-    ...(isSplit
-      ? position === Position.Top
-        ? { left: `calc(${inset * 100}% - 9px)` }
-        : position === Position.Bottom
-          ? { left: `calc(${inset * 100}% - 9px)` }
-          : position === Position.Left
-          ? { top: `calc(${inset * 100}% - 9px)` }
-            : { top: `calc(${inset * 100}% - 9px)` }
-      : {}),
+    width: isVertical ? (isSplit ? SPLIT_HANDLE_SIZE : "80%") : VISIBLE_HANDLE_THICKNESS,
+    height: isVertical ? VISIBLE_HANDLE_THICKNESS : isSplit ? SPLIT_HANDLE_SIZE : "80%",
+    zIndex: 2,
+    opacity: active ? 1 : 0,
+    pointerEvents: active ? "auto" : "none",
+    transition: "opacity 120ms ease",
+    ...offset,
   };
 }
 
-function compatibilityHandleStyle(position: Position, inset: number): CSSProperties {
+function compatibilityHandleStyle(offset: CSSProperties): CSSProperties {
   return {
     background: "transparent",
     border: "none",
     borderRadius: 0,
-    width: 2,
-    height: 2,
+    width: COMPATIBILITY_HANDLE_SIZE,
+    height: COMPATIBILITY_HANDLE_SIZE,
     opacity: 0,
     pointerEvents: "none",
-    ...(position === Position.Top
-      ? { left: `calc(${inset * 100}% - 1px)` }
-      : position === Position.Bottom
-        ? { left: `calc(${inset * 100}% - 1px)` }
-        : position === Position.Left
-          ? { top: `calc(${inset * 100}% - 1px)` }
-          : { top: `calc(${inset * 100}% - 1px)` }),
+    zIndex: 2,
+    ...offset,
   };
 }
 
