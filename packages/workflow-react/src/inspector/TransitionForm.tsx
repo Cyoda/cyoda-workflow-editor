@@ -179,11 +179,15 @@ export function TransitionForm({
           testId="inspector-transition-next"
         />
 
-        <CheckboxField
-          label={messages.inspector.manual}
-          checked={transition.manual}
+        <SelectField
+          label={messages.inspector.transitionType}
+          value={transition.manual ? "manual" : "automated"}
+          options={[
+            { value: "automated", label: messages.inspector.automated },
+            { value: "manual", label: messages.inspector.manual },
+          ]}
           disabled={disabled}
-          onChange={(next) => update({ manual: next })}
+          onChange={(next) => update({ manual: next === "manual" })}
           testId="inspector-transition-manual"
         />
         <CheckboxField

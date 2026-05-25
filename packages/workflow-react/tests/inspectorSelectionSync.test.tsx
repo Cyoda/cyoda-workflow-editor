@@ -228,14 +228,17 @@ describe("inspector selection sync", () => {
     expect((screen.getByTestId("inspector-state-name") as HTMLInputElement).value).toBe("active");
   });
 
-  it("keeps inspector open after toggling manual on a transition", () => {
+  it("keeps inspector open after changing transition type to manual", () => {
     currentDoc = fixtureDoc();
     render(<WorkflowEditor document={currentDoc} mode="editor" />);
 
     fireEvent.click(screen.getByTestId("select-transition-new"));
     expect(screen.getByTestId("inspector")).toBeTruthy();
 
-    fireEvent.click(screen.getByTestId("inspector-transition-manual"));
+    // Type field is a hidden native select — use fireEvent.change
+    fireEvent.change(screen.getByTestId("inspector-transition-manual"), {
+      target: { value: "manual" },
+    });
 
     expect(screen.getByTestId("inspector")).toBeTruthy();
     expect((screen.getByTestId("inspector-transition-name") as HTMLInputElement).value).toBe("to_active");

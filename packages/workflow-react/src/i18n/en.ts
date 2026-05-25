@@ -36,6 +36,8 @@ export const defaultMessages = {
     version: "Version",
     active: "Active",
     initialState: "Initial state",
+    transitionType: "Type",
+    automated: "Automated",
     manual: "Manual",
     disabled: "Disabled",
     processors: "Processors",
