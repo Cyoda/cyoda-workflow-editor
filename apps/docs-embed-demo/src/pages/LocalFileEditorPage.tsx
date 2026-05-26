@@ -319,7 +319,6 @@ export function LocalFileEditorPage() {
             <WorkflowEditor
               document={document}
               mode="editor"
-              chrome={{ toolbar: false }}
               localStorageKey={null}
               enableJsonEditor
               jsonEditorPlacement="tab"

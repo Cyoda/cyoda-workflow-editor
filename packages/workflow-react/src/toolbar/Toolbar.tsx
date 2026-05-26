@@ -81,17 +81,6 @@ export function Toolbar({
           {messages.toolbar.addState}
         </button>
       )}
-      {!readOnly && onAddComment && (
-        <button
-          type="button"
-          onClick={onAddComment}
-          style={btnStyle}
-          data-testid="toolbar-add-comment"
-          title="Add canvas comment"
-        >
-          {messages.toolbar.addNote}
-        </button>
-      )}
       {!readOnly && onAutoLayout && (
         <button
           type="button"
