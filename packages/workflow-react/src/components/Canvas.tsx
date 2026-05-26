@@ -30,6 +30,7 @@ import { layoutGraph, estimateNodeSize, type LayoutOptions, type LayoutResult, t
 import { ArrowMarkers } from "./ArrowMarkers.js";
 import { RfStateNode, type RfStateNodeData } from "./RfStateNode.js";
 import { RfTransitionEdge, type RfEdgeData } from "./RfTransitionEdge.js";
+import { HoverContext, computeHighlightSet } from "./HoverContext.js";
 import type { Selection } from "../state/types.js";
 
 const nodeTypes = { stateNode: RfStateNode };
@@ -530,6 +531,7 @@ function CanvasInner({
 }: CanvasProps) {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const previousBasePositionsRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   // When true, the next reconcileNodes pass will skip drag-position preservation
   // and apply ELK-computed positions directly. Set when a forced re-layout is
@@ -723,6 +725,11 @@ function CanvasInner({
     [graph, layout, displayPositions, activeWorkflow, selection, orientation],
   );
 
+  const highlightSet = useMemo(
+    () => computeHighlightSet(hoveredId, graph.nodes, graph.edges),
+    [hoveredId, graph.nodes, graph.edges],
+  );
+
   useEffect(() => {
     if (!layout) return;
     const rafId = requestAnimationFrame(() => {
@@ -730,6 +737,11 @@ function CanvasInner({
     });
     return () => cancelAnimationFrame(rafId);
   }, [layout, nodes, resizeKey, updateNodeInternals]);
+
+  const onNodeMouseEnter: NodeMouseHandler = useCallback((_, node) => setHoveredId(node.id), []);
+  const onNodeMouseLeave: NodeMouseHandler = useCallback(() => setHoveredId(null), []);
+  const onEdgeMouseEnter: EdgeMouseHandler = useCallback((_, edge) => setHoveredId(edge.id), []);
+  const onEdgeMouseLeave: EdgeMouseHandler = useCallback(() => setHoveredId(null), []);
 
   const onNodeClick: NodeMouseHandler = (_, node) => {
     const data = node.data as RfStateNodeData;
@@ -784,50 +796,56 @@ function CanvasInner({
   }, [onPaneDoubleClick, rf]);
 
   return (
-    <div
-      style={{ width: "100%", height: "100%" }}
-      data-testid="workflow-canvas"
-      onDoubleClick={readOnly ? undefined : handleCanvasDoubleClick}
-    >
-      <ArrowMarkers />
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onNodesChange={readOnly ? undefined : handleNodesChange}
-        onNodeClick={onNodeClick}
-        onEdgeClick={onEdgeClick}
-        onPaneClick={() => onSelectionChange(null)}
-        onConnect={readOnly ? undefined : onConnect}
-        onReconnect={readOnly ? undefined : onReconnect}
-        onNodesDelete={readOnly ? undefined : onNodesDelete}
-        onEdgesDelete={readOnly ? undefined : onEdgesDelete}
-        onNodeDragStart={readOnly ? undefined : handleNodeDragStart}
-        onNodeDrag={readOnly ? undefined : handleNodeDrag}
-        onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
-        connectionMode={ConnectionMode.Loose}
-        nodesDraggable={!readOnly}
-        nodesConnectable={!readOnly}
-        edgesUpdatable={!readOnly}
-        deleteKeyCode={null}
-        elementsSelectable
-        // fitView is intentionally absent — handled imperatively after layout.
-        // See the fitView useEffect above for the reasoning.
-        zoomOnDoubleClick={false}
-        snapToGrid
-        snapGrid={[16, 16]}
-        minZoom={0.1}
-        maxZoom={4}
-        onMoveEnd={(_, viewport) => {
-          if (layout) onViewportChange?.(viewport);
-        }}
+    <HoverContext.Provider value={{ highlightSet }}>
+      <div
+        style={{ width: "100%", height: "100%" }}
+        data-testid="workflow-canvas"
+        onDoubleClick={readOnly ? undefined : handleCanvasDoubleClick}
       >
-        <Background />
-        {showControls && <Controls showInteractive={false} />}
-        {showMinimap && <MiniMap zoomable pannable />}
-      </ReactFlow>
-    </div>
+        <ArrowMarkers />
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={readOnly ? undefined : handleNodesChange}
+          onNodeClick={onNodeClick}
+          onEdgeClick={onEdgeClick}
+          onPaneClick={() => onSelectionChange(null)}
+          onConnect={readOnly ? undefined : onConnect}
+          onReconnect={readOnly ? undefined : onReconnect}
+          onNodesDelete={readOnly ? undefined : onNodesDelete}
+          onEdgesDelete={readOnly ? undefined : onEdgesDelete}
+          onNodeDragStart={readOnly ? undefined : handleNodeDragStart}
+          onNodeDrag={readOnly ? undefined : handleNodeDrag}
+          onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
+          onNodeMouseEnter={onNodeMouseEnter}
+          onNodeMouseLeave={onNodeMouseLeave}
+          onEdgeMouseEnter={onEdgeMouseEnter}
+          onEdgeMouseLeave={onEdgeMouseLeave}
+          connectionMode={ConnectionMode.Loose}
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
+          edgesUpdatable={!readOnly}
+          deleteKeyCode={null}
+          elementsSelectable
+          // fitView is intentionally absent — handled imperatively after layout.
+          // See the fitView useEffect above for the reasoning.
+          zoomOnDoubleClick={false}
+          snapToGrid
+          snapGrid={[16, 16]}
+          minZoom={0.1}
+          maxZoom={4}
+          onMoveEnd={(_, viewport) => {
+            if (layout) onViewportChange?.(viewport);
+          }}
+        >
+          <Background />
+          {showControls && <Controls showInteractive={false} />}
+          {showMinimap && <MiniMap zoomable pannable />}
+        </ReactFlow>
+      </div>
+    </HoverContext.Provider>
   );
 }
 

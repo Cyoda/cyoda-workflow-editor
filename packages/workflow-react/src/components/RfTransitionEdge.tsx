@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useContext } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -16,6 +16,7 @@ import {
 } from "@cyoda/workflow-viewer/theme";
 import { orthogonalEdgePath, type Rect } from "../routing/orthogonal.js";
 import { arrowMarkerId } from "./ArrowMarkers.js";
+import { HoverContext } from "./HoverContext.js";
 
 export interface RfEdgeData {
   edge: TransitionEdge;
@@ -57,6 +58,8 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     selected,
   } = props;
   if (!data) return null;
+  const { highlightSet } = useContext(HoverContext);
+  const dimmed = highlightSet !== null && !highlightSet.has(id);
   const { edge, targetIsTerminal, obstacles, parallelOffset } = data;
   const resolvedSourceX = data.liveSource?.x ?? sourceX;
   const resolvedSourceY = data.liveSource?.y ?? sourceY;
@@ -98,6 +101,8 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           stroke: color,
           strokeWidth,
           strokeDasharray: dash,
+          opacity: dimmed ? 0.15 : 1,
+          transition: "opacity 0.15s ease",
         }}
         markerEnd={`url(#${arrowMarkerId(color)})`}
       />
@@ -106,6 +111,8 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           style={{
             position: "absolute",
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            opacity: dimmed ? 0.15 : 1,
+            transition: "opacity 0.15s ease",
             fontFamily: typography.fontFamily,
             pointerEvents: "all",
             background: workflowPalette.edgeLabel.fill,

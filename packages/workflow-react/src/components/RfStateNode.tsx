@@ -1,5 +1,6 @@
-import { memo, useState, type CSSProperties, type ReactNode } from "react";
+import { memo, useContext, useState, type CSSProperties, type ReactNode } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
+import { HoverContext } from "./HoverContext.js";
 import type { StateNode } from "@cyoda/workflow-graph";
 import {
   geometry,
@@ -69,8 +70,10 @@ export interface RfStateNodeData {
  * React Flow custom node that visually matches the slim viewer's state
  * chrome. Only interaction affordances (handles, selection ring) differ.
  */
-function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
+function RfStateNodeImpl({ data, selected, id }: NodeProps<RfStateNodeData>) {
   const { node, hasError, hasWarning, size } = data;
+  const { highlightSet } = useContext(HoverContext);
+  const dimmed = highlightSet !== null && !highlightSet.has(id);
   const palette = paletteFor(node);
   const { radius, strokeWidth } = geometry.node;
   const width = size?.width ?? geometry.node.width;
@@ -96,6 +99,8 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
         boxSizing: "border-box",
         fontFamily: typography.fontFamily,
         userSelect: "none",
+        opacity: dimmed ? 0.2 : 1,
+        transition: "opacity 0.15s ease",
       }}
       data-testid={`rf-state-${node.stateCode}`}
       aria-label={`${category} state: ${node.stateCode}`}
