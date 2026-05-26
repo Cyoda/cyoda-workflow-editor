@@ -131,7 +131,7 @@ describe("state node role icons", () => {
         <RfStateNode
           id="dense"
           type="stateNode"
-          data={{ ...nodeData("normal", "dense"), denseAnchors: true }}
+          data={{ ...nodeData("normal", "dense") }}
           selected={false}
           dragging={false}
           zIndex={0}
@@ -165,7 +165,7 @@ describe("state node role icons", () => {
         <RfStateNode
           id="dense-center"
           type="stateNode"
-          data={{ ...nodeData("normal", "dense-center"), denseAnchors: true }}
+          data={{ ...nodeData("normal", "dense-center") }}
           selected={false}
           dragging={false}
           zIndex={0}

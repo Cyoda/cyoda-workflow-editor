@@ -1141,10 +1141,15 @@ function buildReconnectTransaction(
   };
 }
 
+const VALID_ANCHORS: ReadonlySet<string> = new Set([
+  "top-left", "top", "top-right",
+  "right-top", "right", "right-bottom",
+  "bottom-left", "bottom", "bottom-right",
+  "left-top", "left", "left-bottom",
+] as const);
+
 function anchorFromHandle(handle: string | null | undefined): EdgeAnchor | undefined {
-  return handle === "top" || handle === "right" || handle === "bottom" || handle === "left"
-    ? handle
-    : undefined;
+  return handle && VALID_ANCHORS.has(handle) ? (handle as EdgeAnchor) : undefined;
 }
 
 function normalizeAnchorPair(anchors: EdgeAnchorPair): EdgeAnchorPair | null {

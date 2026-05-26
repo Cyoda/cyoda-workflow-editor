@@ -63,8 +63,6 @@ export interface RfStateNodeData {
   hasWarning: boolean;
   /** Computed by the layout engine. When absent the token defaults are used. */
   size?: { width: number; height: number };
-  /** When true, expose 8 visible anchor points instead of the default 4. */
-  denseAnchors?: boolean;
 }
 
 /**
@@ -72,7 +70,7 @@ export interface RfStateNodeData {
  * chrome. Only interaction affordances (handles, selection ring) differ.
  */
 function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
-  const { node, hasError, hasWarning, size, denseAnchors } = data;
+  const { node, hasError, hasWarning, size } = data;
   const palette = paletteFor(node);
   const { radius, strokeWidth } = geometry.node;
   const width = size?.width ?? geometry.node.width;
@@ -88,8 +86,6 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
         ? workflowPalette.neutrals.slate900
         : palette.border;
   const borderWidth = selected ? strokeWidth + 1 : strokeWidth;
-  const visibleAnchors = denseAnchors ? ALL_VISIBLE_ANCHORS : CARDINAL_ANCHORS;
-  const hiddenAnchors = denseAnchors ? [] : SPLIT_ANCHORS;
 
   return (
     <div
@@ -107,17 +103,7 @@ function RfStateNodeImpl({ data, selected }: NodeProps<RfStateNodeData>) {
       onMouseEnter={() => setShowAnchors(true)}
       onMouseLeave={() => setShowAnchors(false)}
     >
-      {hiddenAnchors.map((anchor) => (
-        <AnchorHandle
-          key={`compat-${anchor.side}`}
-          side={anchor.side}
-          position={anchor.position}
-          inset={anchor.inset}
-          color={palette.border}
-          hidden
-        />
-      ))}
-      {visibleAnchors.map(({ side, position, inset }) => (
+      {ALL_ANCHORS.map(({ side, position, inset }) => (
         <AnchorHandle
           key={side}
           side={side}
@@ -206,33 +192,25 @@ type AnchorSpec = {
   inset: number;
 };
 
-const CARDINAL_ANCHORS: ReadonlyArray<AnchorSpec> = [
-  { side: "top", position: Position.Top, inset: 0.5 },
-  { side: "right", position: Position.Right, inset: 0.5 },
-  { side: "bottom", position: Position.Bottom, inset: 0.5 },
-  { side: "left", position: Position.Left, inset: 0.5 },
-];
-
-const SPLIT_ANCHORS: ReadonlyArray<AnchorSpec> = [
+/** All 12 anchors: 3 per side (left/center/right or top/center/bottom). */
+const ALL_ANCHORS: ReadonlyArray<AnchorSpec> = [
   { side: "top-left", position: Position.Top, inset: 0.28 },
+  { side: "top", position: Position.Top, inset: 0.5 },
   { side: "top-right", position: Position.Top, inset: 0.72 },
   { side: "right-top", position: Position.Right, inset: 0.28 },
+  { side: "right", position: Position.Right, inset: 0.5 },
   { side: "right-bottom", position: Position.Right, inset: 0.72 },
   { side: "bottom-left", position: Position.Bottom, inset: 0.28 },
+  { side: "bottom", position: Position.Bottom, inset: 0.5 },
   { side: "bottom-right", position: Position.Bottom, inset: 0.72 },
   { side: "left-top", position: Position.Left, inset: 0.28 },
+  { side: "left", position: Position.Left, inset: 0.5 },
   { side: "left-bottom", position: Position.Left, inset: 0.72 },
-];
-
-const ALL_VISIBLE_ANCHORS: ReadonlyArray<AnchorSpec> = [
-  ...CARDINAL_ANCHORS,
-  ...SPLIT_ANCHORS,
 ];
 
 const DOT_SIZE = 8;
 const VISIBLE_HANDLE_THICKNESS = 16;
 const SPLIT_HANDLE_SIZE = 18;
-const COMPATIBILITY_HANDLE_SIZE = 2;
 
 /**
  * The outer node border is the canonical anchor line for the interactive canvas.
@@ -245,12 +223,8 @@ function anchorGeometry(position: Position, inset: number) {
       ...dotEdgeOffset(position, DOT_SIZE / 2),
       ...dotAlongEdgeOffset(position, inset, DOT_SIZE / 2),
     },
-    visibleHandleOffset: {
+    handleOffset: {
       ...handleEdgeOffset(position),
-      ...handleAlongEdgeOffset(position, inset),
-    },
-    compatibilityHandleOffset: {
-      ...dotEdgeOffset(position, COMPATIBILITY_HANDLE_SIZE / 2),
       ...handleAlongEdgeOffset(position, inset),
     },
   } satisfies Record<string, CSSProperties>;
@@ -293,20 +267,16 @@ function AnchorHandle({
   position,
   inset,
   color,
-  hidden = false,
   active = true,
 }: {
   side: AnchorSide;
   position: Position;
   inset: number;
   color: string;
-  hidden?: boolean;
   active?: boolean;
 }) {
-  const geometry = anchorGeometry(position, inset);
-  const handleStyle = hidden
-    ? compatibilityHandleStyle(geometry.compatibilityHandleOffset)
-    : visibleHandleStyle(position, geometry.visibleHandleOffset, side.includes("-"), active);
+  const geo = anchorGeometry(position, inset);
+  const handleStyle = visibleHandleStyle(position, geo.handleOffset, side.includes("-"), active);
 
   // Small visible dot centered on the edge, non-interactive.
   const dotStyle: CSSProperties = {
@@ -317,9 +287,9 @@ function AnchorHandle({
     borderRadius: "50%",
     pointerEvents: "none",
     zIndex: 3,
-    opacity: hidden || active ? 1 : 0,
+    opacity: active ? 1 : 0,
     transition: "opacity 120ms ease",
-    ...geometry.dotOffset,
+    ...geo.dotOffset,
   };
 
   return (
@@ -340,7 +310,7 @@ function AnchorHandle({
         position={position}
         style={handleStyle}
       />
-      {!hidden && <div style={dotStyle} />}
+      <div style={dotStyle} />
     </>
   );
 }
@@ -366,18 +336,6 @@ function visibleHandleStyle(
   };
 }
 
-function compatibilityHandleStyle(offset: CSSProperties): CSSProperties {
-  return {
-    background: "transparent",
-    border: "none",
-    borderRadius: 0,
-    width: COMPATIBILITY_HANDLE_SIZE,
-    height: COMPATIBILITY_HANDLE_SIZE,
-    opacity: 0,
-    pointerEvents: "none",
-    zIndex: 2,
-    ...offset,
-  };
-}
+
 
 export const RfStateNode = memo(RfStateNodeImpl);

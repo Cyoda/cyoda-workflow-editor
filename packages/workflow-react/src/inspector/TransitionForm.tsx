@@ -544,10 +544,18 @@ function AnchorSelect({
 }) {
   const options = [
     { value: "" as const, label: messages.inspector.anchorDefault },
+    { value: "top-left" as const, label: messages.inspector.anchorTopLeft },
     { value: "top" as const, label: messages.inspector.anchorTop },
+    { value: "top-right" as const, label: messages.inspector.anchorTopRight },
+    { value: "right-top" as const, label: messages.inspector.anchorRightTop },
     { value: "right" as const, label: messages.inspector.anchorRight },
+    { value: "right-bottom" as const, label: messages.inspector.anchorRightBottom },
+    { value: "bottom-left" as const, label: messages.inspector.anchorBottomLeft },
     { value: "bottom" as const, label: messages.inspector.anchorBottom },
+    { value: "bottom-right" as const, label: messages.inspector.anchorBottomRight },
+    { value: "left-top" as const, label: messages.inspector.anchorLeftTop },
     { value: "left" as const, label: messages.inspector.anchorLeft },
+    { value: "left-bottom" as const, label: messages.inspector.anchorLeftBottom },
   ] as const;
 
   return (

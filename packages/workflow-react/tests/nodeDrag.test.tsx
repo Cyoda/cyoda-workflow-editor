@@ -28,7 +28,7 @@ const { rfCallbacks } = vi.hoisted(() => ({
     latestNodes: undefined as undefined | {
       id: string;
       position: { x: number; y: number };
-      data?: { denseAnchors?: boolean; node?: { stateCode?: string } };
+      data?: { node?: { stateCode?: string } };
     }[],
     latestEdges: undefined as undefined | {
       id: string;
@@ -598,9 +598,6 @@ describe("auto handle routing", () => {
     render(<WorkflowEditor document={doc} />);
 
     await waitFor(() => expect(rfCallbacks.latestEdges).toBeDefined());
-
-    const busyNode = rfCallbacks.latestNodes?.find((node) => node.id === busyId);
-    expect(busyNode?.data?.denseAnchors).toBe(true);
 
     const incomingHandles = [
       rfCallbacks.latestEdges?.find((edge) => edge.id === toBusy)?.targetHandle,

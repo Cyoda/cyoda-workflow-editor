@@ -65,7 +65,11 @@ export type HostRef =
  * Editor-only anchor side for an edge endpoint. Lives in WorkflowUiMeta and
  * is never serialised into exported Cyoda JSON.
  */
-export type EdgeAnchor = "top" | "right" | "bottom" | "left";
+export type EdgeAnchor =
+  | "top-left" | "top" | "top-right"
+  | "right-top" | "right" | "right-bottom"
+  | "bottom-left" | "bottom" | "bottom-right"
+  | "left-top" | "left" | "left-bottom";
 
 export interface EdgeAnchorPair {
   source?: EdgeAnchor;

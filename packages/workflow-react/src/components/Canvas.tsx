@@ -74,7 +74,6 @@ function toRfNodes(
   issuesByNode: Map<string, ValidationIssue[]>,
   selection: Selection,
 ): Node<RfStateNodeData>[] {
-  const transitionCounts = countIncidentTransitions(graph, activeWorkflow);
   return graph.nodes
     .filter((n): n is GraphStateNode => n.kind === "state")
     .filter((n) => !activeWorkflow || n.workflow === activeWorkflow)
@@ -96,7 +95,6 @@ function toRfNodes(
           hasError,
           hasWarning,
           size,
-          denseAnchors: (transitionCounts.get(n.id) ?? 0) >= 3,
         },
         position: pos ? { x: pos.x, y: pos.y } : { x: 0, y: 0 },
         selected,
@@ -118,7 +116,6 @@ function toRfEdges(
   selection: Selection,
   orientation: "vertical" | "horizontal",
 ): Edge<RfEdgeData>[] {
-  const transitionCounts = countIncidentTransitions(graph, activeWorkflow);
   const stateById = new Map(
     graph.nodes
       .filter((n): n is GraphStateNode => n.kind === "state")
@@ -142,7 +139,6 @@ function toRfEdges(
     transitions,
     displayPositions,
     orientation,
-    transitionCounts,
   );
   return transitions.map((e) => {
       const target = stateById.get(e.targetId);
@@ -277,19 +273,6 @@ function anchorHandleId(
   return role === "source" ? "bottom" : "top";
 }
 
-function countIncidentTransitions(
-  graph: GraphDocument,
-  activeWorkflow: string | null,
-): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const edge of graph.edges) {
-    if (edge.kind !== "transition") continue;
-    if (activeWorkflow && edge.workflow !== activeWorkflow) continue;
-    counts.set(edge.sourceId, (counts.get(edge.sourceId) ?? 0) + 1);
-    counts.set(edge.targetId, (counts.get(edge.targetId) ?? 0) + 1);
-  }
-  return counts;
-}
 
 type BaseHandle = "top" | "right" | "bottom" | "left";
 
@@ -305,7 +288,6 @@ function computeAutoHandles(
   edges: TransitionEdge[],
   displayPositions: Map<string, NodePosition>,
   orientation: "vertical" | "horizontal",
-  transitionCounts: Map<string, number>,
 ): Map<string, string> {
   const assignments = new Map<string, string>();
   const grouped = new Map<string, EndpointAssignment[]>();
@@ -361,19 +343,13 @@ function computeAutoHandles(
   }
 
   for (const [groupKey, endpoints] of grouped) {
-    const [nodeId, baseSide] = groupKey.split("|") as [string, BaseHandle];
+    const [, baseSide] = groupKey.split("|") as [string, BaseHandle];
     const sorted = [...endpoints].sort((a, b) =>
       sortEndpointAssignments(a, b, baseSide, displayPositions),
     );
-    const useSplitHandles =
-      (transitionCounts.get(nodeId) ?? 0) >= 3 ||
-      sorted.length >= 2 ||
-      (orientation === "vertical" && baseSide === "right") ||
-      (orientation === "horizontal" && baseSide === "bottom");
+    // Always use split handles — every node has 12 anchor points (3 per side).
     sorted.forEach((endpoint, index) => {
-      const handleId = useSplitHandles
-        ? splitHandleFor(baseSide, index, sorted.length)
-        : baseSide;
+      const handleId = splitHandleFor(baseSide, index, sorted.length);
       assignments.set(`${endpoint.edgeId}:${endpoint.role}`, handleId);
     });
   }
