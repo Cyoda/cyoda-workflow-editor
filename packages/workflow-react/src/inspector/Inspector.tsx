@@ -329,10 +329,7 @@ function JsonPreview({
         flex: 1,
         minHeight: 0,
         minWidth: 0,
-        overflowX: "hidden",
-        overflowY: "auto",
-        whiteSpace: "pre-wrap",
-        wordBreak: "break-all",
+        overflow: "auto",
       }}
       data-testid="inspector-json"
     >
