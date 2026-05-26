@@ -335,12 +335,24 @@ export function WorkflowEditor({
       { session: state.document.session, meta: { ...state.document.meta, workflowUi } },
       { preserveEditorState: true },
     );
+    // Force Canvas to re-run ELK now that pinned positions are cleared.
+    setLayoutKey((k) => k + 1);
   }, [state.activeWorkflow, state.document, actions]);
 
   const handleAutoLayout = useCallback(() => {
-    // Bump layoutKey to force Canvas to re-run ELK while keeping pinned positions.
+    const workflow = state.activeWorkflow;
+    if (!workflow) return;
+    // Clear all pinned positions so ELK can arrange everything from scratch.
+    const workflowUi = { ...state.document.meta.workflowUi };
+    const current = workflowUi[workflow] ?? {};
+    workflowUi[workflow] = { ...current, layout: undefined };
+    actions.silentReplace(
+      { session: state.document.session, meta: { ...state.document.meta, workflowUi } },
+      { preserveEditorState: true },
+    );
+    // Bump layoutKey to force Canvas to re-run ELK.
     setLayoutKey((k) => k + 1);
-  }, []);
+  }, [state.activeWorkflow, state.document, actions]);
 
   const handleAddComment = useCallback(() => {
     const workflow = state.activeWorkflow;

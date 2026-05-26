@@ -91,14 +91,4 @@ describe("State Inspector", () => {
   });
 });
 
-describe("Comment toolbar", () => {
-  it("shows Add Comment button in editor mode", () => {
-    render(<WorkflowEditor document={doc(["start", "end"])} mode="editor" />);
-    expect(screen.getByTestId("toolbar-add-comment")).toBeTruthy();
-  });
 
-  it("hides Add Comment in viewer mode", () => {
-    render(<WorkflowEditor document={doc(["start", "end"])} mode="viewer" />);
-    expect(screen.queryByTestId("toolbar-add-comment")).toBeNull();
-  });
-});

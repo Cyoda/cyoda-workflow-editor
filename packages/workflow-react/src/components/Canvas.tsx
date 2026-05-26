@@ -510,6 +510,11 @@ function CanvasInner({
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
   const previousBasePositionsRef = useRef<Map<string, { x: number; y: number }> | null>(null);
+  // When true, the next reconcileNodes pass will skip drag-position preservation
+  // and apply ELK-computed positions directly. Set when a forced re-layout is
+  // triggered (Auto-arrange / Reset positions) and cleared after reconcileNodes
+  // consumes it.
+  const forceBasePositionsRef = useRef(false);
   // Set of node IDs currently being dragged. Cleared to an empty set on drag
   // stop. Only changes at drag-start / drag-stop (not on every mousemove), so
   // the dependent `edges` useMemo recomputes at most twice per drag gesture.
@@ -537,11 +542,21 @@ function CanvasInner({
   // orientation switch (which requires a refit) vs. a graph edit (no refit).
   const orientationAtLayoutRef = useRef(orientation);
 
+  const prevLayoutKeyRef = useRef(layoutKey);
   useEffect(() => {
     let cancelled = false;
     orientationAtLayoutRef.current = orientation;
+    const isForced = prevLayoutKeyRef.current !== layoutKey;
+    if (isForced) prevLayoutKeyRef.current = layoutKey;
+    previousBasePositionsRef.current = null;
     layoutGraph(graph, effectiveOpts).then((result) => {
-      if (!cancelled) setLayout(result);
+      if (!cancelled) {
+        // Set the force flag right before setLayout so that the resulting
+        // reconcileNodes effect (triggered by the layout-driven baseNodes
+        // change) sees it and applies ELK positions directly.
+        if (isForced) forceBasePositionsRef.current = true;
+        setLayout(result);
+      }
     });
     return () => {
       cancelled = true;
@@ -614,6 +629,14 @@ function CanvasInner({
   );
 
   useEffect(() => {
+    if (forceBasePositionsRef.current) {
+      // Forced re-layout (Auto-arrange / Reset positions): skip drag-position
+      // preservation and apply ELK-computed positions directly.
+      forceBasePositionsRef.current = false;
+      previousBasePositionsRef.current = positionsFromNodes(baseNodes);
+      setNodes(baseNodes);
+      return;
+    }
     setNodes((previousNodes) =>
       reconcileNodes(
         previousNodes,

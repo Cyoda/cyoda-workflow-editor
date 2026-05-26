@@ -16,7 +16,7 @@ export function badgesFor(
 ): BadgeDescriptor[] {
   const out: BadgeDescriptor[] = [];
 
-  if (flags.manual) out.push({ key: "manual", label: "Manual" });
+  // Manual badge removed – hidden from display
 
   if (summary.processor) {
     if (summary.processor.kind === "single") {
@@ -35,11 +35,7 @@ export function badgesFor(
     }
   }
 
-  if (summary.execution?.kind === "sync") {
-    out.push({ key: "execution", label: "SYNC" });
-  } else if (summary.execution?.kind === "asyncSameTx") {
-    out.push({ key: "execution", label: "ASYNC_SAME_TX" });
-  }
+  // Execution badges (SYNC, ASYNC_SAME_TX) removed – hidden from display
 
   if (flags.disabled) out.push({ key: "disabled", label: "Disabled" });
 
