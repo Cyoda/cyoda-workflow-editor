@@ -326,7 +326,9 @@ function JsonPreview({
         background: "white",
         border: "1px solid #E2E8F0",
         borderRadius: 4,
-        maxHeight: 480,
+        flex: 1,
+        minHeight: 0,
+        minWidth: 0,
         overflow: "auto",
       }}
       data-testid="inspector-json"
