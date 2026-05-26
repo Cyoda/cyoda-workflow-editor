@@ -135,10 +135,16 @@ function toRfEdges(
   const transitions = graph.edges
     .filter((e): e is TransitionEdge => e.kind === "transition")
     .filter((e) => !activeWorkflow || e.workflow === activeWorkflow);
+  const terminalIds = new Set(
+    graph.nodes
+      .filter((n): n is GraphStateNode => n.kind === "state" && (n.role === "terminal" || n.role === "initial-terminal"))
+      .map((n) => n.id),
+  );
   const autoHandles = computeAutoHandles(
     transitions,
     displayPositions,
     orientation,
+    terminalIds,
   );
   return transitions.map((e) => {
       const target = stateById.get(e.targetId);
@@ -263,11 +269,16 @@ function anchorHandleId(
   role: "source" | "target",
   orientation: "vertical" | "horizontal",
   isBackEdge = false,
+  toTerminalSide?: "left" | "right",
 ): string | undefined {
   if (anchor) return anchor;
   if (orientation === "horizontal") {
     if (isBackEdge) return "bottom";
     return role === "source" ? "right" : "left";
+  }
+  // Vertical: edges to terminal exit/enter from the sides.
+  if (toTerminalSide) {
+    return role === "source" ? toTerminalSide : (toTerminalSide === "left" ? "right" : "left");
   }
   if (isBackEdge) return "right";
   return role === "source" ? "bottom" : "top";
@@ -288,6 +299,7 @@ function computeAutoHandles(
   edges: TransitionEdge[],
   displayPositions: Map<string, NodePosition>,
   orientation: "vertical" | "horizontal",
+  terminalIds: Set<string> = new Set(),
 ): Map<string, string> {
   const assignments = new Map<string, string>();
   const grouped = new Map<string, EndpointAssignment[]>();
@@ -305,17 +317,31 @@ function computeAutoHandles(
       continue;
     }
 
+    // In vertical mode, edges targeting a terminal exit/enter from the sides.
+    let toTerminalSide: "left" | "right" | undefined;
+    if (orientation === "vertical" && terminalIds.has(edge.targetId)) {
+      const srcPos = displayPositions.get(edge.sourceId);
+      const tgtPos = displayPositions.get(edge.targetId);
+      if (srcPos && tgtPos) {
+        const srcCX = srcPos.x + srcPos.width / 2;
+        const tgtCX = tgtPos.x + tgtPos.width / 2;
+        toTerminalSide = tgtCX <= srcCX ? "left" : "right";
+      }
+    }
+
     const sourceSide = anchorHandleId(
       edge.sourceAnchor,
       "source",
       orientation,
       isBackEdge(edge, displayPositions, orientation),
+      toTerminalSide,
     ) as BaseHandle;
     const targetSide = anchorHandleId(
       edge.targetAnchor,
       "target",
       orientation,
       isBackEdge(edge, displayPositions, orientation),
+      toTerminalSide,
     ) as BaseHandle;
 
     if (edge.sourceAnchor) {
@@ -502,15 +528,14 @@ function CanvasInner({
   // consumer passes a new object literal on every parent render.
   const preset = layoutOptions?.preset ?? "configuratorReadable";
   const orientation = layoutOptions?.orientation ?? "vertical";
-  const elkOverrides = layoutOptions?.elk;
   const nodeSize = layoutOptions?.nodeSize;
   const pinned = layoutOptions?.pinned;
 
   const effectiveOpts = useMemo<LayoutOptions>(
-    () => ({ preset, orientation, elk: elkOverrides, nodeSize, pinned }),
-    // elkOverrides / nodeSize / pinned are objects; reference equality is fine
+    () => ({ preset, orientation, nodeSize, pinned }),
+    // nodeSize / pinned are objects; reference equality is fine
     // here — a new object passed by the consumer signals an intentional re-layout.
-    [preset, orientation, elkOverrides, nodeSize, pinned],
+    [preset, orientation, nodeSize, pinned],
   );
 
   // Track which orientation was in effect when each layout was triggered, so

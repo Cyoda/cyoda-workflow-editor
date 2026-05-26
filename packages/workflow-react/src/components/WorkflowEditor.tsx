@@ -354,17 +354,6 @@ export function WorkflowEditor({
     setLayoutKey((k) => k + 1);
   }, [state.activeWorkflow, state.document, actions]);
 
-  const handleAddComment = useCallback(() => {
-    const workflow = state.activeWorkflow;
-    if (!workflow) return;
-    const id = `comment-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    actions.dispatch({
-      op: "addComment",
-      workflow,
-      comment: { id, text: "New comment", x: 40, y: 40 },
-    });
-  }, [state.activeWorkflow, actions]);
-
   const openAddStateModal = useCallback((position?: { x: number; y: number }) => {
     setPendingAddState(position ? { position } : {});
   }, []);
@@ -849,7 +838,6 @@ export function WorkflowEditor({
               onRedo={actions.redo}
               onSave={onSave ? () => onSave(state.document) : undefined}
               onAddState={!readOnly ? () => openAddStateModal() : undefined}
-              onAddComment={!readOnly ? handleAddComment : undefined}
               onResetLayout={!readOnly ? handleResetLayout : undefined}
               onAutoLayout={!readOnly ? handleAutoLayout : undefined}
               onIssueBadgeClick={(severity) =>

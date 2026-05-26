@@ -1,7 +1,7 @@
 {
   "name": "@cyoda/workflow-layout",
   "version": "0.1.0",
-  "description": "ELK-based layout adapter for Cyoda workflow graphs (three presets, sync + worker).",
+  "description": "Layout adapter for Cyoda workflow graphs (three presets, sync + worker).",
   "license": "Apache-2.0",
   "type": "module",
   "sideEffects": false,
@@ -41,7 +41,6 @@
   },
   "dependencies": {
     "@cyoda/workflow-core": "workspace:*",
-    "@cyoda/workflow-graph": "workspace:*",
-    "elkjs": "^0.9.3"
+    "@cyoda/workflow-graph": "workspace:*"
   }
 }

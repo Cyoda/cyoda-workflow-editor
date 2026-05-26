@@ -17,7 +17,6 @@ export interface ToolbarProps {
   onRedo: () => void;
   onSave?: () => void;
   onAddState?: () => void;
-  onAddComment?: () => void;
   onResetLayout?: () => void;
   onAutoLayout?: () => void;
   onIssueBadgeClick?: (severity: IssueSeverity) => void;
@@ -34,7 +33,6 @@ export function Toolbar({
   onRedo,
   onSave,
   onAddState,
-  onAddComment,
   onResetLayout,
   onAutoLayout,
   onIssueBadgeClick,
