@@ -542,19 +542,21 @@ function CanvasInner({
   // orientation switch (which requires a refit) vs. a graph edit (no refit).
   const orientationAtLayoutRef = useRef(orientation);
 
-  const prevLayoutKeyRef = useRef(layoutKey);
   useEffect(() => {
     let cancelled = false;
     orientationAtLayoutRef.current = orientation;
-    const isForced = prevLayoutKeyRef.current !== layoutKey;
-    if (isForced) prevLayoutKeyRef.current = layoutKey;
     previousBasePositionsRef.current = null;
     layoutGraph(graph, effectiveOpts).then((result) => {
       if (!cancelled) {
-        // Set the force flag right before setLayout so that the resulting
-        // reconcileNodes effect (triggered by the layout-driven baseNodes
-        // change) sees it and applies ELK positions directly.
-        if (isForced) forceBasePositionsRef.current = true;
+        // Always force the next reconcileNodes pass to apply ELK-computed
+        // positions directly, discarding any drag offsets.  This is safe
+        // because:
+        //  • After a user drag, ELK re-runs with the pin and returns the
+        //    same coordinates the user dragged to — no visual jump.
+        //  • After undo/redo of a position change, ELK re-runs without the
+        //    pin and returns the free-form position — node snaps back.
+        //  • After Auto-arrange / Reset, same as undo — free positions.
+        forceBasePositionsRef.current = true;
         setLayout(result);
       }
     });
@@ -630,11 +632,25 @@ function CanvasInner({
 
   useEffect(() => {
     if (forceBasePositionsRef.current) {
-      // Forced re-layout (Auto-arrange / Reset positions): skip drag-position
-      // preservation and apply ELK-computed positions directly.
+      // Fresh ELK result: apply positions directly, preserving only active
+      // drags (nodes the user is currently holding).
       forceBasePositionsRef.current = false;
       previousBasePositionsRef.current = positionsFromNodes(baseNodes);
-      setNodes(baseNodes);
+      if (draggingIds.size > 0) {
+        // Some nodes are mid-drag — keep their current screen position.
+        setNodes((prev) => {
+          const prevById = new Map(prev.map((n) => [n.id, n]));
+          return baseNodes.map((bn) => {
+            if (draggingIds.has(bn.id)) {
+              const p = prevById.get(bn.id);
+              return p ? { ...bn, position: p.position } : bn;
+            }
+            return bn;
+          });
+        });
+      } else {
+        setNodes(baseNodes);
+      }
       return;
     }
     setNodes((previousNodes) =>
