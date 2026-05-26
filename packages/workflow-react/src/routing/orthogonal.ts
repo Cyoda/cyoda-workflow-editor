@@ -148,6 +148,11 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
   if (sourceAxis === "vertical") {
     // mid segment is horizontal; parallelOffset shifts it up/down
     let midY = (sStub.y + tStub.y) / 2 + parallelOffset;
+    // Clamp so the first and last segments always exit/enter along the handle normal.
+    if (sourceNormal.y > 0) midY = Math.max(midY, sStub.y);
+    else if (sourceNormal.y < 0) midY = Math.min(midY, sStub.y);
+    if (targetNormal.y > 0) midY = Math.max(midY, tStub.y);
+    else if (targetNormal.y < 0) midY = Math.min(midY, tStub.y);
     midY = nudgeHorizontalLine(sStub.x, tStub.x, midY, obstacles);
     path = [
       { x: sx, y: sy },
@@ -158,6 +163,11 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
   } else {
     // mid segment is vertical; parallelOffset shifts it left/right
     let midX = (sStub.x + tStub.x) / 2 + parallelOffset;
+    // Clamp so the first and last segments always exit/enter along the handle normal.
+    if (sourceNormal.x > 0) midX = Math.max(midX, sStub.x);
+    else if (sourceNormal.x < 0) midX = Math.min(midX, sStub.x);
+    if (targetNormal.x > 0) midX = Math.max(midX, tStub.x);
+    else if (targetNormal.x < 0) midX = Math.min(midX, tStub.x);
     midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
     path = [
       { x: sx, y: sy },
