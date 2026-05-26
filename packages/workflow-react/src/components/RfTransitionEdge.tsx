@@ -40,6 +40,8 @@ export interface RfEdgeData {
   liveTargetPosition?: Position;
   liveSourceRect?: Rect;
   liveTargetRect?: Rect;
+  /** Lateral mid-segment offset when multiple edges share the same source/target pair. */
+  parallelOffset?: number;
 }
 
 function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
@@ -55,7 +57,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     selected,
   } = props;
   if (!data) return null;
-  const { edge, targetIsTerminal, obstacles } = data;
+  const { edge, targetIsTerminal, obstacles, parallelOffset } = data;
   const resolvedSourceX = data.liveSource?.x ?? sourceX;
   const resolvedSourceY = data.liveSource?.y ?? sourceY;
   const resolvedTargetX = data.liveTarget?.x ?? targetX;
@@ -71,6 +73,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     sourceRect: data.liveSourceRect,
     targetRect: data.liveTargetRect,
     obstacles,
+    parallelOffset,
   });
 
   const color = laneColor(edge, { targetIsTerminal });

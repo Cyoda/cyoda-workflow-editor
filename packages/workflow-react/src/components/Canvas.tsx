@@ -146,6 +146,24 @@ function toRfEdges(
     orientation,
     terminalIds,
   );
+
+  // Compute lateral offsets for parallel edges (same source→target pair).
+  const PARALLEL_STEP = 36;
+  const pairGroups = new Map<string, string[]>();
+  for (const e of transitions) {
+    const key = `${e.sourceId}->${e.targetId}`;
+    if (!pairGroups.has(key)) pairGroups.set(key, []);
+    pairGroups.get(key)!.push(e.id);
+  }
+  const parallelOffsets = new Map<string, number>();
+  for (const group of pairGroups.values()) {
+    if (group.length <= 1) continue;
+    const n = group.length;
+    for (let i = 0; i < n; i++) {
+      parallelOffsets.set(group[i]!, (i - (n - 1) / 2) * PARALLEL_STEP);
+    }
+  }
+
   return transitions.map((e) => {
       const target = stateById.get(e.targetId);
       const targetIsTerminal =
@@ -178,6 +196,7 @@ function toRfEdges(
           liveTargetPosition: targetPosition,
           liveSourceRect: displayPositions.get(e.sourceId),
           liveTargetRect: displayPositions.get(e.targetId),
+          parallelOffset: parallelOffsets.get(e.id),
         },
         reconnectable: true,
         interactionWidth: selected ? 28 : 18,

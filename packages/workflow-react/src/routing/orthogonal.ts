@@ -29,6 +29,11 @@ export interface OrthogonalEdgeInput {
   alignmentTolerance?: number;
   /** Stub length extending the edge along its anchor normal before turning. */
   stubLength?: number;
+  /**
+   * Lateral offset for parallel edges sharing the same source/target pair.
+   * Positive shifts the mid-segment right (vertical paths) or down (horizontal paths).
+   */
+  parallelOffset?: number;
 }
 
 export interface OrthogonalEdge {
@@ -70,6 +75,7 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
     obstacles = [],
     alignmentTolerance = DEFAULT_TOLERANCE,
     stubLength = DEFAULT_STUB,
+    parallelOffset = 0,
   } = input;
 
   if (routePoints && routePoints.length >= 2) {
@@ -116,13 +122,10 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
 
   // Straight-line shortcut: if the two anchors face each other AND are
   // nearly colinear on the non-normal axis, emit one straight segment.
-  const straight = tryStraight(
-    { x: sx, y: sy },
-    sourceNormal,
-    { x: tx, y: ty },
-    targetNormal,
-    alignmentTolerance,
-  );
+  // Skip shortcut for offset parallel edges — they need a Z-path to diverge.
+  const straight = parallelOffset === 0
+    ? tryStraight({ x: sx, y: sy }, sourceNormal, { x: tx, y: ty }, targetNormal, alignmentTolerance)
+    : null;
   if (straight) {
     return {
       path: polylineToPath(straight),
@@ -143,15 +146,9 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
   let path: { x: number; y: number }[];
 
   if (sourceAxis === "vertical") {
-    // mid segment is horizontal
-    let midY = (sStub.y + tStub.y) / 2;
-    // Obstacle nudge: if the midline passes through an obstacle, shift it.
-    midY = nudgeHorizontalLine(
-      sStub.x,
-      tStub.x,
-      midY,
-      obstacles,
-    );
+    // mid segment is horizontal; parallelOffset shifts it up/down
+    let midY = (sStub.y + tStub.y) / 2 + parallelOffset;
+    midY = nudgeHorizontalLine(sStub.x, tStub.x, midY, obstacles);
     path = [
       { x: sx, y: sy },
       { x: sStub.x, y: midY },
@@ -159,14 +156,9 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
       { x: tx, y: ty },
     ];
   } else {
-    // mid segment is vertical
-    let midX = (sStub.x + tStub.x) / 2;
-    midX = nudgeVerticalLine(
-      sStub.y,
-      tStub.y,
-      midX,
-      obstacles,
-    );
+    // mid segment is vertical; parallelOffset shifts it left/right
+    let midX = (sStub.x + tStub.x) / 2 + parallelOffset;
+    midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
     path = [
       { x: sx, y: sy },
       { x: midX, y: sStub.y },
