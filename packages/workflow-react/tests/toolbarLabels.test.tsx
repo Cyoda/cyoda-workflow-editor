@@ -27,16 +27,16 @@ const MINIMAL = JSON.stringify({
 
 afterEach(() => cleanup());
 
-describe("toolbar copy", () => {
-  it("renames Auto Layout to Auto-arrange", () => {
+describe("canvas controls", () => {
+  it("shows undo and redo buttons in editor mode", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
-    const btn = screen.getByTestId("toolbar-auto-layout");
-    expect(btn.textContent).toBe("Auto-arrange");
+    expect(screen.getByTestId("canvas-undo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-redo")).toBeTruthy();
   });
 
-  it("renames Reset Layout to Reset positions", () => {
-    render(<WorkflowEditor document={fixture(MINIMAL)} />);
-    const btn = screen.getByTestId("toolbar-reset-layout");
-    expect(btn.textContent).toBe("Reset positions");
+  it("hides undo/redo buttons in viewer mode", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} mode="viewer" />);
+    expect(screen.queryByTestId("canvas-undo")).toBeNull();
+    expect(screen.queryByTestId("canvas-redo")).toBeNull();
   });
 });

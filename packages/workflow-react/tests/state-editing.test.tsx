@@ -22,23 +22,23 @@ function doc(states: string[], initialState = states[0]!): WorkflowEditorDocumen
 describe("Add State", () => {
   it("shows Add State button in toolbar when not read-only", () => {
     render(<WorkflowEditor document={doc(["start", "end"])} mode="editor" />);
-    expect(screen.getByTestId("toolbar-add-state")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
   });
 
   it("does not show Add State button in viewer mode", () => {
     render(<WorkflowEditor document={doc(["start", "end"])} mode="viewer" />);
-    expect(screen.queryByTestId("toolbar-add-state")).toBeNull();
+    expect(screen.queryByTestId("canvas-add-state")).toBeNull();
   });
 
   it("opens AddStateModal when Add State is clicked", () => {
     render(<WorkflowEditor document={doc(["start", "end"])} mode="editor" />);
-    fireEvent.click(screen.getByTestId("toolbar-add-state"));
+    fireEvent.click(screen.getByTestId("canvas-add-state"));
     expect(screen.getByTestId("add-state-name-input")).toBeTruthy();
   });
 
   it("generates a collision-free default name in the modal", () => {
     render(<WorkflowEditor document={doc(["start", "end", "state1"])} mode="editor" />);
-    fireEvent.click(screen.getByTestId("toolbar-add-state"));
+    fireEvent.click(screen.getByTestId("canvas-add-state"));
     const input = screen.getByTestId("add-state-name-input") as HTMLInputElement;
     // state1 exists so default should be state2
     expect(input.value).toBe("state2");
@@ -46,7 +46,7 @@ describe("Add State", () => {
 
   it("blocks adding a state with a duplicate name", () => {
     render(<WorkflowEditor document={doc(["start", "end"])} mode="editor" />);
-    fireEvent.click(screen.getByTestId("toolbar-add-state"));
+    fireEvent.click(screen.getByTestId("canvas-add-state"));
     const input = screen.getByTestId("add-state-name-input") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "start" } });
     fireEvent.click(screen.getByTestId("add-state-confirm"));
@@ -64,7 +64,7 @@ describe("Add State", () => {
         onChange={() => changed++}
       />,
     );
-    fireEvent.click(screen.getByTestId("toolbar-add-state"));
+    fireEvent.click(screen.getByTestId("canvas-add-state"));
     fireEvent.click(screen.getByTestId("add-state-cancel"));
     expect(screen.queryByTestId("add-state-name-input")).toBeNull();
   });
@@ -78,16 +78,14 @@ describe("State Inspector", () => {
     expect(screen.getByTestId("toolbar")).toBeTruthy();
   });
 
-  it("shows toolbar layout buttons", () => {
+  it("shows canvas auto-arrange button in editor mode", () => {
     render(<WorkflowEditor document={doc(["start", "end"])} mode="editor" />);
-    expect(screen.getByTestId("toolbar-auto-layout")).toBeTruthy();
-    expect(screen.getByTestId("toolbar-reset-layout")).toBeTruthy();
+    expect(screen.getByTestId("canvas-auto-layout")).toBeTruthy();
   });
 
-  it("hides layout buttons in viewer mode", () => {
+  it("hides auto-arrange button in viewer mode", () => {
     render(<WorkflowEditor document={doc(["start", "end"])} mode="viewer" />);
-    expect(screen.queryByTestId("toolbar-auto-layout")).toBeNull();
-    expect(screen.queryByTestId("toolbar-reset-layout")).toBeNull();
+    expect(screen.queryByTestId("canvas-auto-layout")).toBeNull();
   });
 });
 

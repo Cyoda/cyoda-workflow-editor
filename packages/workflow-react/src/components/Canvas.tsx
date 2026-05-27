@@ -819,11 +819,55 @@ function CanvasInner({
   return (
     <HoverContext.Provider value={{ highlightSet }}>
       <div
-        style={{ width: "100%", height: "100%", background: "white" }}
+        style={{ width: "100%", height: "100%", background: "white", position: "relative" }}
         data-testid="workflow-canvas"
         onDoubleClick={readOnly ? undefined : handleCanvasDoubleClick}
       >
         <ArrowMarkers />
+        {showControls && (
+          <div
+            className="nodrag nopan"
+            style={{
+              position: "absolute",
+              bottom: 16,
+              left: 16,
+              zIndex: 5,
+              display: "flex",
+              flexDirection: "column",
+              background: "white",
+              border: "1px solid #D1D5DB",
+              borderRadius: 6,
+              boxShadow: "0 1px 4px rgba(15,23,42,0.10)",
+              overflow: "hidden",
+            }}
+          >
+            {!readOnly && onUndo && (
+              <>
+                <CtrlBtn onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)" testId="canvas-undo">
+                  <UndoIcon />
+                </CtrlBtn>
+                <CtrlBtn onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" testId="canvas-redo">
+                  <RedoIcon />
+                </CtrlBtn>
+                <div style={{ height: 1, background: "#E2E8F0" }} />
+              </>
+            )}
+            <CtrlBtn onClick={() => rf.fitView({ padding: 0.18 })} title="Fit view">
+              <FitViewIcon />
+            </CtrlBtn>
+            <CtrlBtn onClick={onToggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+              {isFullscreen ? <ExitFullscreenIcon /> : <EnterFullscreenIcon />}
+            </CtrlBtn>
+            {!readOnly && onAutoLayout && (
+              <>
+                <div style={{ height: 1, background: "#E2E8F0" }} />
+                <CtrlBtn onClick={onAutoLayout} title="Auto-arrange (L)" testId="canvas-auto-layout">
+                  <AutoArrangeIcon />
+                </CtrlBtn>
+              </>
+            )}
+          </div>
+        )}
         {!readOnly && onAddState && (
           <button
             type="button"
@@ -894,50 +938,6 @@ function CanvasInner({
         >
           <Background />
           {showMinimap && <MiniMap zoomable pannable />}
-          {showControls && (
-            <div
-              className="nodrag nopan"
-              style={{
-                position: "absolute",
-                bottom: 16,
-                left: 16,
-                zIndex: 5,
-                display: "flex",
-                flexDirection: "column",
-                background: "white",
-                border: "1px solid #D1D5DB",
-                borderRadius: 6,
-                boxShadow: "0 1px 4px rgba(15,23,42,0.10)",
-                overflow: "hidden",
-              }}
-            >
-              {!readOnly && onUndo && (
-                <>
-                  <CtrlBtn onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
-                    <UndoIcon />
-                  </CtrlBtn>
-                  <CtrlBtn onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
-                    <RedoIcon />
-                  </CtrlBtn>
-                  <div style={{ height: 1, background: "#E2E8F0" }} />
-                </>
-              )}
-              <CtrlBtn onClick={() => rf.fitView({ padding: 0.18 })} title="Fit view">
-                <FitViewIcon />
-              </CtrlBtn>
-              <CtrlBtn onClick={onToggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
-                {isFullscreen ? <ExitFullscreenIcon /> : <EnterFullscreenIcon />}
-              </CtrlBtn>
-              {!readOnly && onAutoLayout && (
-                <>
-                  <div style={{ height: 1, background: "#E2E8F0" }} />
-                  <CtrlBtn onClick={onAutoLayout} title="Auto-arrange (L)">
-                    <AutoArrangeIcon />
-                  </CtrlBtn>
-                </>
-              )}
-            </div>
-          )}
         </ReactFlow>
       </div>
     </HoverContext.Provider>
@@ -948,11 +948,13 @@ function CtrlBtn({
   onClick,
   disabled,
   title,
+  testId,
   children,
 }: {
   onClick?: () => void;
   disabled?: boolean;
   title?: string;
+  testId?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -961,6 +963,7 @@ function CtrlBtn({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      data-testid={testId}
       style={{
         width: 28,
         height: 28,

@@ -43,6 +43,16 @@ vi.mock("../src/components/Canvas.js", () => ({
         >
           select guarded
         </button>
+        {props.onUndo && (
+          <button
+            type="button"
+            data-testid="canvas-undo"
+            disabled={!props.canUndo}
+            onClick={() => props.onUndo?.()}
+          >
+            Undo
+          </button>
+        )}
       </div>
     );
   },
@@ -289,7 +299,7 @@ describe("criterion modal UX", () => {
     const edge = latestCanvasProps?.graph.edges.find((candidate) => candidate.id === transitionId("wf", "start", "auto"));
     expect(edge && edge.kind === "transition" ? edge.summary.criterion?.kind : undefined).toBe("simple");
 
-    fireEvent.click(screen.getByTestId("toolbar-undo"));
+    fireEvent.click(screen.getByTestId("canvas-undo"));
     const reverted = latestCanvasProps?.graph.edges.find((candidate) => candidate.id === transitionId("wf", "start", "auto"));
     expect(reverted && reverted.kind === "transition" ? reverted.summary.criterion : undefined).toBeUndefined();
   });

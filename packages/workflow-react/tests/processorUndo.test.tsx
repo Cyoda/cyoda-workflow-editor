@@ -24,6 +24,16 @@ vi.mock("../src/components/Canvas.js", () => ({
         >
           select transition
         </button>
+        {props.onUndo && (
+          <button
+            type="button"
+            data-testid="canvas-undo"
+            disabled={!props.canUndo}
+            onClick={() => props.onUndo?.()}
+          >
+            Undo
+          </button>
+        )}
       </div>
     );
   },
@@ -102,7 +112,7 @@ describe("processor undo", () => {
 
     expect(screen.getByText("schedule-finish")).toBeTruthy();
 
-    fireEvent.click(screen.getByTestId("toolbar-undo"));
+    fireEvent.click(screen.getByTestId("canvas-undo"));
     expect(screen.queryByText("schedule-finish")).toBeNull();
   });
 
@@ -119,7 +129,7 @@ describe("processor undo", () => {
 
     expect(screen.getByText("notify-updated")).toBeTruthy();
 
-    fireEvent.click(screen.getByTestId("toolbar-undo"));
+    fireEvent.click(screen.getByTestId("canvas-undo"));
     expect(screen.queryByText("notify-updated")).toBeNull();
     expect(screen.getByText("notify")).toBeTruthy();
   });

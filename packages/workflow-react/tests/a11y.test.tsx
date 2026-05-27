@@ -83,7 +83,7 @@ describe("accessibility", () => {
     const shell = screen.getByTestId("workflow-editor");
     // should not throw
     fireEvent.keyDown(shell, { key: "z", ctrlKey: true });
-    const undo = screen.getByTestId("toolbar-undo") as HTMLButtonElement;
+    const undo = screen.getByTestId("canvas-undo") as HTMLButtonElement;
     expect(undo.disabled).toBe(true);
   });
 });

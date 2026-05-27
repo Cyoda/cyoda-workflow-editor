@@ -99,6 +99,5 @@ describe("keyboard shortcuts", () => {
     fireEvent.keyDown(screen.getByTestId("workflow-editor"), { key: "Escape", code: "Escape" });
 
     expect(screen.queryByTestId("inspector")).toBeNull();
-    expect(screen.getByTestId("workflow-canvas-selection-hint")).toBeTruthy();
   });
 });

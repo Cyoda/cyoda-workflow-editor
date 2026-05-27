@@ -115,14 +115,11 @@ afterEach(() => {
 });
 
 describe("inspector selection sync", () => {
-  it("starts with the inspector hidden and shows the canvas hint", () => {
+  it("starts with the inspector hidden", () => {
     currentDoc = fixtureDoc();
     render(<WorkflowEditor document={currentDoc} mode="editor" />);
 
     expect(screen.queryByTestId("inspector")).toBeNull();
-    expect(screen.getByTestId("workflow-canvas-selection-hint").textContent).toContain(
-      "Select a state or transition to edit it.",
-    );
   });
 
   it("updates the state name field when switching between states", () => {
@@ -156,7 +153,6 @@ describe("inspector selection sync", () => {
 
     fireEvent.click(screen.getByTestId("clear-selection"));
     expect(screen.queryByTestId("inspector")).toBeNull();
-    expect(screen.getByTestId("workflow-canvas-selection-hint")).toBeTruthy();
   });
 
   it("clears selection when the inspector close button is clicked", () => {
@@ -168,7 +164,6 @@ describe("inspector selection sync", () => {
 
     fireEvent.click(screen.getByTestId("inspector-close"));
     expect(screen.queryByTestId("inspector")).toBeNull();
-    expect(screen.getByTestId("workflow-canvas-selection-hint")).toBeTruthy();
   });
 
   it("keeps the canvas mounted while toggling the inspector", () => {

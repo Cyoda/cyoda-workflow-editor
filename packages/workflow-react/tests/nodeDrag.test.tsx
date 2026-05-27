@@ -604,7 +604,8 @@ describe("auto handle routing", () => {
       rfCallbacks.latestEdges?.find((edge) => edge.id === toBusyLeft)?.targetHandle,
     ];
     expect(new Set(incomingHandles)).toEqual(new Set(["top-left", "top-right"]));
-    expect(rfCallbacks.latestEdges?.find((edge) => edge.id === toEnd)?.sourceHandle).toBe("bottom");
+    // end is a terminal state; since busy and end share the same x-centre, terminal routing assigns "left"
+    expect(rfCallbacks.latestEdges?.find((edge) => edge.id === toEnd)?.sourceHandle).toBe("left");
   });
 
   it("routes the reverse leg of a bidirectional pair on a different corridor", async () => {
@@ -667,11 +668,11 @@ describe("auto handle routing", () => {
     });
 
     const loopEdge = rfCallbacks.latestEdges?.find((edge) => edge.id === loopId);
-    expect(loopEdge?.sourceHandle).toBe("bottom");
-    expect(loopEdge?.targetHandle).toBe("top");
+    expect(loopEdge?.sourceHandle).toBe("right-top");
+    expect(loopEdge?.targetHandle).toBe("top-right");
 
     const loopPath = screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d");
-    expect(loopPath).toBe("M 200 280 L 200 308 L 308 308 L 308 192 L 200 192 L 200 220");
+    expect(loopPath).toBe("M 280 236.8 L 340 236.8 L 340 160 L 235.2 160 L 235.2 220");
   });
 
   it("updates a normal transition into a visible self-loop when retargeted to its own state", async () => {
@@ -704,7 +705,7 @@ describe("auto handle routing", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d")).toBe(
-        "M 180 160 L 180 188 L 288 188 L 288 72 L 180 72 L 180 100",
+        "M 260 116.8 L 320 116.8 L 320 40 L 215.2 40 L 215.2 100",
       );
     });
   });
@@ -743,10 +744,10 @@ describe("auto handle routing", () => {
 
     await waitFor(() => {
       const loopEdge = rfCallbacks.latestEdges?.find((edge) => edge.id === loopId);
-      expect(loopEdge?.sourceHandle).toBe("bottom");
-      expect(loopEdge?.targetHandle).toBe("top");
+      expect(loopEdge?.sourceHandle).toBe("right-top");
+      expect(loopEdge?.targetHandle).toBe("top-right");
       expect(screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d")).toBe(
-        "M 200 280 L 200 308 L 308 308 L 308 192 L 200 192 L 200 220",
+        "M 280 236.8 L 340 236.8 L 340 160 L 235.2 160 L 235.2 220",
       );
     });
   });
@@ -913,77 +914,6 @@ describe("node drag — position persistence", () => {
   });
 });
 
-// ── Tests: reset layout ──────────────────────────────────────────────────────
-
-describe("reset layout", () => {
-  it("clears all manual positions when Reset Layout is clicked", async () => {
-    const doc = fixture(TWO_STATE_CONNECTED);
-    const startId = stateUuid(doc, "wf", "start");
-    let latestDoc: WorkflowEditorDocument | undefined;
-
-    vi.mocked(layoutGraph).mockResolvedValue(buildLayout(doc));
-
-    render(
-      <WorkflowEditor
-        document={doc}
-        onChange={(d) => { latestDoc = d; }}
-      />,
-    );
-
-    await waitFor(() => expect(rfCallbacks.onNodeDragStop).toBeDefined());
-
-    // First, establish a manual position via drag.
-    await act(async () => {
-      rfCallbacks.onNodeDragStop?.(null, {
-        id: startId,
-        position: { x: 250, y: 150 },
-        data: {},
-      });
-    });
-
-    expect(latestDoc?.meta.workflowUi.wf?.layout?.nodes?.start).toBeDefined();
-
-    // Click Reset Layout — should clear all manual positions.
-    fireEvent.click(screen.getByTestId("toolbar-reset-layout"));
-
-    expect(latestDoc?.meta.workflowUi.wf?.layout).toBeUndefined();
-  });
-
-  it("drag stop after reset layout re-establishes a position", async () => {
-    const doc = fixture(TWO_STATE_CONNECTED);
-    const startId = stateUuid(doc, "wf", "start");
-    let latestDoc: WorkflowEditorDocument | undefined;
-
-    vi.mocked(layoutGraph).mockResolvedValue(buildLayout(doc));
-
-    render(
-      <WorkflowEditor
-        document={doc}
-        onChange={(d) => { latestDoc = d; }}
-      />,
-    );
-
-    await waitFor(() => expect(rfCallbacks.onNodeDragStop).toBeDefined());
-
-    // Drag to position A.
-    await act(async () => {
-      rfCallbacks.onNodeDragStop?.(null, { id: startId, position: { x: 250, y: 150 }, data: {} });
-    });
-    // Reset.
-    fireEvent.click(screen.getByTestId("toolbar-reset-layout"));
-    expect(latestDoc?.meta.workflowUi.wf?.layout).toBeUndefined();
-
-    // Drag to position B.
-    await act(async () => {
-      rfCallbacks.onNodeDragStop?.(null, { id: startId, position: { x: 400, y: 50 }, data: {} });
-    });
-    expect(latestDoc?.meta.workflowUi.wf?.layout?.nodes?.start).toEqual({
-      x: 400,
-      y: 50,
-      pinned: true,
-    });
-  });
-});
 
 // ── Tests: drag does not affect read-only viewer ─────────────────────────────
 

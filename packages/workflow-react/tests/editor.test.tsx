@@ -53,8 +53,8 @@ describe("WorkflowEditor", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.getByTestId("workflow-editor")).toBeTruthy();
     expect(screen.getByTestId("toolbar")).toBeTruthy();
-    expect(screen.getByTestId("toolbar-undo")).toBeTruthy();
-    expect(screen.getByTestId("toolbar-redo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-undo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-redo")).toBeTruthy();
   });
 
   it("hides tabs for single-workflow viewer mode", () => {
@@ -71,8 +71,8 @@ describe("WorkflowEditor", () => {
 
   it("disables undo/redo initially (empty stacks)", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
-    const undo = screen.getByTestId("toolbar-undo") as HTMLButtonElement;
-    const redo = screen.getByTestId("toolbar-redo") as HTMLButtonElement;
+    const undo = screen.getByTestId("canvas-undo") as HTMLButtonElement;
+    const redo = screen.getByTestId("canvas-redo") as HTMLButtonElement;
     expect(undo.disabled).toBe(true);
     expect(redo.disabled).toBe(true);
   });
@@ -104,15 +104,10 @@ describe("WorkflowEditor chrome suppression", () => {
     expect(screen.queryByTestId("workflow-tabs")).toBeNull();
   });
 
-  it("shows default toolbar chrome and contextual inspector hint", () => {
+  it("shows default toolbar chrome and canvas add-state button", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.getByTestId("toolbar")).toBeTruthy();
     expect(screen.queryByTestId("inspector")).toBeNull();
-    const hint = screen.getByTestId("workflow-canvas-selection-hint");
-    expect(hint).toBeTruthy();
-    expect(hint.getAttribute("data-placement")).toBe("top-right");
-    expect(hint.style.pointerEvents).toBe("none");
-    expect(hint.style.top).toBe("16px");
-    expect(hint.style.bottom).toBe("");
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
   });
 });
