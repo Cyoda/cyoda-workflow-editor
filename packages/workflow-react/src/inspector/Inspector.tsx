@@ -24,6 +24,7 @@ export interface InspectorProps {
   onSelectionChange: (sel: Selection) => void;
   onClose?: () => void;
   onRequestDeleteState: (workflow: string, stateCode: string) => void;
+  width?: number;
   /**
    * Optional model-schema autocomplete source for criterion jsonPath inputs.
    * When omitted, jsonPath inputs render as plain free-text fields.
@@ -57,6 +58,7 @@ export function Inspector({
   onClose,
   onRequestDeleteState,
   hintProvider,
+  width = 384,
 }: InspectorProps) {
   const messages = useMessages();
   const { developerMode } = useEditorConfig();
@@ -81,10 +83,9 @@ export function Inspector({
         flexDirection: "column",
         background: "#F8FAFC",
         borderLeft: "1px solid #E2E8F0",
-        flex: "0 0 384px",
-        width: 384,
+        flex: `0 0 ${width}px`,
+        width,
         minWidth: 360,
-        maxWidth: 420,
       }}
       data-testid="inspector"
     >

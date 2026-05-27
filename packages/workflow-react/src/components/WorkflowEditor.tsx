@@ -177,6 +177,7 @@ export function WorkflowEditor({
 
   const [state, actions] = useEditorStore(initialDocumentWithLayout, mode);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [inspectorWidth, setInspectorWidth] = useState(384);
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null);
@@ -237,6 +238,22 @@ export function WorkflowEditor({
     document.addEventListener("fullscreenchange", handler);
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
+
+  const handleInspectorResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = inspectorWidth;
+    const onMove = (ev: MouseEvent) => {
+      const delta = startX - ev.clientX;
+      setInspectorWidth(Math.max(360, startWidth + delta));
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [inspectorWidth]);
 
   const handleToggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -913,17 +930,34 @@ export function WorkflowEditor({
             )}
           </div>
           {inspectorVisible && (
-            <Inspector
-              document={state.document}
-              selection={state.selection}
-              issues={derived.issues}
-              readOnly={readOnly}
-              onDispatch={dispatch}
-              onSelectionChange={handleSelectionChange}
-              onClose={() => handleSelectionChange(null)}
-              onRequestDeleteState={requestDeleteState}
-              {...(hintProvider ? { hintProvider } : {})}
-            />
+            <>
+              <div
+                onMouseDown={handleInspectorResizeStart}
+                style={{
+                  width: 3,
+                  flexShrink: 0,
+                  cursor: "col-resize",
+                  background: "transparent",
+                  borderLeft: "1px solid #E2E8F0",
+                  transition: "background 0.15s",
+                  zIndex: 10,
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = "#CBD5E1")}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              />
+              <Inspector
+                document={state.document}
+                selection={state.selection}
+                issues={derived.issues}
+                readOnly={readOnly}
+                onDispatch={dispatch}
+                onSelectionChange={handleSelectionChange}
+                onClose={() => handleSelectionChange(null)}
+                onRequestDeleteState={requestDeleteState}
+                width={inspectorWidth}
+                {...(hintProvider ? { hintProvider } : {})}
+              />
+            </>
           )}
         </div>
         {pendingAddState !== null && state.activeWorkflow && (
