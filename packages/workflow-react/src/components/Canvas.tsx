@@ -552,7 +552,6 @@ function CanvasInner({
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
   const previousBasePositionsRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   // When true, the next reconcileNodes pass will skip drag-position preservation
   // and apply ELK-computed positions directly. Set when a forced re-layout is

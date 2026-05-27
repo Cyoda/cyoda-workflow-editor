@@ -854,6 +854,15 @@ export function WorkflowEditor({
               })
             }
             onClose={(name) => dispatch({ op: "removeWorkflow", workflow: name })}
+            onRename={(from, to) => {
+              actions.dispatchTransaction({
+                summary: `Rename workflow "${from}" → "${to}"`,
+                patches: [{ op: "renameWorkflow", from, to }],
+                inverses: [{ op: "renameWorkflow", from: to, to: from }],
+                selectionAfter: null,
+              });
+              actions.setActiveWorkflow(to);
+            }}
           />
         )}
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>

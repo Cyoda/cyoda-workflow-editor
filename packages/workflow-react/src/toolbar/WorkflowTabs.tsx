@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { Workflow } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
 
@@ -7,6 +8,7 @@ export interface WorkflowTabsProps {
   onSelect: (name: string) => void;
   onAdd?: () => void;
   onClose?: (name: string) => void;
+  onRename?: (from: string, to: string) => void;
   readOnly: boolean;
 }
 
@@ -20,9 +22,38 @@ export function WorkflowTabs({
   onSelect,
   onAdd,
   onClose,
+  onRename,
   readOnly,
 }: WorkflowTabsProps) {
   const messages = useMessages();
+  const [editingTab, setEditingTab] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingTab !== null) inputRef.current?.select();
+  }, [editingTab]);
+
+  const startEditing = (name: string) => {
+    if (readOnly || !onRename) return;
+    setEditingTab(name);
+    setDraftName(name);
+  };
+
+  const commitEdit = () => {
+    if (editingTab === null) return;
+    const trimmed = draftName.trim();
+    const isDuplicate = workflows.some(
+      (w) => w.name !== editingTab && w.name === trimmed,
+    );
+    if (trimmed && trimmed !== editingTab && !isDuplicate) {
+      onRename?.(editingTab, trimmed);
+    }
+    setEditingTab(null);
+  };
+
+  const cancelEdit = () => setEditingTab(null);
+
   return (
     <nav
       style={{
@@ -38,6 +69,7 @@ export function WorkflowTabs({
     >
       {workflows.map((w) => {
         const active = w.name === activeWorkflow;
+        const isEditing = editingTab === w.name;
         return (
           <div
             key={w.name}
@@ -49,22 +81,50 @@ export function WorkflowTabs({
               background: active ? "white" : "transparent",
             }}
           >
-            <button
-              type="button"
-              onClick={() => onSelect(w.name)}
-              style={{
-                padding: "4px 10px",
-                background: "transparent",
-                border: "none",
-                fontSize: 13,
-                fontWeight: active ? 600 : 400,
-                cursor: "pointer",
-              }}
-              data-testid={`tab-${w.name}`}
-            >
-              {w.name || messages.tabs.untitled}
-            </button>
-            {onClose && !readOnly && workflows.length > 1 && (
+            {isEditing ? (
+              <input
+                ref={inputRef}
+                value={draftName}
+                onChange={(e) => setDraftName(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); commitEdit(); }
+                  if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+                }}
+                data-testid={`tab-rename-input-${w.name}`}
+                style={{
+                  padding: "3px 8px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  border: "none",
+                  outline: "2px solid #0F172A",
+                  outlineOffset: -2,
+                  borderRadius: 3,
+                  background: "white",
+                  minWidth: 60,
+                  width: Math.max(60, draftName.length * 8),
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSelect(w.name)}
+                onDoubleClick={() => startEditing(w.name)}
+                style={{
+                  padding: "4px 10px",
+                  background: "transparent",
+                  border: "none",
+                  fontSize: 13,
+                  fontWeight: active ? 600 : 400,
+                  cursor: "pointer",
+                }}
+                data-testid={`tab-${w.name}`}
+                title={!readOnly && onRename ? "Double-click to rename" : undefined}
+              >
+                {w.name || messages.tabs.untitled}
+              </button>
+            )}
+            {onClose && !readOnly && workflows.length > 1 && !isEditing && (
               <button
                 type="button"
                 onClick={() => onClose(w.name)}
