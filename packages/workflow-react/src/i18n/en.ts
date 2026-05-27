@@ -12,6 +12,7 @@ export const defaultMessages = {
     resetLayout: "Reset positions",
     addState: "+ State",
     addNote: "+ Note",
+    addStateButton: "Add State",
   },
   issues: {
     title: "Issues",

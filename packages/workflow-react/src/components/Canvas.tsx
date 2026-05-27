@@ -65,7 +65,6 @@ export interface CanvasProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onAutoLayout?: () => void;
-  onAddState?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
   /**
@@ -544,7 +543,6 @@ function CanvasInner({
   onUndo,
   onRedo,
   onAutoLayout,
-  onAddState,
   isFullscreen = false,
   onToggleFullscreen,
   resizeKey = 0,
@@ -866,37 +864,6 @@ function CanvasInner({
               </>
             )}
           </div>
-        )}
-        {!readOnly && onAddState && (
-          <button
-            type="button"
-            data-testid="canvas-add-state"
-            title="Add State (A)"
-            onClick={onAddState}
-            style={{
-              position: "absolute",
-              top: 16,
-              right: 16,
-              zIndex: 15,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              background: "#0F172A",
-              color: "white",
-              border: "none",
-              borderRadius: 6,
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: "pointer",
-              boxShadow: "0 1px 4px rgba(15,23,42,0.18)",
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Add State
-          </button>
         )}
         <ReactFlow
           nodes={nodes}

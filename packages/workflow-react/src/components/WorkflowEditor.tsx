@@ -723,7 +723,6 @@ export function WorkflowEditor({
         onUndo={!readOnly ? actions.undo : undefined}
         onRedo={!readOnly ? actions.redo : undefined}
         onAutoLayout={!readOnly ? handleAutoLayout : undefined}
-        onAddState={!readOnly ? () => openAddStateModal() : undefined}
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
         resizeKey={inspectorVisible ? 1 : 0}
@@ -867,29 +866,61 @@ export function WorkflowEditor({
         )}
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            {enableJsonEditor && jsonEditorPlacement === "tab" && (
+            {(enableJsonEditor && jsonEditorPlacement === "tab" || (!readOnly && graphVisible)) && (
               <div
                 style={{
                   display: "flex",
+                  alignItems: "center",
                   gap: 8,
-                  padding: "8px 12px",
+                  padding: "6px 12px",
                   borderBottom: "1px solid #E2E8F0",
                   background: "white",
                 }}
                 data-testid="workflow-editor-surface-tabs"
               >
-                <SurfaceTab
-                  active={activeSurface === "graph"}
-                  onClick={() => setActiveSurface("graph")}
-                >
-                  {mergedMessages.editorView.graph}
-                </SurfaceTab>
-                <SurfaceTab
-                  active={activeSurface === "json"}
-                  onClick={() => setActiveSurface("json")}
-                >
-                  {mergedMessages.editorView.json}
-                </SurfaceTab>
+                {enableJsonEditor && jsonEditorPlacement === "tab" && (
+                  <>
+                    <SurfaceTab
+                      active={activeSurface === "graph"}
+                      onClick={() => setActiveSurface("graph")}
+                    >
+                      {mergedMessages.editorView.graph}
+                    </SurfaceTab>
+                    <SurfaceTab
+                      active={activeSurface === "json"}
+                      onClick={() => setActiveSurface("json")}
+                    >
+                      {mergedMessages.editorView.json}
+                    </SurfaceTab>
+                  </>
+                )}
+                <div style={{ flex: 1 }} />
+                {!readOnly && activeSurface === "graph" && (
+                  <button
+                    type="button"
+                    data-testid="canvas-add-state"
+                    title="Add State (A)"
+                    onClick={() => openAddStateModal()}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      padding: "4px 10px",
+                      background: "white",
+                      color: "#0F172A",
+                      border: "1px solid #CBD5E1",
+                      borderRadius: 5,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                    {mergedMessages.toolbar.addStateButton}
+                  </button>
+                )}
               </div>
             )}
             {enableJsonEditor && jsonEditorPlacement === "split" ? (
