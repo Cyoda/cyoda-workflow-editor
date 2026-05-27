@@ -626,27 +626,36 @@ function CanvasInner({
     const viewportKey = `${activeWorkflow ?? "__all__"}:${orientationAtLayoutRef.current}`;
     if (lastHandledViewportKeyRef.current === viewportKey) return;
 
-    const rafId = requestAnimationFrame(() => {
+    const stateCount = graph.nodes.filter(
+      (node): node is GraphStateNode =>
+        node.kind === "state" &&
+        (!activeWorkflow || node.workflow === activeWorkflow),
+    ).length;
+    const fitOptions =
+      stateCount <= 6
+        ? { padding: 0.2, maxZoom: 1 }
+        : { padding: 0.18 };
+
+    let rafId: ReturnType<typeof requestAnimationFrame>;
+    let attempts = 0;
+
+    const tryApply = () => {
       if (savedViewport) {
         void rf.setViewport(savedViewport, { duration: 0 });
         lastHandledViewportKeyRef.current = viewportKey;
-      } else {
-        const stateCount = graph.nodes.filter(
-          (node): node is GraphStateNode =>
-            node.kind === "state" &&
-            (!activeWorkflow || node.workflow === activeWorkflow),
-        ).length;
-        const fitOptions =
-          stateCount <= 6
-            ? { padding: 0.2, maxZoom: 1 }
-            : { padding: 0.18 };
-        // fitView returns false if nodes are not yet initialized in the
-        // ReactFlow store (nodesInitialized guard). Only mark the key as
-        // handled when the fit actually ran, so a retry happens if needed.
-        const fitted = rf.fitView(fitOptions);
-        if (fitted) lastHandledViewportKeyRef.current = viewportKey;
+        return;
       }
-    });
+      // fitView returns false when ReactFlow hasn't measured nodes yet.
+      // Retry on successive frames until it succeeds (cap at 20 frames).
+      const fitted = rf.fitView(fitOptions);
+      if (fitted) {
+        lastHandledViewportKeyRef.current = viewportKey;
+      } else if (++attempts < 20) {
+        rafId = requestAnimationFrame(tryApply);
+      }
+    };
+
+    rafId = requestAnimationFrame(tryApply);
     return () => cancelAnimationFrame(rafId);
   }, [activeWorkflow, graph.nodes, layout, rf, savedViewport]);
 
