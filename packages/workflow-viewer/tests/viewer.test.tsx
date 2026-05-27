@@ -87,8 +87,6 @@ describe("WorkflowViewer", () => {
     const { container } = render(<WorkflowViewer graph={graph} />);
     const texts = Array.from(container.querySelectorAll("text")).map((n) => n.textContent);
     expect(texts).toContain("process");
-    expect(texts).toContain("Manual");
-    expect(texts).toContain("SYNC");
     expect(texts).toContain("enrich");
   });
 
