@@ -7,34 +7,20 @@ export type IssueSeverity = ValidationIssue["severity"];
 
 export interface ToolbarProps {
   derived: DerivedState;
-  canUndo: boolean;
-  canRedo: boolean;
   readOnly: boolean;
   saveDisabled?: boolean;
   /** Severity whose issues drawer is currently open, if any. */
   openIssueSeverity?: IssueSeverity | null;
-  onUndo: () => void;
-  onRedo: () => void;
   onSave?: () => void;
-  onAddState?: () => void;
-  onResetLayout?: () => void;
-  onAutoLayout?: () => void;
   onIssueBadgeClick?: (severity: IssueSeverity) => void;
 }
 
 export function Toolbar({
   derived,
-  canUndo,
-  canRedo,
   readOnly,
   saveDisabled = false,
   openIssueSeverity = null,
-  onUndo,
-  onRedo,
   onSave,
-  onAddState,
-  onResetLayout,
-  onAutoLayout,
   onIssueBadgeClick,
 }: ToolbarProps) {
   const messages = useMessages();
@@ -50,57 +36,6 @@ export function Toolbar({
       }}
       data-testid="toolbar"
     >
-      <button
-        type="button"
-        onClick={onUndo}
-        disabled={!canUndo || readOnly}
-        style={btnStyle}
-        data-testid="toolbar-undo"
-      >
-        {messages.toolbar.undo}
-      </button>
-      <button
-        type="button"
-        onClick={onRedo}
-        disabled={!canRedo || readOnly}
-        style={btnStyle}
-        data-testid="toolbar-redo"
-      >
-        {messages.toolbar.redo}
-      </button>
-      {!readOnly && onAddState && (
-        <button
-          type="button"
-          onClick={onAddState}
-          style={{ ...btnStyle, background: "#0F172A", color: "white", borderColor: "#0F172A" }}
-          data-testid="toolbar-add-state"
-          title="Add State (A)"
-        >
-          {messages.toolbar.addState}
-        </button>
-      )}
-      {!readOnly && onAutoLayout && (
-        <button
-          type="button"
-          onClick={onAutoLayout}
-          style={btnStyle}
-          data-testid="toolbar-auto-layout"
-          title="Re-run automatic layout (L)"
-        >
-          {messages.toolbar.autoLayout}
-        </button>
-      )}
-      {!readOnly && onResetLayout && (
-        <button
-          type="button"
-          onClick={onResetLayout}
-          style={btnStyle}
-          data-testid="toolbar-reset-layout"
-          title="Reset all manual positions (Shift+L)"
-        >
-          {messages.toolbar.resetLayout}
-        </button>
-      )}
       <div style={{ flex: 1 }} />
       <span role="status" aria-live="polite" style={{ display: "inline-flex", gap: 6 }}>
         <ValidationPill

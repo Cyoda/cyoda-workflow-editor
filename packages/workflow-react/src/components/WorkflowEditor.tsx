@@ -27,7 +27,6 @@ import type { EditorMode, Selection } from "../state/types.js";
 import { Canvas } from "./Canvas.js";
 import { resolveConnection, type PendingConnect } from "./resolveConnection.js";
 import { Inspector } from "../inspector/Inspector.js";
-import { resolveSelection } from "../inspector/resolve.js";
 import { Toolbar, type IssueSeverity } from "../toolbar/Toolbar.js";
 import { IssuesDrawer } from "../toolbar/IssuesDrawer.js";
 import { WorkflowTabs } from "../toolbar/WorkflowTabs.js";
@@ -177,6 +176,8 @@ export function WorkflowEditor({
   }, []);
 
   const [state, actions] = useEditorStore(initialDocumentWithLayout, mode);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null);
   const [pendingAddState, setPendingAddState] = useState<PendingAddState | null>(null);
@@ -230,6 +231,20 @@ export function WorkflowEditor({
     const ui = state.document.meta.workflowUi[state.activeWorkflow];
     if (ui) onLayoutMetadataChange(ui);
   }, [state.document.meta.workflowUi, state.activeWorkflow, onLayoutMetadataChange]);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      editorContainerRef.current?.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }, []);
 
   const readOnly = state.mode === "viewer";
   const derived = useMemo(
@@ -296,10 +311,6 @@ export function WorkflowEditor({
     enableJsonEditor && (jsonEditorPlacement === "split" || activeSurface === "json");
   const graphVisible =
     !enableJsonEditor || jsonEditorPlacement === "split" || activeSurface === "graph";
-  const hasEditableSelection = useMemo(
-    () => resolveSelection(state.document, state.selection) !== null,
-    [state.document, state.selection],
-  );
   const inspectorVisible =
     chrome?.inspector !== false &&
     inspectorOpen &&
@@ -323,21 +334,6 @@ export function WorkflowEditor({
     },
     [state.document.meta.ids.states, actions],
   );
-
-  const handleResetLayout = useCallback(() => {
-    const workflow = state.activeWorkflow;
-    if (!workflow) return;
-    // Use silentReplace so reset is not on the undo stack.
-    const workflowUi = { ...state.document.meta.workflowUi };
-    const current = workflowUi[workflow] ?? {};
-    workflowUi[workflow] = { ...current, layout: undefined };
-    actions.silentReplace(
-      { session: state.document.session, meta: { ...state.document.meta, workflowUi } },
-      { preserveEditorState: true },
-    );
-    // Force Canvas to re-run ELK now that pinned positions are cleared.
-    setLayoutKey((k) => k + 1);
-  }, [state.activeWorkflow, state.document, actions]);
 
   const handleAutoLayout = useCallback(() => {
     const workflow = state.activeWorkflow;
@@ -536,11 +532,6 @@ export function WorkflowEditor({
         handleAutoLayout();
         return;
       }
-      if (!readOnly && !mod && e.key === "L") {
-        e.preventDefault();
-        handleResetLayout();
-        return;
-      }
       if (!readOnly && !mod && e.key === "a") {
         e.preventDefault();
         openAddStateModal();
@@ -561,7 +552,6 @@ export function WorkflowEditor({
       onSave,
       saveDisabled,
       handleAutoLayout,
-      handleResetLayout,
       handleSelectionChange,
       state.selection,
       inspectorOpen,
@@ -711,33 +701,16 @@ export function WorkflowEditor({
         readOnly={readOnly}
         showMinimap={chrome?.minimap !== false && !inspectorVisible}
         showControls={chrome?.controls !== false}
+        canUndo={state.undoStack.length > 0}
+        canRedo={state.redoStack.length > 0}
+        onUndo={!readOnly ? actions.undo : undefined}
+        onRedo={!readOnly ? actions.redo : undefined}
+        onAutoLayout={!readOnly ? handleAutoLayout : undefined}
+        onAddState={!readOnly ? () => openAddStateModal() : undefined}
+        isFullscreen={isFullscreen}
+        onToggleFullscreen={handleToggleFullscreen}
         resizeKey={inspectorVisible ? 1 : 0}
       />
-      {graphVisible && !hasEditableSelection && (
-        <div
-          data-testid="workflow-canvas-selection-hint"
-          data-placement="top-right"
-          style={{
-            position: "absolute",
-            top: 16,
-            right: 16,
-            zIndex: 15,
-            maxWidth: 280,
-            padding: "8px 10px",
-            borderRadius: 6,
-            border: "1px solid #CBD5E1",
-            background: "rgba(255, 255, 255, 0.92)",
-            color: "#475569",
-            fontSize: 12,
-            lineHeight: 1.4,
-            boxShadow: "0 2px 8px rgba(15,23,42,0.10)",
-            pointerEvents: "none",
-          }}
-        >
-          <div>Select a state or transition to edit it.</div>
-          <div style={{ color: "#64748B" }}>Drag states to arrange the workflow.</div>
-        </div>
-      )}
       {reconnectError && (
         <div
           role="alert"
@@ -812,6 +785,7 @@ export function WorkflowEditor({
     <I18nContext.Provider value={mergedMessages}>
      <EditorConfigContext.Provider value={editorConfig}>
       <div
+        ref={editorContainerRef}
         style={{
           height: "100%",
           display: "flex",
@@ -819,6 +793,7 @@ export function WorkflowEditor({
           fontFamily:
             '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif',
           outline: "none",
+          background: "white",
         }}
         data-testid="workflow-editor"
         onKeyDownCapture={handleDeleteKeyDownCapture}
@@ -829,17 +804,10 @@ export function WorkflowEditor({
           <div style={{ position: "relative" }}>
             <Toolbar
               derived={derived}
-              canUndo={state.undoStack.length > 0}
-              canRedo={state.redoStack.length > 0}
               readOnly={readOnly}
               saveDisabled={saveDisabled}
               openIssueSeverity={openIssueSeverity}
-              onUndo={actions.undo}
-              onRedo={actions.redo}
               onSave={onSave ? () => onSave(state.document) : undefined}
-              onAddState={!readOnly ? () => openAddStateModal() : undefined}
-              onResetLayout={!readOnly ? handleResetLayout : undefined}
-              onAutoLayout={!readOnly ? handleAutoLayout : undefined}
               onIssueBadgeClick={(severity) =>
                 setOpenIssueSeverity((prev) => (prev === severity ? null : severity))
               }

@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
   applyNodeChanges,
   Background,
   ConnectionMode,
-  Controls,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -61,6 +60,14 @@ export interface CanvasProps {
   readOnly?: boolean;
   showMinimap?: boolean;
   showControls?: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  onAutoLayout?: () => void;
+  onAddState?: () => void;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   /**
    * Increment when the canvas container changes size without changing graph
    * data, so React Flow can recompute handles and edge attachments.
@@ -532,11 +539,20 @@ function CanvasInner({
   readOnly,
   showMinimap = true,
   showControls = true,
+  canUndo = false,
+  canRedo = false,
+  onUndo,
+  onRedo,
+  onAutoLayout,
+  onAddState,
+  isFullscreen = false,
+  onToggleFullscreen,
   resizeKey = 0,
 }: CanvasProps) {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const previousBasePositionsRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   // When true, the next reconcileNodes pass will skip drag-position preservation
   // and apply ELK-computed positions directly. Set when a forced re-layout is
@@ -803,11 +819,42 @@ function CanvasInner({
   return (
     <HoverContext.Provider value={{ highlightSet }}>
       <div
-        style={{ width: "100%", height: "100%" }}
+        style={{ width: "100%", height: "100%", background: "white" }}
         data-testid="workflow-canvas"
         onDoubleClick={readOnly ? undefined : handleCanvasDoubleClick}
       >
         <ArrowMarkers />
+        {!readOnly && onAddState && (
+          <button
+            type="button"
+            data-testid="canvas-add-state"
+            title="Add State (A)"
+            onClick={onAddState}
+            style={{
+              position: "absolute",
+              top: 16,
+              right: 16,
+              zIndex: 15,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              background: "#0F172A",
+              color: "white",
+              border: "none",
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 1px 4px rgba(15,23,42,0.18)",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add State
+          </button>
+        )}
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -846,11 +893,140 @@ function CanvasInner({
           }}
         >
           <Background />
-          {showControls && <Controls showInteractive={false} />}
           {showMinimap && <MiniMap zoomable pannable />}
+          {showControls && (
+            <div
+              className="nodrag nopan"
+              style={{
+                position: "absolute",
+                bottom: 16,
+                left: 16,
+                zIndex: 5,
+                display: "flex",
+                flexDirection: "column",
+                background: "white",
+                border: "1px solid #D1D5DB",
+                borderRadius: 6,
+                boxShadow: "0 1px 4px rgba(15,23,42,0.10)",
+                overflow: "hidden",
+              }}
+            >
+              {!readOnly && onUndo && (
+                <>
+                  <CtrlBtn onClick={onUndo} disabled={!canUndo} title="Undo (Ctrl+Z)">
+                    <UndoIcon />
+                  </CtrlBtn>
+                  <CtrlBtn onClick={onRedo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
+                    <RedoIcon />
+                  </CtrlBtn>
+                  <div style={{ height: 1, background: "#E2E8F0" }} />
+                </>
+              )}
+              <CtrlBtn onClick={() => rf.fitView({ padding: 0.18 })} title="Fit view">
+                <FitViewIcon />
+              </CtrlBtn>
+              <CtrlBtn onClick={onToggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+                {isFullscreen ? <ExitFullscreenIcon /> : <EnterFullscreenIcon />}
+              </CtrlBtn>
+              {!readOnly && onAutoLayout && (
+                <>
+                  <div style={{ height: 1, background: "#E2E8F0" }} />
+                  <CtrlBtn onClick={onAutoLayout} title="Auto-arrange (L)">
+                    <AutoArrangeIcon />
+                  </CtrlBtn>
+                </>
+              )}
+            </div>
+          )}
         </ReactFlow>
       </div>
     </HoverContext.Provider>
+  );
+}
+
+function CtrlBtn({
+  onClick,
+  disabled,
+  title,
+  children,
+}: {
+  onClick?: () => void;
+  disabled?: boolean;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      style={{
+        width: 28,
+        height: 28,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "transparent",
+        border: "none",
+        cursor: disabled ? "default" : "pointer",
+        color: disabled ? "#CBD5E1" : "#475569",
+        padding: 0,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FitViewIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 7V4h3M18 4h3v3M21 17v3h-3M6 20H3v-3" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 15l6-6m0 0-6-6m6 6H9a6 6 0 0 0 0 12h3" />
+    </svg>
+  );
+}
+
+function EnterFullscreenIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M16 21h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
+    </svg>
+  );
+}
+
+function ExitFullscreenIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3" />
+    </svg>
+  );
+}
+
+function AutoArrangeIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
   );
 }
 
