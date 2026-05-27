@@ -153,13 +153,31 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
     else if (sourceNormal.y < 0) midY = Math.min(midY, sStub.y);
     if (targetNormal.y > 0) midY = Math.max(midY, tStub.y);
     else if (targetNormal.y < 0) midY = Math.min(midY, tStub.y);
-    midY = nudgeHorizontalLine(sStub.x, tStub.x, midY, obstacles);
-    path = [
-      { x: sx, y: sy },
-      { x: sStub.x, y: midY },
-      { x: tStub.x, y: midY },
-      { x: tx, y: ty },
-    ];
+    // When facing normals conflict (e.g. bottom→top with insufficient space), the
+    // target clamp re-violates the source constraint. Fall back to a staircase path
+    // that routes through both explicit stubs so the source always exits correctly.
+    const srcViolatedY =
+      (sourceNormal.y > 0 && midY < sStub.y) ||
+      (sourceNormal.y < 0 && midY > sStub.y);
+    if (srcViolatedY) {
+      const midX = (sStub.x + tStub.x) / 2 + parallelOffset;
+      path = [
+        { x: sx, y: sy },
+        { x: sStub.x, y: sStub.y },
+        { x: midX, y: sStub.y },
+        { x: midX, y: tStub.y },
+        { x: tStub.x, y: tStub.y },
+        { x: tx, y: ty },
+      ];
+    } else {
+      midY = nudgeHorizontalLine(sStub.x, tStub.x, midY, obstacles);
+      path = [
+        { x: sx, y: sy },
+        { x: sStub.x, y: midY },
+        { x: tStub.x, y: midY },
+        { x: tx, y: ty },
+      ];
+    }
   } else {
     // mid segment is vertical; parallelOffset shifts it left/right
     let midX = (sStub.x + tStub.x) / 2 + parallelOffset;
@@ -168,13 +186,30 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
     else if (sourceNormal.x < 0) midX = Math.min(midX, sStub.x);
     if (targetNormal.x > 0) midX = Math.max(midX, tStub.x);
     else if (targetNormal.x < 0) midX = Math.min(midX, tStub.x);
-    midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
-    path = [
-      { x: sx, y: sy },
-      { x: midX, y: sStub.y },
-      { x: midX, y: tStub.y },
-      { x: tx, y: ty },
-    ];
+    // When facing normals conflict (e.g. left→right with insufficient space), the
+    // target clamp re-violates the source constraint. Fall back to a staircase path.
+    const srcViolatedX =
+      (sourceNormal.x > 0 && midX < sStub.x) ||
+      (sourceNormal.x < 0 && midX > sStub.x);
+    if (srcViolatedX) {
+      const midY = (sStub.y + tStub.y) / 2 + parallelOffset;
+      path = [
+        { x: sx, y: sy },
+        { x: sStub.x, y: sStub.y },
+        { x: sStub.x, y: midY },
+        { x: tStub.x, y: midY },
+        { x: tStub.x, y: tStub.y },
+        { x: tx, y: ty },
+      ];
+    } else {
+      midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
+      path = [
+        { x: sx, y: sy },
+        { x: midX, y: sStub.y },
+        { x: midX, y: tStub.y },
+        { x: tx, y: ty },
+      ];
+    }
   }
 
   path = simplify(path);
