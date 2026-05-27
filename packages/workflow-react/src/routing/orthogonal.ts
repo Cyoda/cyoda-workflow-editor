@@ -93,12 +93,7 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
   const tx = targetX;
   const ty = targetY;
 
-  if (
-    sourceRect &&
-    targetRect &&
-    sourceRect.id === targetRect.id &&
-    isSelfLoop({ sx, sy, tx, ty, sourcePosition, targetPosition })
-  ) {
+  if (sourceRect && targetRect && sourceRect.id === targetRect.id) {
     const loop = selfLoopPath({
       sx,
       sy,
@@ -276,29 +271,6 @@ function tryStraight(
   ];
 }
 
-function isSelfLoop(input: {
-  sx: number;
-  sy: number;
-  tx: number;
-  ty: number;
-  sourcePosition: Position;
-  targetPosition: Position;
-}): boolean {
-  const { sx, sy, tx, ty, sourcePosition, targetPosition } = input;
-  const sameVerticalAxis = Math.abs(sx - tx) <= 1;
-  const sameHorizontalAxis = Math.abs(sy - ty) <= 1;
-  return (
-    (sourcePosition === Position.Bottom &&
-      targetPosition === Position.Top &&
-      sameVerticalAxis &&
-      ty < sy) ||
-    (sourcePosition === Position.Right &&
-      targetPosition === Position.Left &&
-      sameHorizontalAxis &&
-      tx < sx)
-  );
-}
-
 function selfLoopPath(input: {
   sx: number;
   sy: number;
@@ -324,6 +296,75 @@ function selfLoopPath(input: {
     stubLength,
   } = input;
   const loopInset = stubLength + 12;
+  const cornerInset = stubLength + 44;
+
+  if (sourcePosition === Position.Right && targetPosition === Position.Top) {
+    // top-right corner
+    const loopX = sourceRect.x + sourceRect.width + cornerInset;
+    const loopY = sourceRect.y - cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: loopX, y: sy },
+        { x: loopX, y: loopY },
+        { x: tx, y: loopY },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (sy + loopY) / 2,
+    };
+  }
+
+  if (sourcePosition === Position.Left && targetPosition === Position.Top) {
+    // top-left corner
+    const loopX = sourceRect.x - cornerInset;
+    const loopY = sourceRect.y - cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: loopX, y: sy },
+        { x: loopX, y: loopY },
+        { x: tx, y: loopY },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (sy + loopY) / 2,
+    };
+  }
+
+  if (sourcePosition === Position.Bottom && targetPosition === Position.Right) {
+    // bottom-right corner
+    const loopX = sourceRect.x + sourceRect.width + cornerInset;
+    const loopY = sourceRect.y + sourceRect.height + cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: sx, y: loopY },
+        { x: loopX, y: loopY },
+        { x: loopX, y: ty },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (loopY + ty) / 2,
+    };
+  }
+
+  if (sourcePosition === Position.Bottom && targetPosition === Position.Left) {
+    // bottom-left corner
+    const loopX = sourceRect.x - cornerInset;
+    const loopY = sourceRect.y + sourceRect.height + cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: sx, y: loopY },
+        { x: loopX, y: loopY },
+        { x: loopX, y: ty },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (loopY + ty) / 2,
+    };
+  }
 
   if (
     sourcePosition === Position.Bottom &&

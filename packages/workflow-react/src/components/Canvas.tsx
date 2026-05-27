@@ -324,16 +324,22 @@ function computeAutoHandles(
   const assignments = new Map<string, string>();
   const grouped = new Map<string, EndpointAssignment[]>();
 
+  // Pre-group self-loops by node so each gets a distinct corner.
+  const selfLoopsByNode = new Map<string, string[]>();
   for (const edge of edges) {
     if (edge.isSelf) {
-      assignments.set(
-        `${edge.id}:source`,
-        edge.sourceAnchor ?? selfLoopHandleId("source", orientation),
-      );
-      assignments.set(
-        `${edge.id}:target`,
-        edge.targetAnchor ?? selfLoopHandleId("target", orientation),
-      );
+      const list = selfLoopsByNode.get(edge.sourceId) ?? [];
+      list.push(edge.id);
+      selfLoopsByNode.set(edge.sourceId, list);
+    }
+  }
+
+  for (const edge of edges) {
+    if (edge.isSelf) {
+      const idx = (selfLoopsByNode.get(edge.sourceId) ?? []).indexOf(edge.id);
+      const corner = SELF_LOOP_CORNERS[idx % SELF_LOOP_CORNERS.length]!;
+      assignments.set(`${edge.id}:source`, edge.sourceAnchor ?? corner.source);
+      assignments.set(`${edge.id}:target`, edge.targetAnchor ?? corner.target);
       continue;
     }
 
@@ -403,15 +409,14 @@ function computeAutoHandles(
   return assignments;
 }
 
-function selfLoopHandleId(
-  role: "source" | "target",
-  orientation: "vertical" | "horizontal",
-): string {
-  if (orientation === "horizontal") {
-    return role === "source" ? "right" : "left";
-  }
-  return role === "source" ? "bottom" : "top";
-}
+/** Corner handle pairs for self-loops, assigned round-robin when there are
+ *  multiple loops on the same node and no explicit anchor is stored. */
+const SELF_LOOP_CORNERS = [
+  { source: "right-top",   target: "top-right"   },
+  { source: "left-top",    target: "top-left"    },
+  { source: "bottom-right", target: "right-bottom" },
+  { source: "bottom-left",  target: "left-bottom"  },
+] as const;
 
 function pushAssignment(
   grouped: Map<string, EndpointAssignment[]>,
