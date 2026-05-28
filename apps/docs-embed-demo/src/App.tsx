@@ -6,6 +6,7 @@ import { HomePage } from "./pages/HomePage.js";
 import { LayoutShowcasePage } from "./pages/LayoutShowcasePage.js";
 import { LocalFileEditorPage } from "./pages/LocalFileEditorPage.js";
 import { MonacoPlaygroundPage } from "./pages/MonacoPlaygroundPage.js";
+import { OpsViewerPage } from "./pages/OpsViewerPage.js";
 import { SaveFlowHarnessPage } from "./pages/SaveFlowHarnessPage.js";
 import { UtilitiesPage } from "./pages/UtilitiesPage.js";
 import { ViewerPlaygroundPage } from "./pages/ViewerPlaygroundPage.js";
@@ -20,6 +21,7 @@ type RoutePath =
   | "/save-flow"
   | "/utilities"
   | "/embed"
+  | "/ops-viewer"
   | "/local-file-editor";
 
 interface RouteDefinition {
@@ -36,38 +38,43 @@ const routes: RouteDefinition[] = [
   },
   {
     path: "/viewer",
-    label: "Viewer playground",
+    label: "Developer harness: Viewer playground",
     description: "Parse, validate, project, render, and inspect JSON fixtures.",
   },
   {
     path: "/layout",
-    label: "Layout showcase",
+    label: "Developer harness: Layout showcase",
     description: "Compare fallback rendering with ELK layout presets and pinning.",
   },
   {
     path: "/editor",
-    label: "Editor showcase",
+    label: "Developer harness: Editor showcase",
     description: "Full editor: states, transitions, criteria, processors, layout, comments, undo/redo, and clean exported JSON.",
   },
   {
     path: "/criteria",
-    label: "Criteria editor",
+    label: "Developer harness: Criteria editor",
     description: "Demo and regression page for the criterion editor with model-schema autocomplete wired to the StructuredTrade entity sample.",
   },
   {
     path: "/monaco",
-    label: "Monaco playground",
+    label: "Developer harness: Monaco playground",
     description: "Schema, markers, patch lifting, and selection sync.",
   },
   {
     path: "/save-flow",
-    label: "Save-flow harness",
+    label: "Developer harness: Save-flow",
     description: "Simulate save confirmations, warnings, and conflict handling.",
   },
   {
     path: "/local-file-editor",
-    label: "Local file editor",
+    label: "Dev Console local file editor",
     description: "Open a real workflow JSON file from disk, edit it in the full editor, and write back clean workflow JSON with overwrite protection.",
+  },
+  {
+    path: "/ops-viewer",
+    label: "Ops Console viewer",
+    description: "Read-only environment-style workflow viewer with host-owned export, compare, and break-glass placeholders.",
   },
   {
     path: "/utilities",
@@ -76,7 +83,7 @@ const routes: RouteDefinition[] = [
   },
   {
     path: "/embed",
-    label: "Embed viewer",
+    label: "Website viewer / embed",
     description: "Original slim viewer embed example.",
   },
 ];
@@ -91,6 +98,7 @@ function normalizePath(pathname: string): RoutePath | null {
   if (pathname === "/monaco") return "/monaco";
   if (pathname === "/save-flow") return "/save-flow";
   if (pathname === "/local-file-editor") return "/local-file-editor";
+  if (pathname === "/ops-viewer") return "/ops-viewer";
   if (pathname === "/utilities") return "/utilities";
   if (pathname === "/embed") return "/embed";
   return null;
@@ -158,6 +166,8 @@ function CurrentPage({ path }: { path: RoutePath }) {
       return <SaveFlowHarnessPage />;
     case "/local-file-editor":
       return <LocalFileEditorPage />;
+    case "/ops-viewer":
+      return <OpsViewerPage />;
     case "/utilities":
       return <UtilitiesPage />;
     case "/embed":

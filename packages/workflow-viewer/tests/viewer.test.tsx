@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { parseImportPayload } from "@cyoda/workflow-core";
 import { projectToGraph } from "@cyoda/workflow-graph";
 import { WorkflowViewer } from "../src/index.js";
@@ -7,10 +7,18 @@ import { computeEdgeGeometry } from "../src/components/EdgePath.js";
 import { nudgeLabels } from "../src/layout.js";
 import { laneDashArray } from "../src/theme/lane.js";
 
+afterEach(() => cleanup());
+
 function projectFixture(json: unknown) {
   const parsed = parseImportPayload(JSON.stringify(json));
   if (!parsed.document) throw new Error("parse failed: " + JSON.stringify(parsed.issues));
   return projectToGraph(parsed.document);
+}
+
+function documentFixture(json: unknown) {
+  const parsed = parseImportPayload(JSON.stringify(json));
+  if (!parsed.document) throw new Error("parse failed: " + JSON.stringify(parsed.issues));
+  return parsed.document;
 }
 
 describe("WorkflowViewer", () => {
@@ -45,6 +53,192 @@ describe("WorkflowViewer", () => {
     expect(screen.getByTestId("state-node-draft")).toBeTruthy();
     expect(screen.getByTestId("state-node-review")).toBeTruthy();
     expect(container.querySelectorAll("[data-testid^='edge-']")).toHaveLength(1);
+  });
+
+  test("accepts a workflow document and applies website surface defaults", () => {
+    const document = documentFixture({
+      importMode: "MERGE",
+      workflows: [
+        {
+          version: "1.0",
+          name: "wf",
+          initialState: "draft",
+          active: true,
+          states: {
+            draft: { transitions: [] },
+          },
+        },
+      ],
+    });
+
+    const { container } = render(<WorkflowViewer document={document} />);
+
+    const viewer = screen.getByTestId("workflow-viewer");
+    expect(viewer.getAttribute("data-surface")).toBe("website");
+    expect(viewer.getAttribute("data-layout")).toBe("embedded");
+    expect(viewer.getAttribute("data-interaction")).toBe("hover-highlight");
+    expect(screen.queryByTestId("start-marker")).toBeNull();
+    expect(container.querySelector(".react-flow__handle")).toBeNull();
+    expect(screen.queryByTestId("canvas-add-state")).toBeNull();
+    expect(screen.queryByTestId("toolbar-save")).toBeNull();
+  });
+
+  test("ops-console surface renders read-only full-width viewer attributes", () => {
+    const graph = projectFixture({
+      importMode: "MERGE",
+      workflows: [
+        {
+          version: "1.0",
+          name: "wf",
+          initialState: "draft",
+          active: true,
+          states: {
+            draft: { transitions: [] },
+          },
+        },
+      ],
+    });
+
+    render(<WorkflowViewer graph={graph} surface="ops-console" layout="fullWidth" />);
+
+    const viewer = screen.getByTestId("workflow-viewer");
+    expect(viewer.getAttribute("data-surface")).toBe("ops-console");
+    expect(viewer.getAttribute("data-layout")).toBe("fullWidth");
+    expect(screen.queryByTestId("start-marker")).toBeNull();
+    expect(screen.queryByTestId("canvas-add-state")).toBeNull();
+    expect(screen.queryByTestId("toolbar-save")).toBeNull();
+  });
+
+  test("keeps initial-state styling when standalone start marker is hidden", () => {
+    const graph = projectFixture({
+      importMode: "MERGE",
+      workflows: [
+        {
+          version: "1.0",
+          name: "wf",
+          initialState: "draft",
+          active: true,
+          states: {
+            draft: { transitions: [] },
+          },
+        },
+      ],
+    });
+
+    render(<WorkflowViewer graph={graph} />);
+
+    const node = screen.getByTestId("state-node-draft");
+    const rects = node.querySelectorAll("rect");
+    expect(rects).toHaveLength(3);
+    expect(rects[0]?.getAttribute("stroke")).toBe("#FDA4AF");
+    expect(rects[2]?.getAttribute("stroke")).toBe("#059669");
+    expect(rects[2]?.getAttribute("stroke-dasharray")).toBe("3 3");
+  });
+
+  test("can explicitly render a start marker when enabled", () => {
+    const graph = projectFixture({
+      importMode: "MERGE",
+      workflows: [
+        {
+          version: "1.0",
+          name: "wf",
+          initialState: "draft",
+          active: true,
+          states: {
+            draft: { transitions: [] },
+          },
+        },
+      ],
+    });
+
+    const { container } = render(<WorkflowViewer graph={graph} showStartMarker />);
+
+    expect(screen.getByTestId("start-marker")).toBeTruthy();
+    expect(container.querySelectorAll("[data-testid='start-marker']")).toHaveLength(1);
+  });
+
+  test("hover-path inspects adjacent transitions for a hovered state", () => {
+    const graph = projectFixture({
+      importMode: "MERGE",
+      workflows: [
+        {
+          version: "1.0",
+          name: "wf",
+          initialState: "draft",
+          active: true,
+          states: {
+            draft: {
+              transitions: [{ name: "submit", next: "review", manual: false, disabled: false }],
+            },
+            review: {
+              transitions: [{ name: "approve", next: "done", manual: false, disabled: false }],
+            },
+            done: { transitions: [] },
+          },
+        },
+      ],
+    });
+    const onInspect = vi.fn();
+
+    render(<WorkflowViewer graph={graph} interaction="hover-path" onInspect={onInspect} />);
+    fireEvent.mouseEnter(screen.getByTestId("state-node-review"));
+
+    expect(onInspect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "state",
+        workflow: "wf",
+        stateCode: "review",
+        adjacentTransitions: expect.arrayContaining([
+          expect.objectContaining({ name: "submit", direction: "incoming", sourceState: "draft", targetState: "review" }),
+          expect.objectContaining({ name: "approve", direction: "outgoing", sourceState: "review", targetState: "done" }),
+        ]),
+        neighbouringStates: expect.arrayContaining([
+          expect.objectContaining({ stateCode: "draft" }),
+          expect.objectContaining({ stateCode: "done" }),
+        ]),
+      }),
+    );
+  });
+
+  test("hover-path inspects source and target for a hovered transition", () => {
+    const graph = projectFixture({
+      importMode: "MERGE",
+      workflows: [
+        {
+          version: "1.0",
+          name: "wf",
+          initialState: "draft",
+          active: true,
+          states: {
+            draft: {
+              transitions: [{ name: "submit", next: "review", manual: false, disabled: false }],
+            },
+            review: { transitions: [] },
+          },
+        },
+      ],
+    });
+    const onInspect = vi.fn();
+
+    const { container } = render(<WorkflowViewer graph={graph} interaction="hover-path" onInspect={onInspect} />);
+    const edge = container.querySelector("[data-testid^='edge-']");
+    if (!edge) throw new Error("fixture missing edge");
+    fireEvent.mouseEnter(edge);
+
+    expect(onInspect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "transition",
+        workflow: "wf",
+        transitionName: "submit",
+        neighbouringStates: expect.arrayContaining([
+          expect.objectContaining({ stateCode: "draft" }),
+          expect.objectContaining({ stateCode: "review" }),
+        ]),
+        adjacentTransitions: [
+          expect.objectContaining({ name: "submit", direction: "outgoing", sourceState: "draft", targetState: "review" }),
+        ],
+      }),
+    );
   });
 
   test("renders a badge row for manual transitions with processors", () => {

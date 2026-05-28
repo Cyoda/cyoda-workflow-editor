@@ -239,62 +239,71 @@ export function LocalFileEditorPage() {
   };
 
   const issueSummary = summarizeIssues(issues);
+  const toolbarStart = (
+    <div className="local-file-editor__toolbar-group">
+      <a href="/" className="local-file-editor__back-link">
+        Back
+      </a>
+      <button
+        type="button"
+        className="action-button"
+        data-testid="local-file-editor-open-toolbar"
+        onClick={() => void requestOpen()}
+      >
+        Open workflow file
+      </button>
+    </div>
+  );
+  const toolbarCenter = (
+    <div className="local-file-editor__toolbar-group local-file-editor__toolbar-group--meta">
+      <span className="local-file-editor__file-name">
+        {currentFileName || "No file opened"}
+      </span>
+      {dirty && <span className="local-file-editor__dirty">Unsaved changes</span>}
+      <span className="local-file-editor__status-chip">{issueSummary}</span>
+    </div>
+  );
+  const toolbarEnd = (
+    <div className="local-file-editor__toolbar-group">
+      <button
+        type="button"
+        className="action-button action-button--primary"
+        data-testid="local-file-editor-save"
+        onClick={() => void requestSave()}
+        disabled={!document}
+      >
+        {fileSystemAccess ? "Save" : "Download"}
+      </button>
+      <button
+        type="button"
+        className="action-button"
+        data-testid="local-file-editor-save-as"
+        onClick={() => void handleSaveAs()}
+        disabled={!document}
+      >
+        Save as
+      </button>
+      <button
+        type="button"
+        className="action-button"
+        data-testid="local-file-editor-reload"
+        onClick={() => void requestReload()}
+        disabled={!fileHandle}
+      >
+        Reload from disk
+      </button>
+    </div>
+  );
 
   return (
     <section className="local-file-editor" data-testid="local-file-editor-page">
-      <div className="local-file-editor__toolbar">
-        <div className="local-file-editor__toolbar-group">
-          <a href="/" className="local-file-editor__back-link">
-            Back to demo routes
-          </a>
-          <button
-            type="button"
-            className="action-button"
-            data-testid="local-file-editor-open-toolbar"
-            onClick={() => void requestOpen()}
-          >
-            Open workflow file
-          </button>
+      {!document && (
+        <div className="local-file-editor__toolbar">
+          {toolbarStart}
+          {toolbarCenter}
+          {toolbarEnd}
         </div>
-
-        <div className="local-file-editor__toolbar-group local-file-editor__toolbar-group--meta">
-          <span className="local-file-editor__file-name">
-            {currentFileName || "No file opened"}
-          </span>
-          {dirty && <span className="local-file-editor__dirty">Unsaved changes</span>}
-          <span className="local-file-editor__status-chip">{issueSummary}</span>
-        </div>
-
-        <div className="local-file-editor__toolbar-group">
-          <button
-            type="button"
-            className="action-button action-button--primary"
-            data-testid="local-file-editor-save"
-            onClick={() => void requestSave()}
-            disabled={!document}
-          >
-            {fileSystemAccess ? "Save" : "Download"}
-          </button>
-          <button
-            type="button"
-            className="action-button"
-            data-testid="local-file-editor-save-as"
-            onClick={() => void handleSaveAs()}
-            disabled={!document}
-          >
-            Save as
-          </button>
-          <button
-            type="button"
-            className="action-button"
-            data-testid="local-file-editor-reload"
-            onClick={() => void requestReload()}
-            disabled={!fileHandle}
-          >
-            Reload from disk
-          </button>
-        </div>
-      </div>
+      )}
 
       {message && <MessageBanner message={message} />}
 
@@ -319,6 +328,8 @@ export function LocalFileEditorPage() {
             <WorkflowEditor
               document={document}
               mode="editor"
+              surface="dev-console"
+              layout="fullWidth"
               localStorageKey={null}
               enableJsonEditor
               jsonEditorPlacement="tab"
@@ -331,6 +342,9 @@ export function LocalFileEditorPage() {
               onSave={() => {
                 requestSave();
               }}
+              toolbarStart={toolbarStart}
+              toolbarCenter={toolbarCenter}
+              toolbarEnd={toolbarEnd}
               developerMode={true}
             />
           </div>

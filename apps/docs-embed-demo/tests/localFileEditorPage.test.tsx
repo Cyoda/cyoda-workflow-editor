@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { applyPatch, type WorkflowEditorDocument } from "@cyoda/workflow-core";
 import { LocalFileEditorPage } from "../src/pages/LocalFileEditorPage.js";
 import type { LocalWorkflowFileHandle } from "../src/lib/localWorkflowFiles.js";
@@ -21,9 +22,15 @@ vi.mock("@cyoda/workflow-react", () => ({
   WorkflowEditor: ({
     document,
     onChange,
+    toolbarStart,
+    toolbarCenter,
+    toolbarEnd,
   }: {
     document: WorkflowEditorDocument;
     onChange?: (doc: WorkflowEditorDocument) => void;
+    toolbarStart?: ReactNode;
+    toolbarCenter?: ReactNode;
+    toolbarEnd?: ReactNode;
   }) => {
     editorState.mutate = () => {
       const workflow = document.session.workflows[0];
@@ -46,6 +53,12 @@ vi.mock("@cyoda/workflow-react", () => ({
 
     return (
       <div data-testid="mock-workflow-editor">
+        <div data-testid="mock-editor-toolbar">
+          {toolbarStart}
+          <button type="button" data-testid="mock-editor-add-state">Add State</button>
+          {toolbarCenter}
+          {toolbarEnd}
+        </div>
         <p data-testid="mock-workflow-name">{document.session.workflows[0]?.name}</p>
         <button type="button" data-testid="mock-editor-mutate" onClick={() => editorState.mutate?.()}>
           mutate
@@ -162,6 +175,8 @@ describe("LocalFileEditorPage", () => {
 
     await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
     expect(screen.getByText("alpha.json")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-add-state")).toBeTruthy();
+    expect(screen.getByTestId("local-file-editor-save")).toBeTruthy();
     expect(screen.getByTestId("mock-workflow-name").textContent).toBe("Alpha");
   });
 
@@ -232,7 +247,7 @@ describe("LocalFileEditorPage", () => {
     await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
     fireEvent.click(screen.getByTestId("mock-editor-mutate"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByTestId("local-file-editor-save"));
     
 
     expect(screen.getByText("Overwrite local file?")).toBeTruthy();
@@ -253,7 +268,7 @@ describe("LocalFileEditorPage", () => {
     fireEvent.click(screen.getByTestId("local-file-editor-open-toolbar"));
     await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
     fireEvent.click(screen.getByTestId("mock-editor-mutate"));
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByTestId("local-file-editor-save"));
     fireEvent.click(screen.getByRole("button", { name: "Overwrite file" }));
 
     await waitFor(() => expect(mockFileApi.saveWorkflowFile).toHaveBeenCalledTimes(1));

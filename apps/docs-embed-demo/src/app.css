@@ -644,6 +644,61 @@ a {
   gap: 10px;
 }
 
+.ops-viewer {
+  display: grid;
+  gap: 14px;
+}
+
+.ops-viewer__chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.ops-viewer__chrome h1,
+.ops-viewer__chrome p {
+  margin: 0;
+}
+
+.ops-viewer__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ops-viewer__warning {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  background: #fff7ed;
+  color: #9a3412;
+}
+
+.ops-viewer__canvas {
+  height: min(72vh, 820px);
+  min-height: 560px;
+  border: 1px solid #dbe4f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.ops-viewer__inspect {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
 @media (max-width: 1120px) {
   .app-shell__header-inner {
     flex-direction: column;

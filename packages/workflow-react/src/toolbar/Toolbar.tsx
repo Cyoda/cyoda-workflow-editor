@@ -1,4 +1,5 @@
 import type { ValidationIssue } from "@cyoda/workflow-core";
+import type { ReactNode } from "react";
 import { useMessages } from "../i18n/context.js";
 import type { DerivedState } from "../state/derive.js";
 import { severityTone } from "../style/tokens.js";
@@ -13,6 +14,9 @@ export interface ToolbarProps {
   openIssueSeverity?: IssueSeverity | null;
   onSave?: () => void;
   onIssueBadgeClick?: (severity: IssueSeverity) => void;
+  toolbarStart?: ReactNode;
+  toolbarCenter?: ReactNode;
+  toolbarEnd?: ReactNode;
 }
 
 export function Toolbar({
@@ -22,6 +26,9 @@ export function Toolbar({
   openIssueSeverity = null,
   onSave,
   onIssueBadgeClick,
+  toolbarStart,
+  toolbarCenter,
+  toolbarEnd,
 }: ToolbarProps) {
   const messages = useMessages();
   return (
@@ -36,7 +43,9 @@ export function Toolbar({
       }}
       data-testid="toolbar"
     >
-      <div style={{ flex: 1 }} />
+      {toolbarStart && <div style={slotStyle} data-testid="toolbar-start">{toolbarStart}</div>}
+      {toolbarCenter && <div style={{ ...slotStyle, flex: 1, justifyContent: "center" }} data-testid="toolbar-center">{toolbarCenter}</div>}
+      {!toolbarCenter && <div style={{ flex: 1 }} />}
       <span role="status" aria-live="polite" style={{ display: "inline-flex", gap: 6 }}>
         <ValidationPill
           severity="error"
@@ -77,6 +86,7 @@ export function Toolbar({
           {messages.toolbar.save}
         </button>
       )}
+      {toolbarEnd && <div style={slotStyle} data-testid="toolbar-end">{toolbarEnd}</div>}
     </header>
   );
 }
@@ -135,4 +145,11 @@ const btnStyle = {
   borderRadius: 4,
   fontSize: 13,
   cursor: "pointer",
+};
+
+const slotStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minWidth: 0,
 };
