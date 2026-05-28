@@ -130,4 +130,29 @@ describe("orthogonalEdgePath", () => {
   test("polylineToPath returns empty string for an empty input", () => {
     expect(polylineToPath([])).toBe("");
   });
+
+  test("self-loop on a vertically stacked workflow routes out to the side instead of through the node", () => {
+    const out = orthogonalEdgePath({
+      sourceX: 180,
+      sourceY: 320,
+      targetX: 180,
+      targetY: 260,
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
+      sourceRect: { id: "approved", x: 100, y: 260, width: 160, height: 60 },
+      targetRect: { id: "approved", x: 100, y: 260, width: 160, height: 60 },
+      stubLength: 16,
+    });
+    expect(out.points).toEqual([
+      { x: 180, y: 320 },
+      { x: 180, y: 348 },
+      { x: 288, y: 348 },
+      { x: 288, y: 232 },
+      { x: 180, y: 232 },
+      { x: 180, y: 260 },
+    ]);
+    expect(out.path).toBe("M 180 320 L 180 348 L 288 348 L 288 232 L 180 232 L 180 260");
+    expect(out.labelX).toBe(288);
+    expect(out.labelY).toBe(348);
+  });
 });

@@ -45,10 +45,13 @@ export function computeEdgeGeometry(
   source: NodePosition,
   target: NodePosition,
 ): EdgeGeometry {
+  // Default ports: source exits from bottom-centre, target enters at top-centre.
+  // simpleLayout always produces top-down BFS layers so this avoids the arrowhead
+  // landing under the target node (which happens when both ends are at node centre).
   const sx = source.x + source.width / 2;
-  const sy = source.y + source.height / 2;
+  const sy = source.y + source.height;
   const tx = target.x + target.width / 2;
-  const ty = target.y + target.height / 2;
+  const ty = target.y;
 
   if (edge.isSelf) {
     const rightX = source.x + source.width;
@@ -101,9 +104,6 @@ export function EdgePath({
         ? geometry.edge.loopStrokeWidth
         : geometry.edge.strokeWidth;
   const opacity = dimmed ? 0.25 : 1;
-  // Manual transitions get a thin ghost stroke on top of the main stroke —
-  // strengthens the manual-vs-auto visual cue without changing semantics.
-  const isManualSolid = edge.manual && !edge.disabled && !edge.isLoopback;
 
   return (
     <g
@@ -127,15 +127,6 @@ export function EdgePath({
         strokeDasharray={dash}
         markerEnd={`url(#wf-arrow-${colorKey(color)})`}
       />
-      {isManualSolid && (
-        <path
-          d={d}
-          fill="none"
-          stroke={workflowPalette.neutrals.white}
-          strokeWidth={0.6}
-          pointerEvents="none"
-        />
-      )}
     </g>
   );
 }

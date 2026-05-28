@@ -1,6 +1,7 @@
 import type { Workflow } from "../types/workflow.js";
 import type { Processor } from "../types/processor.js";
 import type { Criterion } from "../types/criterion.js";
+import { MAX_CRITERION_DEPTH } from "../criteria/operators.js";
 
 /**
  * Input normalization (spec §8.1) — runs after schema parse.
@@ -57,12 +58,27 @@ export function normalizeWorkflowInput(workflow: Workflow): Workflow {
   return out;
 }
 
-export function normalizeCriterion(criterion: Criterion): Criterion {
+export function normalizeCriterion(criterion: Criterion, depth = 0): Criterion {
+  if (depth >= MAX_CRITERION_DEPTH) {
+    // Tree already exceeds the engine import limit. The semantic validator
+    // will report a criterion-depth-limit error; return the node unchanged
+    // here to prevent a stack overflow on pathologically nested input.
+    return criterion;
+  }
   switch (criterion.type) {
     case "simple":
+      // Spec §4.4: IS_NULL / NOT_NULL ignore `value` at runtime, but OpenAPI
+      // marks it required. Force value: null so internal state and wire form
+      // agree and round-trips stay exact.
+      if (criterion.operation === "IS_NULL" || criterion.operation === "NOT_NULL") {
+        return { ...criterion, value: null };
+      }
       return criterion;
     case "group":
-      return { ...criterion, conditions: criterion.conditions.map(normalizeCriterion) };
+      return {
+        ...criterion,
+        conditions: criterion.conditions.map((c) => normalizeCriterion(c, depth + 1)),
+      };
     case "function": {
       const fn = criterion.function;
       const out: Criterion = {
@@ -71,13 +87,16 @@ export function normalizeCriterion(criterion: Criterion): Criterion {
           name: fn.name.trim(),
           ...(fn.config !== undefined ? { config: fn.config } : {}),
           ...(fn.criterion !== undefined
-            ? { criterion: normalizeCriterion(fn.criterion) }
+            ? { criterion: normalizeCriterion(fn.criterion, depth + 1) }
             : {}),
         },
       };
       return out;
     }
     case "lifecycle":
+      if (criterion.operation === "IS_NULL" || criterion.operation === "NOT_NULL") {
+        return { ...criterion, value: null };
+      }
       return criterion;
     case "array":
       return criterion;

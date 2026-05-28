@@ -2,12 +2,17 @@ import type { FunctionConfig } from "./criterion.js";
 
 export type Processor = ExternalizedProcessor | ScheduledProcessor;
 
-export type ExecutionMode = "SYNC" | "ASYNC_SAME_TX" | "ASYNC_NEW_TX";
+export type ExecutionMode =
+  | "SYNC"
+  | "ASYNC_SAME_TX"
+  | "ASYNC_NEW_TX"
+  | "COMMIT_BEFORE_DISPATCH";
 
 export interface ExternalizedProcessor {
   type: "externalized";
   name: string;
   executionMode?: ExecutionMode;
+  startNewTxOnDispatch?: boolean;
   config?: ExternalizedProcessorConfig;
 }
 

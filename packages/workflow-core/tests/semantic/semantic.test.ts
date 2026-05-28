@@ -192,3 +192,77 @@ function makeWf(name: string) {
     states: { s: { transitions: [] } },
   };
 }
+
+// ---------------------------------------------------------------------------
+// Canonical JSON tolerance: fields the Cyoda API omits that the schema defaults
+// ---------------------------------------------------------------------------
+describe("canonical JSON tolerance", () => {
+  const HELLO_WORLD = {
+    importMode: "REPLACE",
+    workflows: [
+      {
+        version: "1",
+        name: "HelloWorldWorkflow",
+        initialState: "START",
+        active: true,
+        states: {
+          START: {
+            transitions: [
+              { name: "ToMorning", next: "MORNING", manual: false,
+                criterion: { type: "function", function: { name: "IsMorningCriterion", config: { calculationNodesTags: "helloworld", attachEntity: true } } } },
+              { name: "ToAfternoon", next: "AFTERNOON", manual: false,
+                criterion: { type: "function", function: { name: "IsAfternoonCriterion", config: { calculationNodesTags: "helloworld", attachEntity: true } } } },
+            ],
+          },
+          MORNING: {
+            transitions: [
+              { name: "MorningToDone", next: "DONE", manual: false,
+                processors: [
+                  { name: "SetMorningProcessor", executionMode: "SYNC", config: { calculationNodesTags: "helloworld", attachEntity: true } },
+                  { name: "PrintGreetingProcessor", executionMode: "SYNC", config: { calculationNodesTags: "helloworld", attachEntity: true } },
+                ] },
+            ],
+          },
+          AFTERNOON: {
+            transitions: [
+              { name: "AfternoonToDone", next: "DONE", manual: false,
+                processors: [
+                  { name: "SetAfternoonProcessor", executionMode: "SYNC", config: { calculationNodesTags: "helloworld", attachEntity: true } },
+                  { name: "PrintGreetingProcessor", executionMode: "SYNC", config: { calculationNodesTags: "helloworld", attachEntity: true } },
+                ] },
+            ],
+          },
+          DONE: { transitions: [] },
+        },
+      },
+    ],
+  };
+
+  test("hello world workflow parses without errors (no disabled, no processor type)", () => {
+    const result = parseImportPayload(JSON.stringify(HELLO_WORLD));
+    expect(result.issues.filter((i) => i.severity === "error")).toHaveLength(0);
+    expect(result.document).toBeDefined();
+  });
+
+  test("omitted transition disabled defaults to false", () => {
+    const result = parseImportPayload(JSON.stringify(HELLO_WORLD));
+    const wf = result.document!.session.workflows[0]!;
+    for (const state of Object.values(wf.states)) {
+      for (const t of state.transitions) {
+        expect(t.disabled).toBe(false);
+      }
+    }
+  });
+
+  test("processor without type is normalized to externalized", () => {
+    const result = parseImportPayload(JSON.stringify(HELLO_WORLD));
+    const wf = result.document!.session.workflows[0]!;
+    for (const state of Object.values(wf.states)) {
+      for (const t of state.transitions) {
+        for (const p of t.processors ?? []) {
+          expect(p.type).toBe("externalized");
+        }
+      }
+    }
+  });
+});

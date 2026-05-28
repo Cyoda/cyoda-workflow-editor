@@ -27,7 +27,8 @@
                   {
                     "type": "simple",
                     "jsonPath": "$.assignee",
-                    "operation": "NOT_NULL"
+                    "operation": "NOT_NULL",
+                    "value": null
                   }
                 ]
               }

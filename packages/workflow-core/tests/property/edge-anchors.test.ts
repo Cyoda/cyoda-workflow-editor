@@ -114,4 +114,49 @@ describe("setEdgeAnchors patch (UI-only)", () => {
     expect(serializeImportPayload(patched)).toBe(before);
     expect(patched.meta.workflowUi).toEqual(doc.meta.workflowUi);
   });
+
+  test("source moves preserve the moved transition UUID and anchor metadata", () => {
+    const doc = loadMinimalDoc();
+    const oldUuid = Object.keys(doc.meta.ids.transitions)[0]!;
+    const withAnchors = applyPatch(doc, {
+      op: "setEdgeAnchors",
+      transitionUuid: oldUuid,
+      anchors: { source: "right", target: "left" },
+    });
+
+    const moved = applyPatch(withAnchors, {
+      op: "moveTransitionSource",
+      workflow: "minimal",
+      fromState: "start",
+      toState: "end",
+      transitionName: "go",
+    });
+
+    expect(moved.meta.ids.transitions[oldUuid]).toMatchObject({
+      workflow: "minimal",
+      state: "end",
+    });
+    expect(moved.meta.workflowUi.minimal?.edgeAnchors?.[oldUuid]).toEqual({
+      source: "right",
+      target: "left",
+    });
+  });
+
+  test("removing a transition drops stale anchor metadata", () => {
+    const doc = loadMinimalDoc();
+    const uuid = Object.keys(doc.meta.ids.transitions)[0]!;
+    const withAnchors = applyPatch(doc, {
+      op: "setEdgeAnchors",
+      transitionUuid: uuid,
+      anchors: { source: "right", target: "left" },
+    });
+
+    const removed = applyPatch(withAnchors, {
+      op: "removeTransition",
+      transitionUuid: uuid,
+    });
+
+    expect(removed.meta.ids.transitions[uuid]).toBeUndefined();
+    expect(removed.meta.workflowUi.minimal?.edgeAnchors?.[uuid]).toBeUndefined();
+  });
 });

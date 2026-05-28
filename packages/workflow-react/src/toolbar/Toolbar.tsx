@@ -1,24 +1,36 @@
+import type { ValidationIssue } from "@cyoda/workflow-core";
+import type { ReactNode } from "react";
 import { useMessages } from "../i18n/context.js";
 import type { DerivedState } from "../state/derive.js";
+import { severityTone } from "../style/tokens.js";
+
+export type IssueSeverity = ValidationIssue["severity"];
 
 export interface ToolbarProps {
   derived: DerivedState;
-  canUndo: boolean;
-  canRedo: boolean;
   readOnly: boolean;
-  onUndo: () => void;
-  onRedo: () => void;
+  saveDisabled?: boolean;
+  showSaveButton?: boolean;
+  /** Severity whose issues drawer is currently open, if any. */
+  openIssueSeverity?: IssueSeverity | null;
   onSave?: () => void;
+  onIssueBadgeClick?: (severity: IssueSeverity) => void;
+  toolbarStart?: ReactNode;
+  toolbarCenter?: ReactNode;
+  toolbarEnd?: ReactNode;
 }
 
 export function Toolbar({
   derived,
-  canUndo,
-  canRedo,
   readOnly,
-  onUndo,
-  onRedo,
+  saveDisabled = false,
+  showSaveButton = true,
+  openIssueSeverity = null,
   onSave,
+  onIssueBadgeClick,
+  toolbarStart,
+  toolbarCenter,
+  toolbarEnd,
 }: ToolbarProps) {
   const messages = useMessages();
   return (
@@ -33,105 +45,116 @@ export function Toolbar({
       }}
       data-testid="toolbar"
     >
-      <button
-        type="button"
-        onClick={onUndo}
-        disabled={!canUndo || readOnly}
-        style={btnStyle}
-        data-testid="toolbar-undo"
-      >
-        {messages.toolbar.undo}
-      </button>
-      <button
-        type="button"
-        onClick={onRedo}
-        disabled={!canRedo || readOnly}
-        style={btnStyle}
-        data-testid="toolbar-redo"
-      >
-        {messages.toolbar.redo}
-      </button>
-      <div style={{ flex: 1 }} />
-      <ValidationPill
-        count={derived.errorCount}
-        label={messages.toolbar.errors}
-        background="#FEF2F2"
-        borderColor="#FCA5A5"
-        color="#B91C1C"
-        testId="toolbar-errors"
-      />
-      <ValidationPill
-        count={derived.warningCount}
-        label={messages.toolbar.warnings}
-        background="#FFFBEB"
-        borderColor="#FCD34D"
-        color="#B45309"
-        testId="toolbar-warnings"
-      />
-      <ValidationPill
-        count={derived.infoCount}
-        label={messages.toolbar.infos}
-        background="#EFF6FF"
-        borderColor="#93C5FD"
-        color="#1D4ED8"
-        testId="toolbar-infos"
-      />
-      {onSave && (
+      {toolbarStart && <div style={slotStyle} data-testid="toolbar-start">{toolbarStart}</div>}
+      {toolbarCenter && <div style={{ ...slotStyle, flex: 1, justifyContent: "center" }} data-testid="toolbar-center">{toolbarCenter}</div>}
+      {!toolbarCenter && <div style={{ flex: 1 }} />}
+      <span role="status" aria-live="polite" style={{ display: "inline-flex", gap: 6 }}>
+        <ValidationPill
+          severity="error"
+          count={derived.errorCount}
+          label={messages.toolbar.errors}
+          openLabel={messages.issues.openErrors}
+          isOpen={openIssueSeverity === "error"}
+          onClick={onIssueBadgeClick}
+          testId="toolbar-errors"
+        />
+        <ValidationPill
+          severity="warning"
+          count={derived.warningCount}
+          label={messages.toolbar.warnings}
+          openLabel={messages.issues.openWarnings}
+          isOpen={openIssueSeverity === "warning"}
+          onClick={onIssueBadgeClick}
+          testId="toolbar-warnings"
+        />
+        <ValidationPill
+          severity="info"
+          count={derived.infoCount}
+          label={messages.toolbar.infos}
+          openLabel={messages.issues.openInfos}
+          isOpen={openIssueSeverity === "info"}
+          onClick={onIssueBadgeClick}
+          testId="toolbar-infos"
+        />
+      </span>
+      {onSave && showSaveButton && (
         <button
           type="button"
           onClick={onSave}
-          disabled={readOnly || derived.errorCount > 0}
-          style={{ ...btnStyle, background: "#0F172A", color: "white", borderColor: "#0F172A" }}
+          disabled={readOnly || saveDisabled}
+          style={{ ...btnStyle, background: "#161616", color: "white", borderColor: "#161616" }}
           data-testid="toolbar-save"
         >
           {messages.toolbar.save}
         </button>
       )}
+      {toolbarEnd && <div style={slotStyle} data-testid="toolbar-end">{toolbarEnd}</div>}
     </header>
   );
 }
 
 function ValidationPill({
+  severity,
   count,
   label,
-  background,
-  borderColor,
-  color,
+  openLabel,
+  isOpen,
+  onClick,
   testId,
 }: {
+  severity: IssueSeverity;
   count: number;
   label: string;
-  background: string;
-  borderColor: string;
-  color: string;
+  openLabel: string;
+  isOpen: boolean;
+  onClick?: (severity: IssueSeverity) => void;
   testId: string;
 }) {
+  const tone = severityTone(severity);
+  const interactive = count > 0 && !!onClick;
   return (
-    <span
-      role="status"
-      aria-live="polite"
-      aria-label={`${count} ${label}`}
+    <button
+      type="button"
+      onClick={interactive ? () => onClick!(severity) : undefined}
+      disabled={!interactive}
+      aria-haspopup={interactive ? "dialog" : undefined}
+      aria-expanded={interactive ? isOpen : undefined}
+      aria-label={`${count} ${label}${interactive ? ` — ${openLabel}` : ""}`}
+      data-testid={testId}
       style={{
-        padding: "3px 8px",
-        background,
-        border: `1px solid ${borderColor}`,
-        color,
+        padding: "2px 8px",
+        background: tone.bg,
+        border: `1px solid ${tone.border}`,
+        color: tone.fg,
         borderRadius: 999,
+        minHeight: 24,
         fontSize: 12,
         fontWeight: 600,
+        cursor: interactive ? "pointer" : "default",
+        opacity: interactive ? 1 : 0.7,
+        outline: isOpen ? `2px solid ${tone.fg}` : "none",
+        outlineOffset: 1,
       }}
-      data-testid={testId}
     >
       {count} {label}
-    </span>
+    </button>
   );
 }
 
 const btnStyle = {
-  padding: "4px 10px",
+  minHeight: 32,
+  padding: "0 12px",
   background: "white",
   border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  borderRadius: 3,
   fontSize: 13,
+  fontWeight: 500,
   cursor: "pointer",
+};
+
+const slotStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minWidth: 0,
 };

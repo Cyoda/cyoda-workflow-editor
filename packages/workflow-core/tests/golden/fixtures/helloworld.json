@@ -1,0 +1,112 @@
+{
+  "importMode": "REPLACE",
+  "workflows": [
+    {
+      "version": "1",
+      "name": "HelloWorldWorkflow",
+      "initialState": "START",
+      "active": true,
+      "states": {
+        "START": {
+          "transitions": [
+            {
+              "name": "ToMorning",
+              "next": "MORNING",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "function",
+                "function": {
+                  "name": "IsMorningCriterion",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "helloworld"
+                  }
+                }
+              }
+            },
+            {
+              "name": "ToAfternoon",
+              "next": "AFTERNOON",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "function",
+                "function": {
+                  "name": "IsAfternoonCriterion",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "helloworld"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "MORNING": {
+          "transitions": [
+            {
+              "name": "MorningToDone",
+              "next": "DONE",
+              "manual": false,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "SetMorningProcessor",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "helloworld"
+                  }
+                },
+                {
+                  "type": "externalized",
+                  "name": "PrintGreetingProcessor",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "helloworld"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "AFTERNOON": {
+          "transitions": [
+            {
+              "name": "AfternoonToDone",
+              "next": "DONE",
+              "manual": false,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "SetAfternoonProcessor",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "helloworld"
+                  }
+                },
+                {
+                  "type": "externalized",
+                  "name": "PrintGreetingProcessor",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "helloworld"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "DONE": {
+          "transitions": []
+        }
+      }
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   applyPatch,
+  applyPatches,
   invertPatch,
   type DomainPatch,
+  type PatchTransaction,
   type WorkflowEditorDocument,
 } from "@cyoda/workflow-core";
 import type {
@@ -28,9 +30,7 @@ function summarize(patch: DomainPatch): string {
     case "setInitialState":
       return `Set initial state to "${patch.stateCode}"`;
     case "setWorkflowCriterion":
-      return patch.criterion
-        ? `Set workflow criterion`
-        : `Clear workflow criterion`;
+      return patch.criterion ? `Set workflow criterion` : `Clear workflow criterion`;
     case "addState":
       return `Add state "${patch.stateCode}"`;
     case "renameState":
@@ -45,6 +45,8 @@ function summarize(patch: DomainPatch): string {
       return `Remove transition`;
     case "reorderTransition":
       return `Reorder transition`;
+    case "moveTransitionSource":
+      return `Move transition "${patch.transitionName}" to "${patch.toState}"`;
     case "addProcessor":
       return `Add processor "${patch.processor.name}"`;
     case "updateProcessor":
@@ -63,11 +65,51 @@ function summarize(patch: DomainPatch): string {
       return `Replace session`;
     case "setEdgeAnchors":
       return patch.anchors ? `Update edge anchors` : `Clear edge anchors`;
+    case "setNodePosition":
+      return `Move state "${patch.stateCode}"`;
+    case "removeNodePosition":
+      return `Unpin state "${patch.stateCode}"`;
+    case "resetLayout":
+      return `Reset layout`;
+    case "addComment":
+      return `Add comment`;
+    case "updateComment":
+      return `Update comment`;
+    case "removeComment":
+      return `Remove comment`;
   }
 }
 
 function pickDefaultActiveWorkflow(doc: WorkflowEditorDocument): string | null {
   return doc.session.workflows[0]?.name ?? null;
+}
+
+/**
+ * For addTransition / addProcessor the UUID is minted during applyPatch so
+ * invertPatch (which sees only the pre-apply doc) cannot compute an exact
+ * removeTransition / removeProcessor inverse.  After applying we diff the id
+ * maps to find the newly minted UUID and produce an exact inverse.
+ */
+function computeExactInverse(
+  prePatchDoc: WorkflowEditorDocument,
+  postPatchDoc: WorkflowEditorDocument,
+  patch: DomainPatch,
+): DomainPatch {
+  if (patch.op === "addTransition") {
+    const priorUUIDs = new Set(Object.keys(prePatchDoc.meta.ids.transitions));
+    const newUUID = Object.keys(postPatchDoc.meta.ids.transitions).find(
+      (uuid) => !priorUUIDs.has(uuid),
+    );
+    if (newUUID) return { op: "removeTransition", transitionUuid: newUUID };
+  }
+  if (patch.op === "addProcessor") {
+    const priorUUIDs = new Set(Object.keys(prePatchDoc.meta.ids.processors));
+    const newUUID = Object.keys(postPatchDoc.meta.ids.processors).find(
+      (uuid) => !priorUUIDs.has(uuid),
+    );
+    if (newUUID) return { op: "removeProcessor", processorUuid: newUUID };
+  }
+  return invertPatch(prePatchDoc, patch);
 }
 
 export function useEditorStore(
@@ -90,20 +132,46 @@ export function useEditorStore(
     const current = stateRef.current;
     if (current.mode === "viewer") return;
     const nextDoc = applyPatch(current.document, patch);
-    const inverse = invertPatch(current.document, patch);
+    const inverse = computeExactInverse(current.document, nextDoc, patch);
     const entry: UndoEntry = {
-      forward: patch,
-      inverse,
+      patches: [patch],
+      inverses: [inverse],
       summary: summary ?? summarize(patch),
     };
     const undoStack = [...current.undoStack, entry].slice(-MAX_UNDO);
+    const nextSelection = reconcileSelection(current.selection, nextDoc);
     setState({
       ...current,
       document: nextDoc,
       undoStack,
       redoStack: [],
       activeWorkflow: reconcileActiveWorkflow(current.activeWorkflow, nextDoc),
-      selection: reconcileSelection(current.selection, nextDoc),
+      selection: nextSelection,
+    });
+  }, []);
+
+  const dispatchTransaction = useCallback((tx: PatchTransaction) => {
+    const current = stateRef.current;
+    if (current.mode === "viewer") return;
+    const nextDoc = tx.patches.reduce((d, p) => applyPatch(d, p), current.document);
+    const entry: UndoEntry = {
+      patches: tx.patches,
+      inverses: tx.inverses,
+      summary: tx.summary,
+      selectionAfter: (tx.selectionAfter as Selection | null | undefined) ?? null,
+    };
+    const undoStack = [...current.undoStack, entry].slice(-MAX_UNDO);
+    const nextSelection =
+      entry.selectionAfter !== undefined
+        ? entry.selectionAfter
+        : reconcileSelection(current.selection, nextDoc);
+    setState({
+      ...current,
+      document: nextDoc,
+      undoStack,
+      redoStack: [],
+      activeWorkflow: reconcileActiveWorkflow(current.activeWorkflow, nextDoc),
+      selection: nextSelection,
     });
   }, []);
 
@@ -135,14 +203,19 @@ export function useEditorStore(
     const current = stateRef.current;
     const top = current.undoStack[current.undoStack.length - 1];
     if (!top) return;
-    const reverted = applyPatch(current.document, top.inverse);
+    // Inverses are stored in undo-application order; apply them as-is.
+    const reverted = applyPatches(current.document, top.inverses);
+    const nextSelection =
+      top.selectionAfter !== undefined
+        ? reconcileSelection(top.selectionAfter, reverted)
+        : reconcileSelection(current.selection, reverted);
     setState({
       ...current,
       document: reverted,
       undoStack: current.undoStack.slice(0, -1),
       redoStack: [...current.redoStack, top],
       activeWorkflow: reconcileActiveWorkflow(current.activeWorkflow, reverted),
-      selection: reconcileSelection(current.selection, reverted),
+      selection: nextSelection,
     });
   }, []);
 
@@ -150,7 +223,7 @@ export function useEditorStore(
     const current = stateRef.current;
     const top = current.redoStack[current.redoStack.length - 1];
     if (!top) return;
-    const next = applyPatch(current.document, top.forward);
+    const next = applyPatches(current.document, top.patches);
     setState({
       ...current,
       document: next,
@@ -174,17 +247,22 @@ export function useEditorStore(
   }, []);
 
   const actions = useMemo<EditorActions>(
-    () => ({ dispatch, silentReplace, undo, redo, setSelection, setActiveWorkflow, setMode }),
-    [dispatch, silentReplace, undo, redo, setSelection, setActiveWorkflow, setMode],
+    () => ({
+      dispatch,
+      dispatchTransaction,
+      silentReplace,
+      undo,
+      redo,
+      setSelection,
+      setActiveWorkflow,
+      setMode,
+    }),
+    [dispatch, dispatchTransaction, silentReplace, undo, redo, setSelection, setActiveWorkflow, setMode],
   );
 
   return [state, actions];
 }
 
-/**
- * After a patch the active workflow may have been renamed or removed; pick a
- * sensible fallback rather than leaving a dangling reference.
- */
 function reconcileActiveWorkflow(
   current: string | null,
   doc: WorkflowEditorDocument,
@@ -195,10 +273,6 @@ function reconcileActiveWorkflow(
   return doc.session.workflows[0]?.name ?? null;
 }
 
-/**
- * After a patch the selected node/edge may no longer exist. Clear selections
- * that became dangling.
- */
 function reconcileSelection(
   selection: Selection,
   doc: WorkflowEditorDocument,
@@ -212,8 +286,16 @@ function reconcileSelection(
     }
     case "state": {
       const wf = doc.session.workflows.find((w) => w.name === selection.workflow);
-      if (!wf || !wf.states[selection.stateCode]) return null;
-      return selection;
+      if (!wf) return null;
+      if (wf.states[selection.stateCode]) return selection;
+      // State may have been renamed — nodeId (UUID) is stable, look up new code
+      if (selection.nodeId) {
+        const ptr = ids.states[selection.nodeId];
+        if (ptr && ptr.workflow === selection.workflow && wf.states[ptr.state]) {
+          return { ...selection, stateCode: ptr.state };
+        }
+      }
+      return null;
     }
     case "transition":
       return ids.transitions[selection.transitionUuid] ? selection : null;

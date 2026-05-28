@@ -1,0 +1,278 @@
+{
+  "entityType": "StructuredTrade",
+  "entityId": "TRADE-IRS-2026-00018472",
+  "version": 17,
+  "currentState": "SETTLEMENT_PENDING",
+  "businessContext": {
+    "useCase": "Corporate loan hedging",
+    "frontOfficeBook": "USD_RATES_CORP_HEDGING",
+    "tradingDesk": "USD Rates Swaps",
+    "region": "US",
+    "sourceSystem": "Murex",
+    "bookingTimestamp": "2026-04-28T14:07:32Z"
+  },
+  "tradeIdentifiers": {
+    "internalTradeId": "MX-IRS-8842197",
+    "uti": "5493006MHB84DD0ZWV18IRS2026042800018472",
+    "priorUti": null,
+    "clearingHouseTradeId": "LCH-IRS-98277164",
+    "confirmationId": "CONF-20260428-778203",
+    "portfolioCompressionGroupId": null
+  },
+  "product": {
+    "assetClass": "RATES",
+    "productType": "INTEREST_RATE_SWAP",
+    "subType": "VANILLA_FIXED_FLOAT",
+    "clearingEligibility": "MANDATORY_CLEARING",
+    "settlementType": "CASH_SETTLED_PERIODIC_PAYMENTS",
+    "documentation": {
+      "masterAgreement": "ISDA_2002",
+      "definitions": "ISDA_2021_INTEREST_RATE_DERIVATIVES_DEFINITIONS",
+      "confirmationMethod": "ELECTRONIC_MATCHING"
+    }
+  },
+  "tradeDates": {
+    "tradeDate": "2026-04-28",
+    "effectiveDate": "2026-04-30",
+    "terminationDate": "2031-04-30",
+    "firstPaymentDate": "2026-07-31",
+    "finalPaymentDate": "2031-04-30",
+    "businessCenters": ["USNY", "GBLO"],
+    "businessDayConvention": "MODIFIED_FOLLOWING"
+  },
+  "parties": [
+    {
+      "partyId": "BANK_EXEC_ENTITY",
+      "role": "EXECUTING_BROKER",
+      "name": "Example Bank NA",
+      "lei": "5493006MHB84DD0ZWV18",
+      "settlementRole": "PAYER_FIXED_RECEIVER_FLOAT"
+    },
+    {
+      "partyId": "CORPORATE_COUNTERPARTY",
+      "role": "CLIENT_COUNTERPARTY",
+      "name": "Northstar Manufacturing Inc.",
+      "lei": "8I5DZWZKVSZI1NUHU748",
+      "settlementRole": "RECEIVER_FIXED_PAYER_FLOAT"
+    },
+    {
+      "partyId": "LCH_SWAPCLEAR",
+      "role": "CENTRAL_COUNTERPARTY",
+      "name": "LCH Ltd",
+      "lei": "549300EXV10C0I8T3O18"
+    },
+    {
+      "partyId": "CLEARING_BROKER",
+      "role": "FUTURES_COMMISSION_MERCHANT",
+      "name": "Example Clearing LLC",
+      "lei": "213800WAVVOPS85N2205"
+    }
+  ],
+  "economics": {
+    "notional": {
+      "amount": 150000000,
+      "currency": "USD",
+      "amortization": "NONE"
+    },
+    "payerReceiver": {
+      "fixedRatePayer": "BANK_EXEC_ENTITY",
+      "floatingRatePayer": "CORPORATE_COUNTERPARTY"
+    },
+    "fixedLeg": {
+      "legId": "FIXED-LEG-1",
+      "payerPartyId": "BANK_EXEC_ENTITY",
+      "receiverPartyId": "CORPORATE_COUNTERPARTY",
+      "fixedRate": 0.0345,
+      "rateNotation": "DECIMAL",
+      "dayCountFraction": "30/360",
+      "paymentFrequency": "SEMI_ANNUAL",
+      "calculationPeriodFrequency": "SEMI_ANNUAL",
+      "paymentRelativeTo": "CALCULATION_PERIOD_END_DATE",
+      "stubPeriod": "NONE"
+    },
+    "floatingLeg": {
+      "legId": "FLOAT-LEG-1",
+      "payerPartyId": "CORPORATE_COUNTERPARTY",
+      "receiverPartyId": "BANK_EXEC_ENTITY",
+      "floatingRateIndex": "USD-SOFR-COMPOUND",
+      "indexTenor": "OVERNIGHT",
+      "spread": 0.00125,
+      "spreadBps": 12.5,
+      "dayCountFraction": "ACT/360",
+      "paymentFrequency": "QUARTERLY",
+      "calculationPeriodFrequency": "QUARTERLY",
+      "resetFrequency": "DAILY",
+      "compoundingMethod": "OVERNIGHT_COMPOUNDED",
+      "lookbackDays": 2,
+      "rateCutOffDays": 0,
+      "paymentRelativeTo": "CALCULATION_PERIOD_END_DATE",
+      "stubPeriod": "NONE"
+    }
+  },
+  "valuationSnapshot": {
+    "valuationDate": "2026-04-30",
+    "currency": "USD",
+    "cleanPresentValue": -1248500.42,
+    "accruedInterest": 0,
+    "dv01": 72134.89,
+    "collateralAgreement": "CSA_2016_VM_ONLY",
+    "marginCallRequired": true,
+    "initialMarginModel": "SIMM",
+    "variationMarginCurrency": "USD"
+  },
+  "confirmation": {
+    "status": "MATCHED",
+    "matchedAt": "2026-04-28T15:18:44Z",
+    "matchingPlatform": "MarkitWire",
+    "matchedFields": [
+      "notional",
+      "currency",
+      "effectiveDate",
+      "terminationDate",
+      "fixedRate",
+      "floatingRateIndex",
+      "spread",
+      "paymentFrequency",
+      "dayCountFraction",
+      "businessDayConvention"
+    ],
+    "exceptions": []
+  },
+  "clearing": {
+    "cleared": true,
+    "clearingHouse": "LCH_SWAPCLEAR",
+    "clearingStatus": "ACCEPTED",
+    "submittedAt": "2026-04-28T15:24:03Z",
+    "acceptedAt": "2026-04-28T15:24:29Z",
+    "originalBilateralTradeId": "TRADE-IRS-2026-00018472",
+    "novationEventId": "EVENT-CLRG-20260428-000392",
+    "resultingClearedTradeIds": ["LCH-IRS-98277164-BANK", "LCH-IRS-98277164-CLIENT"]
+  },
+  "settlement": {
+    "settlementStatus": "PENDING_CASHFLOW_RELEASE",
+    "settlementCurrency": "USD",
+    "nettingSetId": "CSA-USD-RATES-NS-00481",
+    "standardSettlementInstructions": [
+      {
+        "partyId": "BANK_EXEC_ENTITY",
+        "cashAccountId": "SSI-USD-JPM-001",
+        "bic": "CHASUS33",
+        "accountNumberMasked": "****63001",
+        "custodian": "JPMorgan Chase Bank",
+        "currency": "USD",
+        "validated": true,
+        "lastValidatedAt": "2026-04-25T09:11:00Z"
+      },
+      {
+        "partyId": "CORPORATE_COUNTERPARTY",
+        "cashAccountId": "SSI-USD-GS-009",
+        "bic": "GSJBUS33",
+        "accountNumberMasked": "****45009",
+        "custodian": "Goldman Sachs Bank USA",
+        "currency": "USD",
+        "validated": true,
+        "lastValidatedAt": "2026-04-24T16:40:00Z"
+      }
+    ],
+    "nextSettlementInstruction": {
+      "paymentDate": "2026-07-31",
+      "netPaymentAmount": 846875,
+      "currency": "USD",
+      "payerPartyId": "BANK_EXEC_ENTITY",
+      "receiverPartyId": "CORPORATE_COUNTERPARTY",
+      "cashflowIds": ["CF-FIXED-20260731", "CF-FLOAT-20260731"],
+      "releaseStatus": "AWAITING_RATE_FINALISATION"
+    }
+  },
+  "cashflows": [
+    {
+      "cashflowId": "CF-FIXED-20260731",
+      "legId": "FIXED-LEG-1",
+      "calculationPeriodStartDate": "2026-04-30",
+      "calculationPeriodEndDate": "2026-07-31",
+      "paymentDate": "2026-07-31",
+      "payerPartyId": "BANK_EXEC_ENTITY",
+      "receiverPartyId": "CORPORATE_COUNTERPARTY",
+      "notional": 150000000,
+      "rate": 0.0345,
+      "dayCountFraction": "30/360",
+      "accrualFactor": 0.25,
+      "amount": 1293750,
+      "currency": "USD",
+      "status": "PROJECTED"
+    },
+    {
+      "cashflowId": "CF-FLOAT-20260731",
+      "legId": "FLOAT-LEG-1",
+      "calculationPeriodStartDate": "2026-04-30",
+      "calculationPeriodEndDate": "2026-07-31",
+      "paymentDate": "2026-07-31",
+      "payerPartyId": "CORPORATE_COUNTERPARTY",
+      "receiverPartyId": "BANK_EXEC_ENTITY",
+      "notional": 150000000,
+      "index": "USD-SOFR-COMPOUND",
+      "observedRateStatus": "PARTIALLY_OBSERVED",
+      "projectedCompoundedRate": 0.02855,
+      "spread": 0.00125,
+      "allInRate": 0.0298,
+      "dayCountFraction": "ACT/360",
+      "accrualFactor": 0.255556,
+      "amount": 446875,
+      "currency": "USD",
+      "status": "AWAITING_FINAL_FIXING"
+    }
+  ],
+  "regulatoryReporting": {
+    "reportingRegime": "CFTC_PART_43_45",
+    "reportingPartyId": "BANK_EXEC_ENTITY",
+    "reportingStatus": "ACKNOWLEDGED",
+    "sdr": "DTCC_DDR",
+    "lastReportedAt": "2026-04-28T15:31:12Z",
+    "actionType": "NEWT",
+    "eventType": "CLRG",
+    "reportedFields": {
+      "uti": "5493006MHB84DD0ZWV18IRS2026042800018472",
+      "assetClass": "RATES",
+      "productType": "InterestRateSwap",
+      "notionalCurrency": "USD",
+      "notionalAmount": 150000000,
+      "cleared": true,
+      "centralCounterparty": "LCH_SWAPCLEAR"
+    },
+    "exceptions": []
+  },
+  "controls": {
+    "validationResults": [
+      {
+        "ruleId": "IRS-001",
+        "description": "Effective date must be after trade date",
+        "result": "PASS"
+      },
+      {
+        "ruleId": "IRS-007",
+        "description": "Cleared USD SOFR swap must reference supported overnight compounding conventions",
+        "result": "PASS"
+      },
+      {
+        "ruleId": "SSI-003",
+        "description": "Settlement instructions must be current and currency-compatible",
+        "result": "PASS"
+      },
+      {
+        "ruleId": "REG-014",
+        "description": "UTI must be present before regulatory submission",
+        "result": "PASS"
+      }
+    ],
+    "makerChecker": {
+      "requiredForManualAmendment": true,
+      "lastApproval": {
+        "approvalId": "APPROVAL-20260428-00491",
+        "approvedBy": "rates-ops-supervisor@examplebank.com",
+        "approvedAt": "2026-04-28T14:11:03Z",
+        "reason": "New cleared client swap booking validated"
+      }
+    }
+  },
+  "exceptions": []
+}

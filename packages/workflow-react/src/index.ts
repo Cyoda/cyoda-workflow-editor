@@ -1,5 +1,17 @@
 export { WorkflowEditor } from "./components/WorkflowEditor.js";
-export type { WorkflowEditorProps } from "./components/WorkflowEditor.js";
+export type {
+  ChromeOptions,
+  WorkflowEditorLayout,
+  WorkflowEditorProps,
+  WorkflowEditorSurface,
+} from "./components/WorkflowEditor.js";
+export type {
+  JsonEditStatus,
+  WorkflowJsonEditorConfig,
+  WorkflowJsonEditorInstance,
+  WorkflowJsonModelLike,
+  WorkflowJsonMonacoRuntime,
+} from "./components/WorkflowJsonEditor.js";
 export type { LayoutOptions, LayoutPreset, PinnedNode } from "@cyoda/workflow-layout";
 export type { EditorMode, Selection } from "./state/types.js";
 export { defaultMessages } from "./i18n/en.js";
@@ -13,3 +25,4 @@ export type { SaveConfirmModalProps } from "./save/SaveConfirmModal.js";
 export { ConflictBanner } from "./save/ConflictBanner.js";
 export type { ConflictBannerProps } from "./save/ConflictBanner.js";
 export { diffSummary } from "./save/diff.js";
+export type { EntityFieldHintProvider, FieldHint } from "@cyoda/workflow-core";

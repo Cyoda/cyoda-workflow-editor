@@ -1,0 +1,396 @@
+{
+  "importMode": "MERGE",
+  "workflows": [
+    {
+      "version": "1.0",
+      "name": "TradeCriteriaDemoWorkflow",
+      "desc": "Trade post-execution workflow that exercises every criterion shape in the editor: simple (many operators), group (AND / OR / NOT), function (with quick-exit), lifecycle, and array. Designed for criterion-editor demo and regression testing using the StructuredTrade entity sample.",
+      "initialState": "RECEIVED",
+      "active": true,
+      "states": {
+        "RECEIVED": {
+          "transitions": [
+            {
+              "name": "IS_RATES_PRODUCT",
+              "next": "VALIDATING",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.product.assetClass",
+                "operation": "EQUALS",
+                "value": "RATES"
+              },
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "ValidateTrade",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "post-trade-validation"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "IS_NON_RATES_ASSET",
+              "next": "MANUAL_REVIEW",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.product.assetClass",
+                "operation": "NOT_EQUAL",
+                "value": "RATES"
+              }
+            }
+          ]
+        },
+        "VALIDATING": {
+          "transitions": [
+            {
+              "name": "VALID_LARGE_USD_TRADE",
+              "next": "CONFIRMATION_PENDING",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "AND",
+                "conditions": [
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.economics.notional.amount",
+                    "operation": "GREATER_OR_EQUAL",
+                    "value": 1000000
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.economics.notional.currency",
+                    "operation": "EQUALS",
+                    "value": "USD"
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.tradeDates.businessDayConvention",
+                    "operation": "MATCHES_PATTERN",
+                    "value": "^(MODIFIED_FOLLOWING|FOLLOWING)$"
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.tradeIdentifiers.uti",
+                    "operation": "NOT_NULL"
+                  }
+                ]
+              }
+            },
+            {
+              "name": "FIXED_RATE_IN_BAND",
+              "next": "CONFIRMATION_PENDING",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.economics.fixedLeg.fixedRate",
+                "operation": "BETWEEN_INCLUSIVE",
+                "value": [0.005, 0.10]
+              }
+            },
+            {
+              "name": "VALIDATION_FAILED",
+              "next": "REPAIR_REQUESTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "OR",
+                "conditions": [
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.controls.validationResults[0].result",
+                    "operation": "NOT_EQUAL",
+                    "value": "PASS"
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.tradeIdentifiers.uti",
+                    "operation": "IS_NULL"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "CONFIRMATION_PENDING": {
+          "transitions": [
+            {
+              "name": "MATCHED_WITH_KEY_FIELDS",
+              "next": "CLEARING_PENDING",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "AND",
+                "conditions": [
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.confirmation.status",
+                    "operation": "EQUALS",
+                    "value": "MATCHED"
+                  },
+                  {
+                    "type": "array",
+                    "jsonPath": "$.confirmation.matchedFields",
+                    "operation": "CONTAINS",
+                    "value": [
+                      "notional",
+                      "fixedRate",
+                      "floatingRateIndex"
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "MATCH_MISMATCH",
+              "next": "REPAIR_REQUESTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.confirmation.status",
+                "operation": "IEQUALS",
+                "value": "mismatch"
+              }
+            }
+          ]
+        },
+        "CLEARING_PENDING": {
+          "transitions": [
+            {
+              "name": "CLEARED_AT_LCH",
+              "next": "SETTLEMENT_PENDING",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "AND",
+                "conditions": [
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.clearing.cleared",
+                    "operation": "EQUALS",
+                    "value": true
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.clearing.clearingHouse",
+                    "operation": "STARTS_WITH",
+                    "value": "LCH"
+                  },
+                  {
+                    "type": "group",
+                    "operator": "NOT",
+                    "conditions": [
+                      {
+                        "type": "simple",
+                        "jsonPath": "$.clearing.clearingStatus",
+                        "operation": "EQUALS",
+                        "value": "REJECTED"
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "name": "MISSING_CLEARING_HOUSE",
+              "next": "REPAIR_REQUESTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.clearing.clearingHouse",
+                "operation": "IS_NULL"
+              }
+            }
+          ]
+        },
+        "SETTLEMENT_PENDING": {
+          "transitions": [
+            {
+              "name": "ALL_RATE_FIXINGS_OBSERVED",
+              "next": "CASHFLOW_READY",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "function",
+                "function": {
+                  "name": "AreAllRateFixingsObserved",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "rate-fixings",
+                    "responseTimeoutMs": 5000
+                  },
+                  "criterion": {
+                    "type": "simple",
+                    "jsonPath": "$.settlement.nextSettlementInstruction.releaseStatus",
+                    "operation": "NOT_EQUAL",
+                    "value": "AWAITING_RATE_FINALISATION"
+                  }
+                }
+              }
+            },
+            {
+              "name": "JUST_ARRIVED_FROM_CLEARING",
+              "next": "CASHFLOW_READY",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "lifecycle",
+                "field": "previousTransition",
+                "operation": "EQUALS",
+                "value": "CLEARED_AT_LCH"
+              }
+            }
+          ]
+        },
+        "CASHFLOW_READY": {
+          "transitions": [
+            {
+              "name": "APPROVED_AND_USD_SSI",
+              "next": "INSTRUCTED",
+              "manual": true,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "AND",
+                "conditions": [
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.controls.makerChecker.lastApproval.approvalId",
+                    "operation": "NOT_NULL"
+                  },
+                  {
+                    "type": "array",
+                    "jsonPath": "$.tradeDates.businessCenters",
+                    "operation": "CONTAINS",
+                    "value": ["USNY"]
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.settlement.standardSettlementInstructions[0].validated",
+                    "operation": "EQUALS",
+                    "value": true
+                  }
+                ]
+              }
+            },
+            {
+              "name": "DV01_WITHIN_LIMITS",
+              "next": "INSTRUCTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.valuationSnapshot.dv01",
+                "operation": "BETWEEN_INCLUSIVE",
+                "value": [0, 100000]
+              }
+            }
+          ]
+        },
+        "INSTRUCTED": {
+          "transitions": [
+            {
+              "name": "BECOME_SETTLED",
+              "next": "SETTLED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.settlement.settlementStatus",
+                "operation": "EQUALS",
+                "value": "SETTLED"
+              },
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "PublishReport",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "regulatory-reporting"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "ARRIVED_VIA_APPROVAL",
+              "next": "SETTLED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "lifecycle",
+                "field": "previousTransition",
+                "operation": "EQUALS",
+                "value": "APPROVED_AND_USD_SSI"
+              }
+            },
+            {
+              "name": "SETTLEMENT_BREAK",
+              "next": "FAILED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.settlement.settlementStatus",
+                "operation": "ICONTAINS",
+                "value": "fail"
+              }
+            }
+          ]
+        },
+        "REPAIR_REQUESTED": {
+          "transitions": [
+            {
+              "name": "ROUTE_TO_OPS",
+              "next": "MANUAL_REVIEW",
+              "manual": false,
+              "disabled": false
+            }
+          ]
+        },
+        "MANUAL_REVIEW": {
+          "transitions": [
+            {
+              "name": "APPLY_REPAIR",
+              "next": "REPAIRED",
+              "manual": true,
+              "disabled": false
+            },
+            {
+              "name": "CANCEL_TRADE",
+              "next": "CANCELLED",
+              "manual": true,
+              "disabled": false
+            }
+          ]
+        },
+        "REPAIRED": {
+          "transitions": [
+            {
+              "name": "RE_ENTER_VALIDATION",
+              "next": "VALIDATING",
+              "manual": false,
+              "disabled": false
+            }
+          ]
+        },
+        "SETTLED": { "transitions": [] },
+        "FAILED": { "transitions": [] },
+        "CANCELLED": { "transitions": [] }
+      }
+    }
+  ]
+}

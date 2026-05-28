@@ -31,6 +31,7 @@ vi.mock("reactflow", () => {
     ConnectionMode: { Loose: "loose" },
     Position: { Top: "top", Right: "right", Bottom: "bottom", Left: "left" },
     useReactFlow: () => ({ fitView, setViewport }),
+    useUpdateNodeInternals: () => vi.fn(),
   };
 });
 
@@ -76,10 +77,10 @@ afterEach(() => {
 
 describe("WorkflowEditor viewport behavior", () => {
   test("performs one post-layout initial fit with a small-graph zoom cap", async () => {
-    render(<WorkflowEditor document={fixture(MINIMAL)} />);
+    render(<WorkflowEditor document={fixture(MINIMAL)} localStorageKey={null} />);
 
     await waitFor(() => {
-      expect(fitView).toHaveBeenCalledWith({ padding: 0.12, maxZoom: 1 });
+      expect(fitView).toHaveBeenCalledWith({ padding: 0.2, maxZoom: 1 });
     });
     expect(setViewport).not.toHaveBeenCalled();
   });
@@ -92,7 +93,7 @@ describe("WorkflowEditor viewport behavior", () => {
       },
     };
 
-    render(<WorkflowEditor document={doc} />);
+    render(<WorkflowEditor document={doc} localStorageKey={null} />);
 
     await waitFor(() => {
       expect(setViewport).toHaveBeenCalledWith(
@@ -106,7 +107,11 @@ describe("WorkflowEditor viewport behavior", () => {
   test("orientation switch performs one fit for the new orientation", async () => {
     const doc = fixture(MINIMAL);
     const { rerender } = render(
-      <WorkflowEditor document={doc} layoutOptions={{ orientation: "vertical" }} />,
+      <WorkflowEditor
+        document={doc}
+        layoutOptions={{ orientation: "vertical" }}
+        localStorageKey={null}
+      />,
     );
 
     await waitFor(() => {
@@ -114,7 +119,11 @@ describe("WorkflowEditor viewport behavior", () => {
     });
 
     rerender(
-      <WorkflowEditor document={doc} layoutOptions={{ orientation: "horizontal" }} />,
+      <WorkflowEditor
+        document={doc}
+        layoutOptions={{ orientation: "horizontal" }}
+        localStorageKey={null}
+      />,
     );
 
     await waitFor(() => {
@@ -125,7 +134,15 @@ describe("WorkflowEditor viewport behavior", () => {
 
   test("persists viewport changes into workflowUi by workflow and orientation", async () => {
     let latest: WorkflowEditorDocument | undefined;
-    render(<WorkflowEditor document={fixture(MINIMAL)} onChange={(doc) => { latest = doc; }} />);
+    render(
+      <WorkflowEditor
+        document={fixture(MINIMAL)}
+        localStorageKey={null}
+        onChange={(doc) => {
+          latest = doc;
+        }}
+      />,
+    );
 
     await waitFor(() => {
       expect(fitView).toHaveBeenCalled();

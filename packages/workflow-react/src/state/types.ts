@@ -1,5 +1,6 @@
 import type {
   DomainPatch,
+  PatchTransaction,
   ValidationIssue,
   WorkflowEditorDocument,
 } from "@cyoda/workflow-core";
@@ -16,9 +17,13 @@ export type Selection =
   | { kind: "criterion"; hostKind: "workflow" | "transition"; hostId: string; path: string[] };
 
 export interface UndoEntry {
-  forward: DomainPatch;
-  inverse: DomainPatch;
+  /** Patches to (re)apply going forward. */
+  patches: DomainPatch[];
+  /** Patches to apply to undo (in forward order; undo machinery reverses them). */
+  inverses: DomainPatch[];
   summary: string;
+  /** Selection to restore after undo. */
+  selectionAfter?: Selection | null;
 }
 
 export interface EditorState {
@@ -32,6 +37,8 @@ export interface EditorState {
 
 export interface EditorActions {
   dispatch(patch: DomainPatch, summary?: string): void;
+  /** Dispatch multiple patches as one atomic undo step. */
+  dispatchTransaction(tx: PatchTransaction): void;
   /** Apply a patch without recording undo (e.g. after an external JSON load). */
   silentReplace(
     document: WorkflowEditorDocument,

@@ -1,7 +1,15 @@
+import {
+  CRITERION_DEPTH_WARNING_THRESHOLD,
+  MAX_CRITERION_DEPTH,
+  UNSUPPORTED_OPERATORS,
+} from "../criteria/operators.js";
+import { validateJsonPathSubset } from "../criteria/jsonPathSubset.js";
+import { idFor as identityIdFor } from "../identity/id-for.js";
+import type { Criterion } from "../types/criterion.js";
 import type { WorkflowEditorDocument } from "../types/editor.js";
 import type { WorkflowSession } from "../types/session.js";
 import type { ValidationIssue } from "../types/validation.js";
-import type { Workflow } from "../types/workflow.js";
+import type { Transition, Workflow } from "../types/workflow.js";
 import { isValidName, walkCriteria } from "./helpers.js";
 
 const LIFECYCLE_FIELDS = new Set(["state", "creationDate", "previousTransition"]);
@@ -23,6 +31,8 @@ export function validateSemantics(
   }
 
   issues.push(...criterionRules(session));
+  issues.push(...criterionDepthRules(session));
+  issues.push(...automatedOrderingRules(session, doc));
 
   if (session.workflows.length === 1) {
     const only = session.workflows[0];
@@ -135,6 +145,17 @@ function validateWorkflow(
               severity: "error",
               code: "scheduled-missing-target",
               message: `Scheduled processor "${p.name}" has empty target transition.`,
+            });
+          }
+          if (
+            p.type === "externalized" &&
+            p.startNewTxOnDispatch === true &&
+            p.executionMode !== "COMMIT_BEFORE_DISPATCH"
+          ) {
+            issues.push({
+              severity: "warning",
+              code: "start-new-tx-without-commit-before-dispatch",
+              message: `Processor "${p.name}" sets startNewTxOnDispatch but executionMode is not COMMIT_BEFORE_DISPATCH.`,
             });
           }
           if (p.type === "externalized" && p.config) {
@@ -303,7 +324,16 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
           });
         }
         break;
-      case "array":
+      case "array": {
+        const arrPathCheck = validateJsonPathSubset(criterion.jsonPath);
+        if (!arrPathCheck.ok) {
+          issues.push({
+            severity: "error",
+            code: "invalid-jsonpath-subset",
+            message: `Array criterion jsonPath "${criterion.jsonPath}" is not in the supported subset (${arrPathCheck.reason}) (at ${describe(where)}).`,
+            detail: { jsonPath: criterion.jsonPath, reason: arrPathCheck.reason },
+          });
+        }
         for (const v of criterion.value) {
           if (typeof v !== "string") {
             issues.push({
@@ -315,6 +345,7 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
           }
         }
         break;
+      }
       case "lifecycle":
         if (!LIFECYCLE_FIELDS.has(criterion.field)) {
           issues.push({
@@ -323,21 +354,171 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
             message: `Lifecycle criterion field "${criterion.field}" is invalid.`,
           });
         }
-        break;
-      case "group":
-        if (criterion.operator === "NOT" && criterion.conditions.length > 1) {
+        if (UNSUPPORTED_OPERATORS.has(criterion.operation)) {
           issues.push({
             severity: "warning",
-            code: "not-with-multiple-conditions",
-            message: `NOT group has ${criterion.conditions.length} conditions; should have exactly one.`,
+            code: "unsupported-operator",
+            message: `Operator "${criterion.operation}" is not implemented by the engine (at ${describe(where)}).`,
+            detail: { operation: criterion.operation },
           });
         }
         break;
-      case "simple":
+      case "group":
+        if (criterion.operator === "NOT") {
+          issues.push({
+            severity: "warning",
+            code: "unsupported-group-operator",
+            message: `Group operator "NOT" is not implemented by the engine (at ${describe(where)}).`,
+            detail: { operator: "NOT" },
+          });
+          if (criterion.conditions.length > 1) {
+            issues.push({
+              severity: "warning",
+              code: "not-with-multiple-conditions",
+              message: `NOT group has ${criterion.conditions.length} conditions; should have exactly one.`,
+            });
+          }
+        }
         break;
+      case "simple": {
+        const pathCheck = validateJsonPathSubset(criterion.jsonPath);
+        if (!pathCheck.ok) {
+          issues.push({
+            severity: "error",
+            code: "invalid-jsonpath-subset",
+            message: `Simple criterion jsonPath "${criterion.jsonPath}" is not in the supported subset (${pathCheck.reason}) (at ${describe(where)}).`,
+            detail: { jsonPath: criterion.jsonPath, reason: pathCheck.reason },
+          });
+        } else if (criterion.jsonPath.startsWith("$._meta")) {
+          // Spec §5: lifecycle metadata is only accessible via LifecycleCondition;
+          // a SimpleCondition on `$._meta.*` resolves to a literal data field and
+          // will never match.
+          issues.push({
+            severity: "warning",
+            code: "lifecycle-path-in-simple",
+            message: `Simple criterion path "${criterion.jsonPath}" looks like a lifecycle path; use a lifecycle criterion instead (at ${describe(where)}).`,
+            detail: { jsonPath: criterion.jsonPath },
+          });
+        }
+
+        if (UNSUPPORTED_OPERATORS.has(criterion.operation)) {
+          issues.push({
+            severity: "warning",
+            code: "unsupported-operator",
+            message: `Operator "${criterion.operation}" is not implemented by the engine (at ${describe(where)}).`,
+            detail: { operation: criterion.operation },
+          });
+        }
+
+        if (criterion.operation === "BETWEEN" || criterion.operation === "BETWEEN_INCLUSIVE") {
+          if (!Array.isArray(criterion.value) || criterion.value.length !== 2) {
+            issues.push({
+              severity: "error",
+              code: "simple-between-shape",
+              message: `Operator "${criterion.operation}" requires a two-element [low, high] array value (at ${describe(where)}).`,
+              detail: { operation: criterion.operation },
+            });
+          }
+        }
+
+        if (
+          criterion.operation === "LIKE" &&
+          typeof criterion.value === "string" &&
+          /[%_]/.test(criterion.value)
+        ) {
+          // Spec §3.1: LIKE has no escape mechanism; `%` and `_` are always
+          // wildcards.
+          issues.push({
+            severity: "warning",
+            code: "like-wildcard-warning",
+            message: `LIKE pattern contains "%" or "_" which are always wildcards (no escape mechanism) (at ${describe(where)}).`,
+          });
+        }
+
+        if (
+          criterion.operation === "MATCHES_PATTERN" &&
+          typeof criterion.value === "string" &&
+          criterion.value.length > 0 &&
+          !criterion.value.startsWith("^") &&
+          !criterion.value.endsWith("$")
+        ) {
+          // Spec §3.1: MATCHES_PATTERN has no implicit anchoring.
+          issues.push({
+            severity: "warning",
+            code: "matches-pattern-unanchored",
+            message: `MATCHES_PATTERN regex is unanchored; include "^"/"$" for whole-string match (at ${describe(where)}).`,
+          });
+        }
+        break;
+      }
     }
   }
   return issues;
+}
+
+function criterionDepthRules(session: WorkflowSession): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const wf of session.workflows) {
+    if (wf.criterion) {
+      pushDepthIssue(issues, criterionMaxDepth(wf.criterion), {
+        kind: "workflow",
+        workflow: wf.name,
+      });
+    }
+    for (const [stateCode, state] of Object.entries(wf.states)) {
+      for (let i = 0; i < state.transitions.length; i++) {
+        const t = state.transitions[i]!;
+        if (!t.criterion) continue;
+        pushDepthIssue(issues, criterionMaxDepth(t.criterion), {
+          kind: "transition",
+          workflow: wf.name,
+          state: stateCode,
+          transitionIndex: i,
+          transitionName: t.name,
+        });
+      }
+    }
+  }
+  return issues;
+}
+
+function pushDepthIssue(
+  issues: ValidationIssue[],
+  maxDepth: number,
+  where: CriterionLoc,
+): void {
+  if (maxDepth >= MAX_CRITERION_DEPTH) {
+    issues.push({
+      severity: "error",
+      code: "criterion-depth-limit",
+      message: `Criterion tree depth ${maxDepth} exceeds engine limit ${MAX_CRITERION_DEPTH} (at ${describe(where)}).`,
+      detail: { maxDepth, threshold: MAX_CRITERION_DEPTH },
+    });
+  }
+  if (maxDepth >= CRITERION_DEPTH_WARNING_THRESHOLD) {
+    issues.push({
+      severity: "warning",
+      code: "criterion-depth-warning",
+      message: `Criterion tree depth ${maxDepth} is hard to read; consider flattening (at ${describe(where)}).`,
+      detail: { maxDepth, threshold: CRITERION_DEPTH_WARNING_THRESHOLD },
+    });
+  }
+}
+
+function criterionMaxDepth(root: Criterion): number {
+  // Iterative DFS: each frame is { node, depth }.
+  const stack: { node: Criterion; depth: number }[] = [{ node: root, depth: 1 }];
+  let max = 0;
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!;
+    if (depth > max) max = depth;
+    if (node.type === "group") {
+      for (const child of node.conditions) stack.push({ node: child, depth: depth + 1 });
+    } else if (node.type === "function" && node.function.criterion) {
+      stack.push({ node: node.function.criterion, depth: depth + 1 });
+    }
+  }
+  return max;
 }
 
 function reachableStates(wf: Workflow): Set<string> {
@@ -411,4 +592,71 @@ function idFor(
   if (!doc) return {};
   const id = doc.meta.ids.workflows[workflowName];
   return id ? { targetId: id } : {};
+}
+
+function transitionTargetId(
+  doc: WorkflowEditorDocument | undefined,
+  workflow: string,
+  state: string,
+  declarationIndex: number,
+): { targetId?: string } {
+  if (!doc) return {};
+  const id = identityIdFor(doc.meta, {
+    kind: "transition",
+    workflow,
+    state,
+    transitionName: "",
+    ordinal: declarationIndex,
+  });
+  return id ? { targetId: id } : {};
+}
+
+function automatedOrderingRules(
+  session: WorkflowSession,
+  doc?: WorkflowEditorDocument,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const wf of session.workflows) {
+    for (const [stateCode, state] of Object.entries(wf.states)) {
+      const automated: Array<{ index: number; t: Transition }> = [];
+      state.transitions.forEach((t, index) => {
+        if (t.manual !== true && t.disabled !== true) {
+          automated.push({ index, t });
+        }
+      });
+
+      const nullIdx = automated.findIndex(({ t }) => t.criterion === undefined);
+      if (nullIdx === -1 || nullIdx === automated.length - 1) continue;
+
+      const nullEntry = automated[nullIdx]!;
+      issues.push({
+        severity: "warning",
+        code: "null-criterion-not-last",
+        message: `Transition "${nullEntry.t.name}" on state "${stateCode}" is automated and has no criterion, so it always fires; later automated transitions on this state are unreachable.`,
+        ...transitionTargetId(doc, wf.name, stateCode, nullEntry.index),
+        detail: {
+          workflow: wf.name,
+          state: stateCode,
+          transitionName: nullEntry.t.name,
+        },
+      });
+
+      for (let j = nullIdx + 1; j < automated.length; j++) {
+        const dead = automated[j]!;
+        issues.push({
+          severity: "warning",
+          code: "unreachable-automated-transition",
+          message: `Transition "${dead.t.name}" on state "${stateCode}" is unreachable: an earlier automated transition ("${nullEntry.t.name}") has no criterion and will always fire first.`,
+          ...transitionTargetId(doc, wf.name, stateCode, dead.index),
+          detail: {
+            workflow: wf.name,
+            state: stateCode,
+            transitionName: dead.t.name,
+            blockedBy: nullEntry.t.name,
+          },
+        });
+      }
+    }
+  }
+  return issues;
 }

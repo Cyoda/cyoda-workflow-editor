@@ -49,12 +49,12 @@ const MULTI = JSON.stringify({
 afterEach(() => cleanup());
 
 describe("WorkflowEditor", () => {
-  it("renders toolbar + canvas + inspector in editor mode", () => {
+  it("renders toolbar + canvas in editor mode", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.getByTestId("workflow-editor")).toBeTruthy();
     expect(screen.getByTestId("toolbar")).toBeTruthy();
-    expect(screen.getByTestId("toolbar-undo")).toBeTruthy();
-    expect(screen.getByTestId("toolbar-redo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-undo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-redo")).toBeTruthy();
   });
 
   it("hides tabs for single-workflow viewer mode", () => {
@@ -71,8 +71,8 @@ describe("WorkflowEditor", () => {
 
   it("disables undo/redo initially (empty stacks)", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
-    const undo = screen.getByTestId("toolbar-undo") as HTMLButtonElement;
-    const redo = screen.getByTestId("toolbar-redo") as HTMLButtonElement;
+    const undo = screen.getByTestId("canvas-undo") as HTMLButtonElement;
+    const redo = screen.getByTestId("canvas-redo") as HTMLButtonElement;
     expect(undo.disabled).toBe(true);
     expect(redo.disabled).toBe(true);
   });
@@ -82,8 +82,69 @@ describe("WorkflowEditor", () => {
     expect(screen.getByTestId("toolbar-save")).toBeTruthy();
   });
 
+  it("can hide the toolbar save button while keeping editor controls visible", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} onSave={() => {}} showSaveButton={false} />);
+    expect(screen.queryByTestId("toolbar-save")).toBeNull();
+    expect(screen.getByTestId("toolbar-errors")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
+  });
+
   it("does not render save button without onSave", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.queryByTestId("toolbar-save")).toBeNull();
+  });
+
+  it("surface dev-console keeps standard editor controls", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} surface="dev-console" layout="fullWidth" />);
+    const editor = screen.getByTestId("workflow-editor");
+    expect(editor.getAttribute("data-surface")).toBe("dev-console");
+    expect(editor.getAttribute("data-layout")).toBe("fullWidth");
+    expect(screen.getByTestId("toolbar")).toBeTruthy();
+    expect(screen.getByTestId("canvas-undo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-redo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
+  });
+
+  it("renders toolbar slots without hiding editor controls", () => {
+    render(
+      <WorkflowEditor
+        document={fixture(MINIMAL)}
+        onSave={() => {}}
+        toolbarStart={<button type="button">Open workflow file</button>}
+        toolbarCenter={<span>workflow.json</span>}
+        toolbarEnd={<button type="button">Reload from disk</button>}
+      />,
+    );
+
+    expect(screen.getByText("Open workflow file")).toBeTruthy();
+    expect(screen.getByText("workflow.json")).toBeTruthy();
+    expect(screen.getByText("Reload from disk")).toBeTruthy();
+    expect(screen.getByTestId("toolbar-save")).toBeTruthy();
+    expect(screen.getByTestId("toolbar-errors")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
+  });
+});
+
+describe("WorkflowEditor chrome suppression", () => {
+  it("hides toolbar when chrome.toolbar is false", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} chrome={{ toolbar: false }} />);
+    expect(screen.queryByTestId("toolbar")).toBeNull();
+  });
+
+  it("hides inspector when chrome.inspector is false", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} chrome={{ inspector: false }} />);
+    expect(screen.queryByTestId("inspector")).toBeNull();
+  });
+
+  it("hides tabs when chrome.tabs is false", () => {
+    render(<WorkflowEditor document={fixture(MULTI)} chrome={{ tabs: false }} />);
+    expect(screen.queryByTestId("workflow-tabs")).toBeNull();
+  });
+
+  it("shows default toolbar chrome and canvas add-state button", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} />);
+    expect(screen.getByTestId("toolbar")).toBeTruthy();
+    expect(screen.queryByTestId("inspector")).toBeNull();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
   });
 });

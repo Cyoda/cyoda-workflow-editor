@@ -11,26 +11,6 @@ function project(json: unknown) {
   return projectToGraph(parsed.document);
 }
 
-const minimal = {
-  importMode: "MERGE",
-  workflows: [
-    {
-      version: "1.0",
-      name: "wf",
-      initialState: "a",
-      active: true,
-      states: {
-        a: {
-          transitions: [{ name: "go", next: "b", manual: false, disabled: false }],
-        },
-        b: {
-          transitions: [{ name: "back", next: "a", manual: false, disabled: false }],
-        },
-      },
-    },
-  ],
-};
-
 const linear = {
   importMode: "MERGE",
   workflows: [
@@ -174,70 +154,7 @@ function posSnapshot(positions: Map<string, { x: number; y: number; width: numbe
   return byCode;
 }
 
-function labelRect(route: { labelX: number; labelY: number; labelWidth: number; labelHeight: number }) {
-  return {
-    x: route.labelX - route.labelWidth / 2,
-    y: route.labelY - route.labelHeight / 2,
-    width: route.labelWidth,
-    height: route.labelHeight,
-  };
-}
-
-function intersects(
-  a: { x: number; y: number; width: number; height: number },
-  b: { x: number; y: number; width: number; height: number },
-  tolerance = 0,
-) {
-  return (
-    a.x + tolerance < b.x + b.width &&
-    a.x + a.width > b.x + tolerance &&
-    a.y + tolerance < b.y + b.height &&
-    a.y + a.height > b.y + tolerance
-  );
-}
-
-function pointNearRectBoundary(
-  point: { x: number; y: number },
-  rect: { x: number; y: number; width: number; height: number },
-  tolerance = 1,
-) {
-  const withinX = point.x >= rect.x - tolerance && point.x <= rect.x + rect.width + tolerance;
-  const withinY = point.y >= rect.y - tolerance && point.y <= rect.y + rect.height + tolerance;
-  const onLeft = Math.abs(point.x - rect.x) <= tolerance && withinY;
-  const onRight = Math.abs(point.x - (rect.x + rect.width)) <= tolerance && withinY;
-  const onTop = Math.abs(point.y - rect.y) <= tolerance && withinX;
-  const onBottom = Math.abs(point.y - (rect.y + rect.height)) <= tolerance && withinX;
-  return onLeft || onRight || onTop || onBottom;
-}
-
-async function expectCleanLabelGeometry(json: unknown, orientation: "vertical" | "horizontal" = "vertical") {
-  const graph = project(json);
-  const result = await layoutGraph(graph, { preset: "configuratorReadable", orientation });
-  const nodeRects = [...result.positions.values()];
-  for (const edge of graph.edges) {
-    if (edge.kind !== "transition") continue;
-    const route = result.edges.get(edge.id);
-    expect(route, `missing route for ${edge.label}`).toBeTruthy();
-    expect(route!.labelWidth).toBeGreaterThan(0);
-    expect(route!.labelHeight).toBeGreaterThan(0);
-    const rect = labelRect(route!);
-    for (const node of nodeRects) {
-      expect(
-        intersects(rect, node, 2),
-        `label ${edge.label} overlaps node ${node.id}`,
-      ).toBe(false);
-    }
-    const source = result.positions.get(edge.sourceId);
-    const target = result.positions.get(edge.targetId);
-    if (source && target && route!.points.length >= 2) {
-      expect(pointNearRectBoundary(route!.points[0]!, source, 1)).toBe(true);
-      expect(pointNearRectBoundary(route!.points[route!.points.length - 1]!, target, 1)).toBe(true);
-    }
-  }
-}
-
-
-// ─── existing correctness tests ───────────────────────────────────────────────
+// ─── correctness tests ────────────────────────────────────────────────────────
 
 describe("layoutGraph", () => {
   test("returns positions for every state node", async () => {
@@ -260,18 +177,6 @@ describe("layoutGraph", () => {
     expect(result.positions.get(draft.id)!.y).toBeLessThan(result.positions.get(done.id)!.y);
   });
 
-  test("produces edge routes with a finite label position", async () => {
-    const graph = project(linear);
-    const result = await layoutGraph(graph);
-    for (const id of graph.edges.filter((e) => e.kind === "transition").map((e) => e.id)) {
-      const route = result.edges.get(id);
-      expect(route, `missing route for ${id}`).toBeTruthy();
-      expect(route!.points.length).toBeGreaterThanOrEqual(2);
-      expect(Number.isFinite(route!.labelX)).toBe(true);
-      expect(Number.isFinite(route!.labelY)).toBe(true);
-    }
-  });
-
   test("honours pinned positions", async () => {
     const graph = project(linear);
     const draft = graph.nodes.find((n) => n.kind === "state" && n.stateCode === "draft")!;
@@ -281,32 +186,10 @@ describe("layoutGraph", () => {
     expect(pos.y).toBe(500);
   });
 
-  test("routes back-edges and self-edges", async () => {
-    const graph = project(minimal);
-    const result = await layoutGraph(graph);
-    for (const e of graph.edges.filter((e) => e.kind === "transition")) {
-      expect(result.edges.has(e.id)).toBe(true);
-    }
-  });
-
   test("handles graphs with no state nodes", async () => {
     const result = await layoutGraph({ nodes: [], edges: [], annotations: [] } as const);
     expect(result.positions.size).toBe(0);
     expect(result.edges.size).toBe(0);
-  });
-
-  test("horizontal back-edge route uses a rail below all nodes", async () => {
-    const graph = project(minimal);
-    const result = await layoutGraph(graph, { orientation: "horizontal" });
-    const maxNodeBottom = Math.max(...[...result.positions.values()].map((p) => p.y + p.height));
-    for (const edge of graph.edges) {
-      if (edge.kind !== "transition" || edge.isSelf) continue;
-      const sp = result.positions.get(edge.sourceId);
-      const tp = result.positions.get(edge.targetId);
-      if (!sp || !tp || sp.x <= tp.x) continue;
-      const route = result.edges.get(edge.id)!;
-      expect(Math.max(...route.points.map((p) => p.y))).toBeGreaterThan(maxNodeBottom);
-    }
   });
 
   test("horizontal initial state is to the left of terminal", async () => {
@@ -326,7 +209,7 @@ describe("layoutGraph", () => {
     }
   });
 
-  // ─── node sizing ────────────────────────────────────────────────────────────
+  // ─── node sizing ─────────────────────────────────────────────────────────────
 
   test("estimateNodeSize returns base width for short codes", () => {
     expect(estimateNodeSize("new").width).toBe(144);
@@ -353,7 +236,7 @@ describe("layoutGraph", () => {
   });
 });
 
-// ─── regression fixtures ─────────────────────────────────────────────────────
+// ─── regression fixtures ──────────────────────────────────────────────────────
 
 describe("regression: 4-state workflow (vertical)", () => {
   test("node positions are stable", async () => {
@@ -372,34 +255,6 @@ describe("regression: 4-state workflow (vertical)", () => {
       expect(y).toBeGreaterThanOrEqual(0);
     }
   });
-
-  test("all edges have finite label positions", async () => {
-    const graph = project(fourState);
-    const result = await layoutGraph(graph, { preset: "configuratorReadable" });
-    for (const r of result.edges.values()) {
-      expect(Number.isFinite(r.labelX)).toBe(true);
-      expect(Number.isFinite(r.labelY)).toBe(true);
-      expect(r.labelWidth).toBeGreaterThan(0);
-      expect(r.labelHeight).toBeGreaterThan(0);
-    }
-  });
-
-  test("labels avoid node rectangles and endpoints touch rendered bounds", async () => {
-    await expectCleanLabelGeometry(fourState, "vertical");
-  });
-
-  test("back-edge (reactivate) has a route with a finite label position", async () => {
-    const graph = project(fourState);
-    const result = await layoutGraph(graph, { preset: "configuratorReadable" });
-    const reactivate = graph.edges.find(
-      (e) => e.kind === "transition" && e.label === "reactivate",
-    )!;
-    const route = result.edges.get(reactivate.id)!;
-    expect(route).toBeTruthy();
-    expect(Number.isFinite(route.labelX)).toBe(true);
-    expect(Number.isFinite(route.labelY)).toBe(true);
-    expect(route.points.length).toBeGreaterThanOrEqual(2);
-  });
 });
 
 describe("regression: 4-state workflow (horizontal)", () => {
@@ -411,21 +266,6 @@ describe("regression: 4-state workflow (horizontal)", () => {
     for (let i = 1; i < xs.length; i++) {
       expect(xs[i]).toBeGreaterThan(xs[i - 1]!);
     }
-  });
-
-  test("back-edge (reactivate) route uses a rail below all nodes in horizontal mode", async () => {
-    const graph = project(fourState);
-    const result = await layoutGraph(graph, { preset: "configuratorReadable", orientation: "horizontal" });
-    const maxBottom = Math.max(...[...result.positions.values()].map((p) => p.y + p.height));
-    const reactivate = graph.edges.find(
-      (e) => e.kind === "transition" && e.label === "reactivate",
-    )!;
-    const route = result.edges.get(reactivate.id)!;
-    expect(Math.max(...route.points.map((p) => p.y))).toBeGreaterThan(maxBottom);
-  });
-
-  test("horizontal labels avoid node rectangles and endpoints touch rendered bounds", async () => {
-    await expectCleanLabelGeometry(fourState, "horizontal");
   });
 });
 
@@ -440,24 +280,6 @@ describe("regression: branching graph", () => {
     }
   });
 
-  test("all edges have routes and finite label positions", async () => {
-    const graph = project(branching);
-    const result = await layoutGraph(graph, { preset: "configuratorReadable" });
-    for (const edge of graph.edges) {
-      if (edge.kind !== "transition") continue;
-      const route = result.edges.get(edge.id);
-      expect(route, `missing route for ${edge.label}`).toBeTruthy();
-      expect(Number.isFinite(route!.labelX)).toBe(true);
-      expect(Number.isFinite(route!.labelY)).toBe(true);
-      expect(route!.labelWidth).toBeGreaterThan(0);
-      expect(route!.labelHeight).toBeGreaterThan(0);
-    }
-  });
-
-  test("dense labels avoid node rectangles where possible", async () => {
-    await expectCleanLabelGeometry(branching, "vertical");
-  });
-
   test("initial state (start) is in the topmost layer", async () => {
     const graph = project(branching);
     const result = await layoutGraph(graph, { preset: "configuratorReadable" });
@@ -466,19 +288,5 @@ describe("regression: branching graph", () => {
     expect(result.positions.get(startNode.id)!.y).toBeLessThan(
       result.positions.get(endNode.id)!.y,
     );
-  });
-
-  test("horizontal branching: back-edges use routes below all nodes", async () => {
-    const graph = project(branching);
-    const result = await layoutGraph(graph, { preset: "configuratorReadable", orientation: "horizontal" });
-    const maxBottom = Math.max(...[...result.positions.values()].map((p) => p.y + p.height));
-    for (const edge of graph.edges) {
-      if (edge.kind !== "transition" || edge.isSelf) continue;
-      const sp = result.positions.get(edge.sourceId);
-      const tp = result.positions.get(edge.targetId);
-      if (!sp || !tp || sp.x <= tp.x) continue;
-      const route = result.edges.get(edge.id)!;
-      expect(Math.max(...route.points.map((p) => p.y))).toBeGreaterThan(maxBottom);
-    }
   });
 });

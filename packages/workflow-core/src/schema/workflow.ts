@@ -7,7 +7,7 @@ export const TransitionSchema = z.object({
   name: NameSchema,
   next: NameSchema,
   manual: z.boolean(),
-  disabled: z.boolean(),
+  disabled: z.boolean().default(false),
   criterion: CriterionSchema.optional(),
   processors: z.array(ProcessorSchema).optional(),
 });

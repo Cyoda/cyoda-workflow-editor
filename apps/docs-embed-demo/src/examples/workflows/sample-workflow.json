@@ -1,0 +1,95 @@
+{
+  "version": "1.0",
+  "name": "DocumentLifecycleWorkflow",
+  "desc": "Workflow derived from the supplied diagram: new -> active -> approved -> archived, with externalized and scheduled processors covering validation, notification, delayed follow-up, and COMMIT_BEFORE_DISPATCH editing paths.",
+  "initialState": "new",
+  "active": true,
+  "states": {
+    "new": {
+      "transitions": [
+        {
+          "name": "to_active",
+          "next": "active",
+          "manual": false,
+          "disabled": false,
+          "processors": [
+            {
+              "type": "externalized",
+              "name": "validate",
+              "executionMode": "SYNC",
+              "config": {
+                "attachEntity": true
+              }
+            },
+            {
+              "type": "scheduled",
+              "name": "schedule_follow_up",
+              "config": {
+                "delayMs": 300000,
+                "transition": "reactivate",
+                "timeoutMs": 30000
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "active": {
+      "transitions": [
+        {
+          "name": "to_approved",
+          "next": "approved",
+          "manual": true,
+          "disabled": false,
+          "processors": [
+            {
+              "type": "externalized",
+              "name": "notify",
+              "executionMode": "COMMIT_BEFORE_DISPATCH",
+              "startNewTxOnDispatch": true,
+              "config": {
+                "attachEntity": true,
+                "calculationNodesTags": "notifications,customer",
+                "context": "channel=email",
+                "asyncResult": true,
+                "crossoverToAsyncMs": 1500
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "approved": {
+      "transitions": [
+        {
+          "name": "to_archived",
+          "next": "archived",
+          "manual": false,
+          "disabled": false,
+          "criterion": {
+            "type": "lifecycle",
+            "field": "creationDate",
+            "operation": "LESS_OR_EQUAL",
+            "value": "NOW_MINUS_30D"
+          }
+        },
+        {
+          "name": "auto_archive",
+          "next": "archived",
+          "manual": false,
+          "disabled": false
+        }
+      ]
+    },
+    "archived": {
+      "transitions": [
+        {
+          "name": "reactivate",
+          "next": "active",
+          "manual": true,
+          "disabled": false
+        }
+      ]
+    }
+  }
+}

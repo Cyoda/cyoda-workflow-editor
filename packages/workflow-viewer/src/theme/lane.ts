@@ -35,17 +35,15 @@ export function laneColor(
  * carries meaning, colour alone never does).
  */
 export function laneIsDashed(edge: TransitionEdge): boolean {
-  return edge.disabled || edge.isLoopback;
+  return edge.manual;
 }
 
 /**
  * SVG `strokeDasharray` value for an edge.
- * - Disabled: tight "3 2" — visually reads as "greyed out / inactive".
- * - Loopback (non-disabled): "6 4" — looser, still dashed.
+ * - Manual: dotted "2 4".
  * - Otherwise: undefined (solid).
  */
 export function laneDashArray(edge: TransitionEdge): string | undefined {
-  if (edge.disabled) return "3 2";
-  if (edge.isLoopback) return "6 4";
+  if (edge.manual) return "2 4";
   return undefined;
 }

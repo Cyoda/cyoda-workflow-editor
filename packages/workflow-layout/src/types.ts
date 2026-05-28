@@ -1,5 +1,3 @@
-import type { GraphDocument } from "@cyoda/workflow-graph";
-
 export type LayoutPreset = "websiteCompact" | "configuratorReadable" | "opsAudit";
 
 export interface NodePosition {
@@ -49,13 +47,4 @@ export interface LayoutOptions {
   nodeSize?: { width: number; height: number };
   /** Nodes whose positions are fixed and must be respected. */
   pinned?: PinnedNode[];
-  /** Raw ELK option overrides applied last, after preset and orientation. */
-  elk?: Record<string, string>;
-}
-
-export interface ElkLayoutAdapter {
-  layoutGraph(
-    graph: GraphDocument,
-    options?: LayoutOptions,
-  ): Promise<LayoutResult>;
 }

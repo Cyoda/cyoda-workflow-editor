@@ -65,11 +65,26 @@ export type HostRef =
  * Editor-only anchor side for an edge endpoint. Lives in WorkflowUiMeta and
  * is never serialised into exported Cyoda JSON.
  */
-export type EdgeAnchor = "top" | "right" | "bottom" | "left";
+export type EdgeAnchor =
+  | "top-left" | "top" | "top-right"
+  | "right-top" | "right" | "right-bottom"
+  | "bottom-left" | "bottom" | "bottom-right"
+  | "left-top" | "left" | "left-bottom";
 
 export interface EdgeAnchorPair {
   source?: EdgeAnchor;
   target?: EdgeAnchor;
+}
+
+export interface CommentMeta {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  attachedTo?:
+    | { kind: "state"; stateCode: string }
+    | { kind: "transition"; sourceState: string; transitionName: string }
+    | { kind: "free" };
 }
 
 export interface WorkflowUiMeta {
@@ -90,4 +105,9 @@ export interface WorkflowUiMeta {
    * affordances and are never serialised into exported Cyoda JSON.
    */
   viewports?: Partial<Record<"vertical" | "horizontal", EditorViewport>>;
+  /**
+   * Canvas comments, keyed by comment id. Editor-only; never serialised into
+   * exported Cyoda JSON.
+   */
+  comments?: Record<string, CommentMeta>;
 }

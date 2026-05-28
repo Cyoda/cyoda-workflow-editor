@@ -1,7 +1,8 @@
-import { memo } from "react";
+import { memo, useContext } from "react";
 import {
   BaseEdge,
   EdgeLabelRenderer,
+  type Position,
   type EdgeProps,
 } from "reactflow";
 import type { TransitionEdge } from "@cyoda/workflow-graph";
@@ -15,19 +16,33 @@ import {
 } from "@cyoda/workflow-viewer/theme";
 import { orthogonalEdgePath, type Rect } from "../routing/orthogonal.js";
 import { arrowMarkerId } from "./ArrowMarkers.js";
+import { HoverContext } from "./HoverContext.js";
 
 export interface RfEdgeData {
   edge: TransitionEdge;
   targetIsTerminal: boolean;
-  /** ELK-computed polyline for this edge, if available. */
+  /**
+   * Legacy/read-only layout geometry. The interactive React Flow canvas must
+   * not render from this data because it can lag behind live node positions
+   * during and immediately after drag gestures.
+   */
   routePoints?: { x: number; y: number }[];
-  /** Layout-computed label centre and size. */
+  /** Legacy layout-computed label centre and size. */
   labelX?: number;
   labelY?: number;
   labelWidth?: number;
   labelHeight?: number;
   /** Other nodes' bounding boxes, for obstacle-aware nudging. */
   obstacles?: Rect[];
+  /** Live endpoint coordinates derived from the controlled React Flow nodes. */
+  liveSource?: { x: number; y: number };
+  liveTarget?: { x: number; y: number };
+  liveSourcePosition?: Position;
+  liveTargetPosition?: Position;
+  liveSourceRect?: Rect;
+  liveTargetRect?: Rect;
+  /** Lateral mid-segment offset when multiple edges share the same source/target pair. */
+  parallelOffset?: number;
 }
 
 function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
@@ -43,20 +58,26 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     selected,
   } = props;
   if (!data) return null;
-  const { edge, targetIsTerminal, routePoints, obstacles } = data;
+  const { highlightSet } = useContext(HoverContext);
+  const dimmed = highlightSet !== null && !highlightSet.has(id);
+  const { edge, targetIsTerminal, obstacles, parallelOffset } = data;
+  const resolvedSourceX = data.liveSource?.x ?? sourceX;
+  const resolvedSourceY = data.liveSource?.y ?? sourceY;
+  const resolvedTargetX = data.liveTarget?.x ?? targetX;
+  const resolvedTargetY = data.liveTarget?.y ?? targetY;
 
-  const { path, labelX: fallbackLabelX, labelY: fallbackLabelY } = orthogonalEdgePath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    routePoints,
+  const { path, labelX, labelY } = orthogonalEdgePath({
+    sourceX: resolvedSourceX,
+    sourceY: resolvedSourceY,
+    targetX: resolvedTargetX,
+    targetY: resolvedTargetY,
+    sourcePosition: data.liveSourcePosition ?? sourcePosition,
+    targetPosition: data.liveTargetPosition ?? targetPosition,
+    sourceRect: data.liveSourceRect,
+    targetRect: data.liveTargetRect,
     obstacles,
+    parallelOffset,
   });
-  const labelX = data.labelX ?? fallbackLabelX;
-  const labelY = data.labelY ?? fallbackLabelY;
 
   const color = laneColor(edge, { targetIsTerminal });
   const dash = laneDashArray(edge);
@@ -65,7 +86,6 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     : edge.isLoopback
       ? geometry.edge.loopStrokeWidth
       : geometry.edge.strokeWidth;
-  const isManualSolid = edge.manual && !edge.disabled && !edge.isLoopback;
 
   const badges = badgesFor(edge.summary, {
     manual: edge.manual,
@@ -81,23 +101,18 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           stroke: color,
           strokeWidth,
           strokeDasharray: dash,
+          opacity: dimmed ? 0.15 : 1,
+          transition: "opacity 0.15s ease",
         }}
         markerEnd={`url(#${arrowMarkerId(color)})`}
       />
-      {isManualSolid && (
-        <path
-          d={path}
-          fill="none"
-          stroke={workflowPalette.neutrals.white}
-          strokeWidth={0.6}
-          pointerEvents="none"
-        />
-      )}
       <EdgeLabelRenderer>
         <div
           style={{
             position: "absolute",
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            opacity: dimmed ? 0.15 : 1,
+            transition: "opacity 0.15s ease",
             fontFamily: typography.fontFamily,
             pointerEvents: "all",
             background: workflowPalette.edgeLabel.fill,
@@ -114,6 +129,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           }}
           className="nodrag nopan"
           data-testid={`rf-edge-label-${edge.id}`}
+          title={edge.summary.full !== edge.summary.display ? edge.summary.full : undefined}
         >
           <div
             style={{

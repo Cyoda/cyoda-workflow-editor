@@ -2,12 +2,18 @@ import { z } from "zod";
 import { FunctionConfigSchema } from "./criterion.js";
 import { NameSchema } from "./name.js";
 
-export const ExecutionModeSchema = z.enum(["SYNC", "ASYNC_SAME_TX", "ASYNC_NEW_TX"]);
+export const ExecutionModeSchema = z.enum([
+  "SYNC",
+  "ASYNC_SAME_TX",
+  "ASYNC_NEW_TX",
+  "COMMIT_BEFORE_DISPATCH",
+]);
 
 export const ExternalizedProcessorSchema = z.object({
   type: z.literal("externalized"),
   name: NameSchema,
   executionMode: ExecutionModeSchema.optional(),
+  startNewTxOnDispatch: z.boolean().optional(),
   config: FunctionConfigSchema.and(
     z.object({
       asyncResult: z.boolean().optional(),

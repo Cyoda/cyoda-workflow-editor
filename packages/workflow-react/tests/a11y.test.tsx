@@ -62,8 +62,12 @@ describe("accessibility", () => {
   it("validation pills announce count via role=status", () => {
     render(<WorkflowEditor document={fixtureDoc()} />);
     const errs = screen.getByTestId("toolbar-errors");
-    expect(errs.getAttribute("role")).toBe("status");
-    expect(errs.getAttribute("aria-live")).toBe("polite");
+    // The pill is now a <button> wrapped in a role=status region so a screen
+    // reader announces count changes while the badge remains keyboard-clickable.
+    const region = errs.closest("[role='status']");
+    expect(region).not.toBeNull();
+    expect(region?.getAttribute("aria-live")).toBe("polite");
+    expect(errs.tagName).toBe("BUTTON");
   });
 
   it("Cmd/Ctrl+S invokes onSave when valid + not read-only", () => {
@@ -79,7 +83,7 @@ describe("accessibility", () => {
     const shell = screen.getByTestId("workflow-editor");
     // should not throw
     fireEvent.keyDown(shell, { key: "z", ctrlKey: true });
-    const undo = screen.getByTestId("toolbar-undo") as HTMLButtonElement;
+    const undo = screen.getByTestId("canvas-undo") as HTMLButtonElement;
     expect(undo.disabled).toBe(true);
   });
 });

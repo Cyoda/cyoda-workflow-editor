@@ -1,5 +1,5 @@
 import {
-  validateSession,
+  validateAll,
   type ValidationIssue,
   type WorkflowEditorDocument,
 } from "@cyoda/workflow-core";
@@ -19,7 +19,7 @@ export interface DerivedState {
  * caller — the editor shell typically memoises on `document.meta.revision`.
  */
 export function deriveFromDocument(doc: WorkflowEditorDocument): DerivedState {
-  const issues = validateSession(doc.session);
+  const issues = validateAll(doc);
   const graph = projectToGraph(doc, { issues });
   let errorCount = 0;
   let warningCount = 0;

@@ -70,6 +70,52 @@ export function simpleLayout(graph: GraphDocument): LayoutResult {
   return { positions, width: maxWidth + 24, height: yCursor };
 }
 
+/**
+ * Greedy label de-overlap pass for fallback (non-ELK) rendering.
+ *
+ * Takes a list of edges with their tentative label centres and estimated pill
+ * dimensions, then nudges any overlapping label downward so pills do not stack.
+ * Only applies in the fallback path; ELK already does this via its own label
+ * placement algorithm.
+ *
+ * Returns a Map<edgeId, { midX, midY }> with adjusted centres.
+ */
+export function nudgeLabels(
+  items: Array<{ id: string; midX: number; midY: number; pillW: number; pillH: number }>,
+): Map<string, { midX: number; midY: number }> {
+  // Sort by x then y so we process left-to-right, top-to-bottom.
+  const sorted = [...items].sort((a, b) => a.midX - b.midX || a.midY - b.midY);
+  const placed: Array<{ x: number; y: number; w: number; h: number }> = [];
+  const result = new Map<string, { midX: number; midY: number }>();
+
+  for (const item of sorted) {
+    const { midX } = item;
+    let { midY } = item;
+    const halfW = item.pillW / 2;
+    const halfH = item.pillH / 2;
+
+    // Nudge downward until no overlap with already-placed labels.
+    let attempts = 0;
+    while (attempts < 20) {
+      const overlaps = placed.some(
+        (p) =>
+          midX + halfW > p.x - p.w / 2 &&
+          midX - halfW < p.x + p.w / 2 &&
+          midY + halfH > p.y - p.h / 2 &&
+          midY - halfH < p.y + p.h / 2,
+      );
+      if (!overlaps) break;
+      midY += item.pillH + 4;
+      attempts++;
+    }
+
+    placed.push({ x: midX, y: midY, w: item.pillW, h: item.pillH });
+    result.set(item.id, { midX, midY });
+  }
+
+  return result;
+}
+
 function groupByWorkflow(nodes: GraphNode[]): Map<string, GraphNode[]> {
   const out = new Map<string, GraphNode[]>();
   for (const n of nodes) {

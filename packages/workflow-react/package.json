@@ -45,6 +45,7 @@
     "@cyoda/workflow-core": "workspace:*",
     "@cyoda/workflow-graph": "workspace:*",
     "@cyoda/workflow-layout": "workspace:*",
+    "@cyoda/workflow-monaco": "workspace:*",
     "@cyoda/workflow-viewer": "workspace:*"
   },
   "peerDependencies": {

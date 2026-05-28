@@ -1,0 +1,56 @@
+{
+  "importMode": "REPLACE",
+  "workflows": [
+    {
+      "version": "1.0",
+      "name": "SaveFlowScenario",
+      "desc": "Payload intended to drive warning-heavy save and diff scenarios.",
+      "initialState": "new",
+      "active": true,
+      "states": {
+        "new": {
+          "transitions": [
+            {
+              "name": "submit",
+              "next": "reviewing",
+              "manual": false,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "PersistEnvelope",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "reviewing": {
+          "transitions": [
+            {
+              "name": "approve",
+              "next": "approved",
+              "manual": true,
+              "disabled": false
+            },
+            {
+              "name": "reject",
+              "next": "rejected",
+              "manual": true,
+              "disabled": true
+            }
+          ]
+        },
+        "approved": {
+          "transitions": []
+        },
+        "rejected": {
+          "transitions": []
+        }
+      }
+    }
+  ]
+}

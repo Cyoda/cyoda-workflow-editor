@@ -1,5 +1,5 @@
 import type { Criterion } from "./criterion.js";
-import type { EdgeAnchorPair, HostRef } from "./editor.js";
+import type { CommentMeta, EdgeAnchorPair, HostRef } from "./editor.js";
 import type { Processor } from "./processor.js";
 import type { EntityIdentity, ImportMode, WorkflowSession } from "./session.js";
 import type { StateCode, Transition, Workflow } from "./workflow.js";
@@ -28,6 +28,13 @@ export type DomainPatch =
       transitionUuid: string;
       toIndex: number;
     }
+  | {
+      op: "moveTransitionSource";
+      workflow: string;
+      fromState: StateCode;
+      toState: StateCode;
+      transitionName: string;
+    }
   | { op: "addProcessor"; transitionUuid: string; processor: Processor; index?: number }
   | { op: "updateProcessor"; processorUuid: string; updates: Partial<Processor> }
   | { op: "removeProcessor"; processorUuid: string }
@@ -50,4 +57,38 @@ export type DomainPatch =
       op: "setEdgeAnchors";
       transitionUuid: string;
       anchors: EdgeAnchorPair | null;
-    };
+    }
+  /**
+   * UI-only: persist a manual node position for a state.
+   * Writes to `meta.workflowUi[workflow].layout.nodes[stateCode]`.
+   * Does not touch `session.workflows`.
+   */
+  | {
+      op: "setNodePosition";
+      workflow: string;
+      stateCode: StateCode;
+      x: number;
+      y: number;
+      pinned?: boolean;
+    }
+  /**
+   * UI-only: remove a manual node position, allowing auto-layout to take over.
+   */
+  | { op: "removeNodePosition"; workflow: string; stateCode: StateCode }
+  /**
+   * UI-only: clear all manual node positions for a workflow (full layout reset).
+   */
+  | { op: "resetLayout"; workflow: string }
+  /**
+   * UI-only: add a canvas comment.
+   * Writes to `meta.workflowUi[workflow].comments[comment.id]`.
+   */
+  | { op: "addComment"; workflow: string; comment: CommentMeta }
+  /**
+   * UI-only: update fields on an existing canvas comment.
+   */
+  | { op: "updateComment"; workflow: string; commentId: string; updates: Partial<CommentMeta> }
+  /**
+   * UI-only: remove a canvas comment.
+   */
+  | { op: "removeComment"; workflow: string; commentId: string };

@@ -1,4 +1,5 @@
 import { NAME_REGEX } from "../schema/name.js";
+import { MAX_CRITERION_DEPTH } from "../criteria/operators.js";
 import type { Criterion } from "../types/criterion.js";
 import type { WorkflowSession } from "../types/session.js";
 import type { Transition, Workflow } from "../types/workflow.js";
@@ -48,12 +49,19 @@ export type CriterionLocation =
 function* walkInner(
   c: Criterion,
   where: CriterionLocation,
+  depth = 0,
 ): Generator<{ criterion: Criterion; where: CriterionLocation }> {
   yield { criterion: c, where };
+  if (depth >= MAX_CRITERION_DEPTH) {
+    // Tree already exceeds the engine limit. The iterative criterionMaxDepth
+    // check in criterionDepthRules will report the error; stop here to
+    // prevent a stack overflow on pathologically nested input.
+    return;
+  }
   if (c.type === "group") {
-    for (const child of c.conditions) yield* walkInner(child, where);
+    for (const child of c.conditions) yield* walkInner(child, where, depth + 1);
   } else if (c.type === "function" && c.function.criterion) {
-    yield* walkInner(c.function.criterion, where);
+    yield* walkInner(c.function.criterion, where, depth + 1);
   }
 }
 

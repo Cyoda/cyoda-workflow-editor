@@ -10,7 +10,8 @@ import { expect, test } from "@playwright/test";
  * threshold configured in `playwright.config.ts`.
  */
 test("alert-triage viewer matches reference", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/embed");
   await page.waitForSelector(".viewer-card svg");
+  await expect(page.getByTestId("start-marker")).toHaveCount(0);
   await expect(page.locator(".viewer-card")).toHaveScreenshot("alert-triage.baseline.png");
 });

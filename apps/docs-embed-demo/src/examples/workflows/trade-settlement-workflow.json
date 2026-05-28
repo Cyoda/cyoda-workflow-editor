@@ -1,0 +1,246 @@
+{
+  "importMode": "MERGE",
+  "workflows": [
+    {
+      "version": "1.0",
+      "name": "TradeSettlementWorkflow",
+      "desc": "Governs the post-trade lifecycle through validation, matching, affirmation, and instruction with explicit repair loop-backs and immutable event history.",
+      "initialState": "RECEIVED",
+      "active": true,
+      "states": {
+        "RECEIVED": {
+          "transitions": [
+            {
+              "name": "START_VALIDATION",
+              "next": "VALIDATING",
+              "manual": false,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "ValidateTrade",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "post-trade-validation"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "VALIDATING": {
+          "transitions": [
+            {
+              "name": "IS_VALID",
+              "next": "MATCHED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.validationStatus",
+                "operation": "EQUALS",
+                "value": "VALID"
+              },
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "RunMatching",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "matching-engine"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "IS_INVALID",
+              "next": "REPAIR_REQUESTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.validationStatus",
+                "operation": "EQUALS",
+                "value": "INVALID"
+              }
+            }
+          ]
+        },
+        "MATCHED": {
+          "transitions": [
+            {
+              "name": "IS_MATCH_OK",
+              "next": "AFFIRMED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.matchStatus",
+                "operation": "EQUALS",
+                "value": "MATCHED"
+              }
+            },
+            {
+              "name": "IS_MATCH_FAIL",
+              "next": "REPAIR_REQUESTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.matchStatus",
+                "operation": "EQUALS",
+                "value": "MISMATCH"
+              }
+            }
+          ]
+        },
+        "AFFIRMED": {
+          "transitions": [
+            {
+              "name": "IS_AFFIRMED",
+              "next": "INSTRUCTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.affirmationStatus",
+                "operation": "EQUALS",
+                "value": "AFFIRMED"
+              },
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "SendInstruction",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "custodian-gateway"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "NOT_AFFIRMED",
+              "next": "REPAIR_REQUESTED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.affirmationStatus",
+                "operation": "EQUALS",
+                "value": "FAILED"
+              }
+            }
+          ]
+        },
+        "INSTRUCTED": {
+          "transitions": [
+            {
+              "name": "IS_SETTLED",
+              "next": "SETTLED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.settlementStatus",
+                "operation": "EQUALS",
+                "value": "SETTLED"
+              },
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "PublishReport",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "regulatory-reporting"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "SETTLE_FAIL",
+              "next": "FAILED",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.settlementStatus",
+                "operation": "EQUALS",
+                "value": "FAILED"
+              }
+            }
+          ]
+        },
+        "REPAIR_REQUESTED": {
+          "transitions": [
+            {
+              "name": "ROUTE_TO_OPS",
+              "next": "MANUAL_REVIEW",
+              "manual": false,
+              "disabled": false
+            }
+          ]
+        },
+        "MANUAL_REVIEW": {
+          "transitions": [
+            {
+              "name": "APPLY_REPAIR",
+              "next": "REPAIRED",
+              "manual": true,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "ApplyRepair",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true
+                  }
+                }
+              ]
+            },
+            {
+              "name": "CANCEL_TRADE",
+              "next": "CANCELLED",
+              "manual": true,
+              "disabled": false
+            }
+          ]
+        },
+        "REPAIRED": {
+          "transitions": [
+            {
+              "name": "RE_ENTER_VALIDATION",
+              "next": "VALIDATING",
+              "manual": false,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "ValidateTrade",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "post-trade-validation"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "SETTLED": {
+          "transitions": []
+        },
+        "FAILED": {
+          "transitions": []
+        },
+        "CANCELLED": {
+          "transitions": []
+        }
+      }
+    }
+  ]
+}

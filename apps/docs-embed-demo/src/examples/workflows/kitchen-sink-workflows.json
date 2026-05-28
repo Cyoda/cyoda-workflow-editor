@@ -1,0 +1,218 @@
+{
+  "importMode": "MERGE",
+  "workflows": [
+    {
+      "version": "1.0",
+      "name": "OrderLifecycle",
+      "desc": "Multi-path order lifecycle with warnings, anchors, and a manual review loop.",
+      "initialState": "draft",
+      "active": true,
+      "criterion": {
+        "type": "group",
+        "operator": "AND",
+        "criteria": [
+          {
+            "type": "simple",
+            "jsonPath": "$.accountStatus",
+            "operation": "EQUALS",
+            "value": "ACTIVE"
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "RiskGate",
+              "outputPath": "$.risk.decision"
+            }
+          }
+        ]
+      },
+      "states": {
+        "draft": {
+          "transitions": [
+            {
+              "name": "submit",
+              "next": "submitted",
+              "manual": true,
+              "disabled": false
+            }
+          ]
+        },
+        "submitted": {
+          "transitions": [
+            {
+              "name": "validate",
+              "next": "validated",
+              "manual": false,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "ValidatePayload",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "validation"
+                  }
+                },
+                {
+                  "type": "externalized",
+                  "name": "NotifyOps",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true
+                  }
+                }
+              ]
+            },
+            {
+              "name": "reject",
+              "next": "rejected",
+              "manual": true,
+              "disabled": true
+            }
+          ]
+        },
+        "validated": {
+          "transitions": [
+            {
+              "name": "route_to_review",
+              "next": "manual_review",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.risk.score",
+                "operation": "GREATER_THAN",
+                "value": "80"
+              }
+            },
+            {
+              "name": "approve",
+              "next": "approved",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "OR",
+                "criteria": [
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.risk.score",
+                    "operation": "LESS_OR_EQUAL",
+                    "value": "80"
+                  },
+                  {
+                    "type": "lifecycle",
+                    "field": "previousTransition",
+                    "operation": "EQUALS",
+                    "value": "resubmit"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "manual_review": {
+          "transitions": [
+            {
+              "name": "resubmit",
+              "next": "submitted",
+              "manual": true,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "AnnotateReview",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "attachEntity": true
+                  }
+                }
+              ]
+            },
+            {
+              "name": "cancel",
+              "next": "cancelled",
+              "manual": true,
+              "disabled": false
+            }
+          ]
+        },
+        "approved": {
+          "transitions": [
+            {
+              "name": "archive",
+              "next": "archived",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "lifecycle",
+                "field": "creationDate",
+                "operation": "LESS_OR_EQUAL",
+                "value": "NOW_MINUS_30D"
+              }
+            }
+          ]
+        },
+        "archived": {
+          "transitions": []
+        },
+        "cancelled": {
+          "transitions": []
+        },
+        "rejected": {
+          "transitions": []
+        }
+      }
+    },
+    {
+      "version": "1.0",
+      "name": "DispatchPipeline",
+      "desc": "Secondary workflow used to prove multi-workflow tabs and extra validation coverage.",
+      "initialState": "queued",
+      "active": false,
+      "states": {
+        "queued": {
+          "transitions": [
+            {
+              "name": "start",
+              "next": "sending",
+              "manual": false,
+              "disabled": false,
+              "processors": [
+                {
+                  "type": "scheduled",
+                  "name": "RetryLater",
+                  "executionMode": "ASYNC_NEW_TX",
+                  "config": {
+                    "delaySeconds": 300,
+                    "transition": "retry"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "sending": {
+          "transitions": [
+            {
+              "name": "confirm",
+              "next": "delivered",
+              "manual": false,
+              "disabled": false
+            },
+            {
+              "name": "retry",
+              "next": "queued",
+              "manual": false,
+              "disabled": false
+            }
+          ]
+        },
+        "delivered": {
+          "transitions": []
+        }
+      }
+    }
+  ]
+}

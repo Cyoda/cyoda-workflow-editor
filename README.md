@@ -1,21 +1,19 @@
 # Cyoda Workflow Editor
 
 A TypeScript monorepo of reusable packages for parsing, projecting,
-rendering, and editing Cyoda workflow JSON. The same building blocks power
-three distinct use cases:
+rendering, and **editing** Cyoda workflow JSON. The same building blocks
+power three distinct use cases:
 
-1. **Display-only embeds** — a slim SVG viewer you drop onto a static website
-   or documentation page.
-2. **Full editor** — a React Flow + Inspector shell for read/write editing
-   inside the Cyoda configurator or any React app.
+1. **Display-only embeds** — a slim SVG viewer for static websites and
+   documentation pages.
+2. **Full editor** — a React Flow canvas + Inspector shell for read/write
+   editing of states, transitions, criteria, processors, and comments.
 3. **Developer playground** — Monaco JSON editing kept in sync with the
    canvas, both driving the same canonical model.
 
-Canonical state is the Cyoda workflow JSON; the graph is a projection only.
-Round-tripping is byte-identical.
-
-> Repo-local implementation notes currently live in
-> [`ai/PLAN-workflow-editor-editing.md`](ai/PLAN-workflow-editor-editing.md).
+**Canonical state is the Cyoda workflow JSON.** The graph, layout, and
+canvas comments are projections and editor metadata only — they never
+appear in exported Cyoda workflow JSON. Round-tripping is byte-identical.
 
 ---
 
@@ -24,16 +22,15 @@ Round-tripping is byte-identical.
 ```
 cyoda-workflow-editor/
 ├── packages/
-│   ├── workflow-core      # Pure domain: parse, normalize, validate, patch, serialize
+│   ├── workflow-core      # Domain: parse, normalize, validate, patch, serialize, transaction
 │   ├── workflow-graph     # Projection: domain → nodes/edges/annotations
 │   ├── workflow-viewer    # Slim read-only SVG renderer (no React Flow, no Monaco)
-│   ├── workflow-layout    # ELK adapter (three presets, sync + worker)
-│   ├── workflow-react     # Full editor shell (React Flow + Inspector + modals)
+│   ├── workflow-layout    # ELK adapter (presets, pinned/manual positions)
+│   ├── workflow-react     # Full editor shell (React Flow + Inspector + modals + toolbar)
 │   └── workflow-monaco    # Monaco JSON editor wired to the domain
 ├── apps/
-│   └── docs-embed-demo    # Minimal viewer-embedding example (Vite + Playwright)
+│   └── docs-embed-demo    # Internal demo and regression harness (private)
 ├── pnpm-workspace.yaml
-├── tsconfig.base.json
 └── package.json
 ```
 
@@ -44,58 +41,45 @@ workflow-core
    ├── workflow-graph ──┬── workflow-viewer
    │                    ├── workflow-layout
    │                    └── workflow-react ── (peer: react, reactflow)
-   └── workflow-monaco  ── (peer: monaco-editor, optional react)
+   └── workflow-monaco  ── (peer: monaco-editor)
 ```
 
-Packages use explicit `exports` (no `export *` at roots) and ship ESM + CJS
-+ `.d.ts` via `tsup`.
+All packages use explicit `exports` (no `export *`) and ship ESM + CJS +
+`.d.ts` via `tsup`.
 
-## Package publication targets
+## Published packages
 
-Publishable npm packages under the `@cyoda` scope:
+| Package | Purpose |
+|---|---|
+| `@cyoda/workflow-core` | Domain model, patches, validation, serialization |
+| `@cyoda/workflow-graph` | Graph projection |
+| `@cyoda/workflow-layout` | ELK layout engine |
+| `@cyoda/workflow-monaco` | Monaco JSON editor bridge |
+| `@cyoda/workflow-react` | Full editor shell |
+| `@cyoda/workflow-viewer` | Slim read-only viewer |
 
-- `@cyoda/workflow-core`
-- `@cyoda/workflow-graph`
-- `@cyoda/workflow-layout`
-- `@cyoda/workflow-monaco`
-- `@cyoda/workflow-react`
-- `@cyoda/workflow-viewer`
-
-Private workspace packages:
-
+Private (not published):
 - `cyoda-workflow-editor` (root workspace package)
 - `@cyoda/docs-embed-demo` (internal demo app)
 
-All public packages are published to npm under the `@cyoda` scope with
-Changesets-managed versioning.
-
 ---
 
-## In-situ run
-
-Prerequisites: Node ≥ 20, pnpm ≥ 9.
+## Quick start
 
 ```sh
+# Prerequisites: Node ≥ 20, pnpm ≥ 9
 pnpm install
-
-# Build every package
 pnpm build
-
-# Typecheck the whole workspace
 pnpm typecheck
-
-# Run all unit tests
 pnpm test
+pnpm lint
 
-# Run micro-benchmarks (parse/validate/serialize/patch budgets per spec §22.3)
-pnpm bench
-
-# Launch the docs-embed-demo (viewer on a static page)
+# Launch the capability showcase demo
 pnpm --filter @cyoda/docs-embed-demo dev
 # → http://localhost:5173
 ```
 
-Per-package commands follow the same pattern:
+Per-package commands:
 
 ```sh
 pnpm --filter @cyoda/workflow-core test
@@ -104,75 +88,11 @@ pnpm --filter @cyoda/workflow-core bench
 pnpm --filter @cyoda/workflow-core build
 ```
 
-Visual regression (Playwright) inside `apps/docs-embed-demo`:
-
-```sh
-pnpm --filter @cyoda/docs-embed-demo visual:update   # capture baselines
-pnpm --filter @cyoda/docs-embed-demo test:visual     # diff vs baselines
-```
-
-[Inference] Playwright browsers must be installed once via `pnpm exec
-playwright install chromium` before the visual commands succeed.
-
-## Cyoda Workflow Editor release and publishing
-
-This monorepo uses [Changesets](https://github.com/changesets/changesets)
-for versioning and npm releases. Detailed release policy lives in
-[`ai/npm-release-mechanism.md`](ai/npm-release-mechanism.md).
-
-Release rules:
-
-- Changesets is the source of truth for package versions.
-- CI is the only publisher.
-- Do not run `npm publish` from a laptop.
-- `cyoda-workflow-editor` and `@cyoda/docs-embed-demo` remain private.
-- Trusted publishing via GitHub Actions OIDC is preferred; bootstrap token
-  publishing is temporary only.
-
-Stable release flow:
-
-```sh
-# 1. Add a changeset in the PR that changes a public package
-pnpm changeset
-
-# 2. Merge PRs to main; CI maintains the Version Packages PR
-
-# 3. Review and merge the Version Packages PR when ready to ship
-
-# 4. CI publishes changed public packages from main
-```
-
-Prerelease flow uses Changesets prerelease mode:
-
-```sh
-pnpm prerelease:enter rc
-pnpm version-packages
-# commit the prerelease versions on the stabilization branch
-# then use the release workflow from CI for publication
-pnpm prerelease:exit
-```
-
-The release workflow publishes only the public library packages listed above.
-The root workspace package and `@cyoda/docs-embed-demo` are not publish
-targets.
-
-Consumer install examples:
-
-```sh
-npm install @cyoda/workflow-core
-npm install @cyoda/workflow-core @cyoda/workflow-graph @cyoda/workflow-viewer react react-dom
-npm install @cyoda/workflow-core @cyoda/workflow-graph @cyoda/workflow-layout @cyoda/workflow-viewer @cyoda/workflow-react react react-dom reactflow
-npm install @cyoda/workflow-core @cyoda/workflow-monaco monaco-editor
-```
-
 ---
 
 ## Use case 1 — Display-only viewer
 
-Target: enterprise website / docs page. Bundle budget per spec §4.5 is
-**< 80 KB gzipped with React externalised**.
-
-Install (when consumed externally):
+Install:
 
 ```sh
 npm i @cyoda/workflow-core @cyoda/workflow-graph @cyoda/workflow-viewer react react-dom
@@ -185,44 +105,41 @@ import { parseImportPayload } from "@cyoda/workflow-core";
 import { projectToGraph } from "@cyoda/workflow-graph";
 import { WorkflowViewer } from "@cyoda/workflow-viewer";
 
-const parsed = parseImportPayload(workflowJson);
-if (!parsed.document) throw new Error("Invalid workflow JSON");
-const graph = projectToGraph(parsed.document);
+const { document } = parseImportPayload(workflowJson);
+if (!document) throw new Error("Invalid workflow JSON");
 
 export function Embedded() {
   return (
-    <div style={{ height: 600 }}>
-      <WorkflowViewer
-        graph={graph}
-        onSelectionChange={(id) => console.log("selected", id)}
-      />
-    </div>
+    <WorkflowViewer
+      graph={projectToGraph(document)}
+      width="100%"
+      height={600}
+      onSelectionChange={(id) => console.log("selected", id)}
+    />
   );
 }
 ```
 
 What the viewer gives you:
 
-- SVG state nodes + transition edges using Cyoda visual conventions
-  (initial marker, terminal pill, dashed loopbacks, role-coloured borders).
+- SVG state nodes + transition edges with Cyoda visual conventions
+  (initial marker, terminal pill, role-coloured borders, dashed loopbacks).
 - Pan / zoom via mouse drag and Ctrl+wheel.
-- Click-to-select; selection is the synthetic UUID — map it back to domain
-  objects via `document.meta.ids.*`.
-- Theme tokens exported from `@cyoda/workflow-viewer/theme`; override via
-  CSS custom properties to re-skin.
+- Click-to-select; the selection value is the synthetic node UUID — map it
+  back to domain objects via `document.meta.ids.*`.
+- Theme tokens from `@cyoda/workflow-viewer/theme`; override via CSS custom
+  properties.
 
 What it does **not** do:
 
-- No drag-connect, delete, or edit affordances (use `@cyoda/workflow-react`).
-- No JSON editor (pair with `@cyoda/workflow-monaco`).
-- No automatic layout — if you want ELK routing, compute a `LayoutResult`
-  with `@cyoda/workflow-layout` and pass it via the `layout` prop.
+- No drag-connect, delete, or edit affordances — use `@cyoda/workflow-react`.
+- No JSON editor — pair with `@cyoda/workflow-monaco`.
+- Automatic layout is optional: pass a `LayoutResult` from
+  `@cyoda/workflow-layout` via the `layout` prop.
 
 ---
 
 ## Use case 2 — Full editor
-
-Target: Cyoda configurator (read/write).
 
 Install:
 
@@ -235,53 +152,218 @@ npm i @cyoda/workflow-core @cyoda/workflow-graph @cyoda/workflow-layout \
 Minimal editor shell:
 
 ```tsx
-import { parseImportPayload, type WorkflowEditorDocument } from "@cyoda/workflow-core";
+import { parseImportPayload } from "@cyoda/workflow-core";
 import { WorkflowEditor } from "@cyoda/workflow-react";
 import "reactflow/dist/style.css";
 
-const parsed = parseImportPayload(workflowJson);
-if (!parsed.document) throw new Error("Invalid workflow JSON");
+const { document } = parseImportPayload(workflowJson);
+if (!document) throw new Error("Invalid workflow JSON");
 
 export function EditorPage() {
   return (
     <WorkflowEditor
-      document={parsed.document}
-      mode="editor"                // "viewer" | "playground" | "editor"
-      onChange={(doc) => persist(doc)}
+      document={document}
+      mode="editor"
+      onChange={(doc) => autosave(doc)}
       onSave={(doc) => pushToBackend(doc)}
     />
   );
 }
 ```
 
-`WorkflowEditorProps`:
+### `WorkflowEditorProps`
 
-| Prop        | Type                                          | Notes |
-|-------------|-----------------------------------------------|-------|
-| `document`  | `WorkflowEditorDocument`                      | Canonical parsed + normalized model. |
-| `mode`      | `"viewer" \| "playground" \| "editor"`        | Default `"editor"`. `"viewer"` hides edit affordances; `"playground"` enables all edits without save. |
-| `messages`  | `PartialMessages`                             | i18n override; English defaults live in `src/i18n/en.ts`. |
-| `onChange`  | `(doc) => void`                               | Fires after every applied patch. |
-| `onSave`    | `(doc) => void`                               | Fires on Ctrl/Cmd+S when enabled. |
+| Prop | Type | Default | Notes |
+|---|---|---|---|
+| `document` | `WorkflowEditorDocument` | required | Parsed + normalized model from `parseImportPayload`. |
+| `mode` | `"viewer" \| "playground" \| "editor"` | `"editor"` | `"viewer"` hides all edit affordances. |
+| `messages` | `PartialMessages` | English | i18n override. |
+| `layoutOptions` | `LayoutOptions` | – | ELK layout preset and orientation. |
+| `chrome` | `ChromeOptions` | all `true` | Toggle toolbar / tabs / inspector / minimap / controls. |
+| `localStorageKey` | `string \| null` | `"cyoda-editor-layout"` | Key for editor metadata persistence (`layout`, `comments`, `edgeAnchors`, `viewports`). Pass `null` to disable. |
+| `layoutMetadata` | `WorkflowUiMeta` | – | Host-controlled metadata (overrides localStorage). |
+| `onLayoutMetadataChange` | `(meta: WorkflowUiMeta) => void` | – | Called when editor-only metadata changes. Use to persist externally. |
+| `onChange` | `(doc: WorkflowEditorDocument) => void` | – | Fires after every patch. |
+| `onSave` | `(doc: WorkflowEditorDocument) => void` | – | Fires on Ctrl/Cmd+S when validation passes. |
+| `enableJsonEditor` | `boolean` | `false` | Enables the Monaco-backed JSON editor surface. |
+| `jsonEditorPlacement` | `"tab" \| "split"` | `"tab"` | Places JSON in a tab or split pane. |
+| `jsonEditor` | `WorkflowJsonEditorConfig \| null` | `null` | Host-supplied Monaco runtime/configuration. |
+| `onJsonStatusChange` | `(status: JsonEditStatus) => void` | – | Reports invalid JSON/schema or successful apply state. |
+| `hintProvider` | `EntityFieldHintProvider` | – | Optional model-schema autocomplete source for criterion `jsonPath` inputs. When omitted, `jsonPath` fields render as plain free-text. |
+| `developerMode` | `boolean` | `false` | Show developer-oriented affordances (raw JSON tab in the inspector). Defaults to `false` so business users see a clean view. Hosts that need the JSON tab must opt in explicitly. |
 
-Features provided by `WorkflowEditor`:
+### JSON editor
 
-- React Flow canvas with selection, multi-workflow tab strip, toolbar.
-- Inspector with Properties / JSON tabs, per-entity editors (Workflow /
-  State / Transition / Processor / Criterion).
-- Drag-connect modal (no anonymous transitions on cancel — spec §11.5).
-- Delete-state confirmation with cascade counts (spec §11.7).
-- Undo / redo via `invertPatch`.
-- Keyboard shortcuts: Ctrl/Cmd+Z undo, Ctrl+Shift+Z / Ctrl+Y redo,
-  Ctrl/Cmd+S save (when `onSave` set and no validation errors).
-- Toolbar validation pills (`role="status"`, `aria-live="polite"`).
-- Focus-trapped modals (`role="dialog"`, `aria-modal="true"`, Escape cancels).
+`WorkflowEditor` can embed a Monaco JSON editor that stays synchronized with the graph.
+
+- Host-supplied runtime/config: pass your Monaco runtime through `jsonEditor.monaco`; no Monaco runtime is bundled by `@cyoda/workflow-react`.
+- Invalid JSON handling: bad syntax or schema never mutates the canonical document; `onJsonStatusChange` reports the current state and save remains blocked while invalid.
+- Graph-to-JSON sync: canvas and inspector edits update the current Monaco model.
+- JSON-to-graph sync: valid JSON emits a canonical session patch and updates the graph without leaking editor metadata into exported workflow JSON.
+- Metadata exclusion: `layout`, `comments`, `edgeAnchors`, and `viewports` stay in `doc.meta.workflowUi` only.
+
+Minimal setup:
+
+```tsx
+import * as monaco from "monaco-editor";
+import { parseImportPayload } from "@cyoda/workflow-core";
+import {
+  WorkflowEditor,
+  type JsonEditStatus,
+  type WorkflowJsonEditorConfig,
+} from "@cyoda/workflow-react";
+import "reactflow/dist/style.css";
+
+const { document } = parseImportPayload(workflowJson);
+if (!document) throw new Error("Invalid workflow JSON");
+
+const jsonEditor: WorkflowJsonEditorConfig = {
+  monaco,
+  debounceMs: 150,
+};
+
+export function EditorPage() {
+  const onJsonStatusChange = (status: JsonEditStatus) => {
+    console.log(status.status);
+  };
+
+  return (
+    <WorkflowEditor
+      document={document}
+      enableJsonEditor
+      jsonEditorPlacement="split"
+      jsonEditor={jsonEditor}
+      onJsonStatusChange={onJsonStatusChange}
+    />
+  );
+}
+```
+
+### Full editor capabilities
+
+**States**
+- Add state via toolbar button or `A` keyboard shortcut (collision-free default name).
+- Rename state with inline collision guard.
+- Delete state with cascade confirmation (counts outgoing + incoming transitions).
+- Set as initial state.
+- Visual badges: Initial / Terminal / Unreachable.
+
+**Transitions**
+- Add transition by dragging between states (modal suggests a collision-free default name).
+- Rename transition with collision guard.
+- Retarget to a different target state via inspector dropdown.
+- Move to a different source state via inspector dropdown (`moveTransitionSource` patch).
+- Toggle `manual` and `disabled` flags.
+- Reorder within source state.
+- Delete with `removeTransition` inverse for clean undo.
+
+**Criteria** (on each transition)
+- Add / edit / delete criterion.
+- The inspector shows a compact summary card; add/edit opens a focused
+  modal editor.
+- Structured editors for all five types: `simple`, `group`, `function`,
+  `lifecycle`, `array`.
+- Recursive editing of nested `group` conditions (add/remove/reorder).
+- Raw JSON escape hatch inside the modal.
+- Draft editing: Apply commits one criterion patch/undo step; Cancel discards
+  local changes, and invalid local state never corrupts the canonical document.
+
+**Processors** (on each transition)
+- Add / edit / delete / duplicate / reorder processors.
+- Compact summary rows open a focused modal editor; Apply commits one patch
+  and Cancel discards local edits.
+- Supported processor types are the OpenAPI-documented lowercase literals
+  `externalized` and `scheduled`.
+- Externalized processor editing covers `executionMode`
+  (`SYNC`, `ASYNC_SAME_TX`, `ASYNC_NEW_TX`, `COMMIT_BEFORE_DISPATCH`),
+  `startNewTxOnDispatch`, `attachEntity`, `responseTimeoutMs`,
+  `calculationNodesTags` as a comma-separated string, `retryPolicy`,
+  free-form string `context`, `asyncResult`, and `crossoverToAsyncMs`.
+- Scheduled processor editing uses duration inputs for `delayMs` and
+  optional `timeoutMs`, plus a structured `transition` selector/input.
+- Arbitrary custom processor config JSON is intentionally not supported;
+  unknown keys are stripped to match the documented contract.
+
+**Manual layout**
+- Drag states to reposition — position is persisted as editor metadata.
+- Positions survive tab/session reload via localStorage.
+- `Reset Layout` toolbar button (clears all manual positions; not on undo stack).
+- `Auto Layout` toolbar button re-runs ELK while respecting pinned positions.
+- `Shift+L` resets layout; `L` re-runs auto-layout.
+- Host apps can replace localStorage with the `layoutMetadata` /
+  `onLayoutMetadataChange` props.
+
+**Canvas comments**
+- Add free-floating sticky-note comments via `+ Note` toolbar button.
+- Double-click to edit text.
+- Delete via × button.
+- Comments persist in localStorage alongside layout metadata.
+- Comments are **never** exported to Cyoda workflow JSON.
+
+**Undo / redo**
+- Every edit creates one undo step, including cascading operations
+  (rename state, move transition source) via `PatchTransaction`.
+- `addTransition` and `addProcessor` have exact UUID-based inverses.
+- `Ctrl/Cmd+Z` undo, `Ctrl/Cmd+Shift+Z` / `Ctrl+Y` redo.
+
+**Validation and save**
+- Validation errors/warnings shown as toolbar pills and inline in inspector.
+- Save blocked when there are validation errors.
+- `Ctrl/Cmd+S` triggers `onSave` when enabled and validation passes.
+
+**Keyboard shortcuts**
+
+| Key | Action |
+|---|---|
+| `A` | Add state |
+| `L` | Auto layout |
+| `Shift+L` | Reset layout |
+| `Ctrl/Cmd+Z` | Undo |
+| `Ctrl/Cmd+Shift+Z` / `Ctrl+Y` | Redo |
+| `Ctrl/Cmd+S` | Save |
+
+### Editor metadata: what stays out of exported JSON
+
+Layout positions, comments, edge anchors, and viewport state are stored
+in `WorkflowEditorDocument.meta.workflowUi`. They are **never** included
+in the output of `serializeImportPayload`. The exported Cyoda workflow JSON
+is always deterministic and clean.
+
+```ts
+import { serializeImportPayload } from "@cyoda/workflow-core";
+
+// This output is byte-identical regardless of how many states you've dragged
+// around or what comments you've added:
+const cleanJson = serializeImportPayload(doc);
+```
+
+### Local metadata persistence
+
+By default the editor persists layout positions and comments in
+`localStorage` under the key `"cyoda-editor-layout"`. On mount it merges
+saved data into the initial document without touching the Cyoda workflow
+JSON.
+
+To disable localStorage:
+
+```tsx
+<WorkflowEditor document={doc} localStorageKey={null} />
+```
+
+To manage persistence yourself (e.g. save to your own backend):
+
+```tsx
+<WorkflowEditor
+  document={doc}
+  localStorageKey={null}
+  layoutMetadata={myStoredUiMeta}
+  onLayoutMetadataChange={(meta) => saveUiMetaToBackend(meta)}
+/>
+```
 
 ---
 
 ## Use case 3 — JSON editor (Monaco)
-
-Target: playground, admin tools, raw-JSON power users.
 
 Install:
 
@@ -300,65 +382,55 @@ import {
 
 registerWorkflowSchema(monaco);
 
-const model = monaco.editor.createModel(
-  workflowJson,
-  "json",
-  monaco.Uri.parse("cyoda://workflow/alertTriage.json"),
-);
-const editor = monaco.editor.create(document.getElementById("root")!, { model });
+const editor = monaco.editor.create(containerEl, {
+  model: monaco.editor.createModel(workflowJson, "json"),
+});
 
 const controller = attachWorkflowJsonController({
   monaco,
   editor,
   debounceMs: 300,
-  autoApply: true,
-  onPatch: (patch) => console.log("replaceSession patch", patch),
-  onStatus: (s) => console.log("status", s),
-  onIssues: (issues) => console.log("validation", issues),
+  onPatch: (patch) => store.dispatch(patch),  // replaceSession patch
+  onStatus: (s) => setStatus(s),
+  onIssues: (issues) => setMarkers(issues),
 });
 
 // later
 controller.dispose();
 ```
 
-Behaviour (spec §12.5, §18.4):
+Behaviour:
 
 - 300 ms debounce on edits.
-- Valid JSON → a `replaceSession` patch is emitted; synthetic UUIDs are
-  reused across edits because the controller passes the prior
-  `EditorMetadata` to `parseImportPayload`.
-- Invalid JSON → canonical model is left untouched; status becomes
-  `invalid-json` / `invalid-schema` / `semantic-errors`.
-- `ValidationIssue[]` are mapped to Monaco markers via
-  `issuesToMarkers(...)` using `jsonc-parser` AST ranges.
-- `idAtOffset` / `revealIdInEditor` / `attachCursorSelectionBridge` let you
-  wire canvas ↔ JSON bidirectional selection (spec §15.5).
+- Valid JSON → `replaceSession` patch dispatched; synthetic UUIDs reused
+  across edits.
+- Invalid JSON → canonical model untouched; status `"invalid-json"`.
+- `ValidationIssue[]` mapped to Monaco markers via `issuesToMarkers(...)`.
+- `idAtOffset` / `revealIdInEditor` / `attachCursorSelectionBridge` wire
+  canvas ↔ JSON bidirectional selection.
+- When `replaceSession` removes states, stale layout positions and comment
+  attachments are cleaned automatically.
 
-Structural typing: the package imports **no** Monaco symbols at runtime.
-All Monaco API surfaces are described by `MonacoLike` / `TextModelLike` /
-`EditorLike` interfaces, so consumers may inject their own Monaco build.
+The package has **no runtime Monaco imports** — all Monaco surfaces are
+described by structural `MonacoLike` / `TextModelLike` / `EditorLike`
+interfaces so consumers inject their own Monaco build.
 
 ---
 
-## Backend integration (configurator)
+## Backend integration
 
-Implement `WorkflowApi` from `@cyoda/workflow-core`:
+Implement `WorkflowApi` from `@cyoda/workflow-core` and wire it into the
+editor via `useSaveFlow`:
 
 ```ts
-import type {
-  EntityIdentity,
-  ExportResult,
-  ImportPayload,
-  ImportResult,
-  WorkflowApi,
-} from "@cyoda/workflow-core";
+import type { WorkflowApi } from "@cyoda/workflow-core";
 import {
   WorkflowApiConflictError,
   WorkflowApiTransportError,
 } from "@cyoda/workflow-core";
 
 export const myApi: WorkflowApi = {
-  async exportWorkflows(entity: EntityIdentity): Promise<ExportResult> {
+  async exportWorkflows(entity) {
     const res = await fetch(`/api/workflows/${entity.id}`);
     if (!res.ok) throw new WorkflowApiTransportError(res, res.statusText);
     return res.json();
@@ -372,182 +444,137 @@ export const myApi: WorkflowApi = {
       },
       body: JSON.stringify(payload),
     });
-    if (res.status === 409) {
-      const body = await res.json();
-      throw new WorkflowApiConflictError(entity, body.concurrencyToken);
-    }
+    if (res.status === 409) throw new WorkflowApiConflictError(entity, (await res.json()).concurrencyToken);
     if (!res.ok) throw new WorkflowApiTransportError(res, res.statusText);
     return res.json();
   },
 };
 ```
 
-Wire it into the editor via `useSaveFlow` + the provided modal / banner
-components:
-
 ```tsx
-import {
-  useSaveFlow,
-  SaveConfirmModal,
-  ConflictBanner,
-} from "@cyoda/workflow-react";
+import { useSaveFlow, SaveConfirmModal, ConflictBanner } from "@cyoda/workflow-react";
 
 function SaveShell({ doc, api }) {
   const save = useSaveFlow({ api, document: doc });
-
   return (
     <>
       <button onClick={() => save.requestSave("MERGE")} disabled={save.status.kind === "saving"}>
         Save
       </button>
       {save.status.kind === "confirming" && (
-        <SaveConfirmModal
-          status={save.status}
-          diff={save.diff}
-          warnings={doc.validation.warnings}
-          onConfirm={save.confirmSave}
-          onCancel={save.cancel}
-        />
+        <SaveConfirmModal status={save.status} diff={save.diff} onConfirm={save.confirmSave} onCancel={save.cancel} />
       )}
       {save.status.kind === "conflict" && (
-        <ConflictBanner
-          onReload={save.reload}
-          onForceOverwrite={save.forceOverwrite}
-        />
+        <ConflictBanner onReload={save.reload} onForceOverwrite={save.forceOverwrite} />
       )}
     </>
   );
 }
 ```
 
-Save flow semantics (spec §17.3, §17.4, §18.5):
-
-- `MERGE` is the default and requires no explicit ack.
-- `REPLACE` requires an **explicit** ack checkbox.
-- `ACTIVATE` requires an **explicit** ack checkbox.
-- Any warnings add an additional ack checkbox.
-- HTTP 409 → non-dismissable `ConflictBanner` with Reload / Force overwrite.
-- `diffSummary(server, local)` returns a terse `+ added / - removed /
-  ~ changed` list when server state was previously fetched.
+Import modes: `MERGE` (default, no ack), `REPLACE` (requires ack),
+`ACTIVATE` (requires ack). HTTP 409 → non-dismissable `ConflictBanner`.
 
 ---
 
-## Domain model at a glance
+## Domain model
 
-- `parseImportPayload(json, prior?) → ParseResult<ImportPayload>` — runs
-  JSON.parse → Zod schema → operator-alias normalisation → input
-  normalisation → synthetic-ID assignment → semantic validation. When
-  `prior` (previous `EditorMetadata`) is passed, synthetic UUIDs are
-  reused via `(workflowName, stateCode, transitionName, ordinal)` tuples
-  (spec §6.2).
-- `projectToGraph(document) → GraphDocument` — one `StateNode` per state,
-  one `StartMarkerNode` per workflow, one transition edge per transition
-  with summaries (criterion / processor / execution) and loopback flags.
-- `applyPatch(document, patch) → { document, inverse }` — Immer-backed;
-  every apply bumps `meta.revision` and re-runs semantic validation.
-- `invertPatch(patch)` — powers undo/redo for every patch family.
-- `serialize(document) → string` — byte-stable output; fixed key order
-  (spec §12.4), 2-space indent, LF, trailing newline, no `operatorType`.
-
-Round-trip identity: `serialize(parse(x)) === serialize(parse(serialize(parse(x))))`.
+- `parseImportPayload(json, prior?)` — JSON.parse → Zod schema → operator
+  alias normalisation → input normalisation → synthetic-ID assignment →
+  semantic validation. When `prior` (`EditorMetadata`) is supplied, UUIDs
+  are reused by `(workflow, state, ordinal)` identity.
+- `projectToGraph(document)` — one `StateNode` per state, one transition
+  edge per transition with criterion/processor/execution summaries.
+- `applyPatch(document, patch)` — Immer-backed; bumps `meta.revision`;
+  UI-only patches (`setNodePosition`, `addComment`, etc.) short-circuit the
+  session pipeline and do not touch exported JSON.
+- `applyTransaction(document, tx)` — applies a `PatchTransaction`
+  (multiple patches as one undo step).
+- `invertPatch(document, patch)` / `invertTransaction(document, tx)` —
+  exact inverses for all patch families; powers undo/redo.
+- `serializeImportPayload(document)` — byte-stable output; excludes all
+  editor metadata.
 
 ---
 
-## Accessibility contract
+## Accessibility
 
-- Keyboard: Ctrl/Cmd+Z undo, Ctrl+Shift+Z / Ctrl+Y redo, Ctrl/Cmd+S save.
-- Modals: `role="dialog"`, `aria-modal="true"`, `aria-labelledby` wired,
-  Escape cancels, focus moves to first focusable child on mount and
-  restores on unmount.
+- Modals: `role="dialog"`, `aria-modal`, `aria-labelledby`, Escape cancels,
+  focus traps on mount and restores on unmount.
 - Validation pills: `role="status"` with `aria-live="polite"`.
-- Arrow-key navigation between connected nodes (spec §24) — **deferred**;
-  tracked in the deferred list below.
+- Inline validation errors: `role="alert"`.
+- Keyboard: all core editing actions reachable without a mouse (see
+  keyboard shortcut table above).
 
 ---
 
-## Testing & quality gates
+## Testing and quality gates
 
-| Package              | Tests | Notes |
-|----------------------|------:|-------|
-| `workflow-core`      |    16 | §22.1 golden fixtures + §22.2 semantic fixtures + §22.6 property tests |
-| `workflow-graph`     |    11 | projection snapshots + loopback / parallel grouping |
-| `workflow-viewer`    |     3 | rendering smoke tests |
-| `workflow-layout`    |     7 | ELK sync + worker adapters |
-| `workflow-react`     |    17 | editor smoke + save flow + a11y |
-| `workflow-monaco`    |    12 | schema, markers, bridge, controller, selection |
-| **Total**            | **66** | All green as of last run |
+```sh
+pnpm test       # all unit + integration tests
+pnpm typecheck  # TypeScript across all packages
+pnpm build      # tsup build for all packages
+pnpm lint       # ESLint across packages + apps
+pnpm bench      # micro-benchmarks for core parse/validate/serialize/patch
+```
 
-Perf budgets per spec §22.3 (verified via `pnpm bench` on M1):
+Current test counts (all green):
 
-- parse + validate at 50 states: < 30 ms (budget 200 ms)
-- parse + validate at 500 states: < 150 ms (budget 2 s)
-- serialize at 500 states: < 40 ms (budget 500 ms)
-- applyPatch on 100-state graph: < 5 ms (budget 50 ms)
+| Package | Tests |
+|---|---:|
+| `workflow-core` | 63 |
+| `workflow-graph` | 13 |
+| `workflow-viewer` | 8 |
+| `workflow-layout` | 24 |
+| `workflow-react` | 66 |
+| `workflow-monaco` | 12 |
+| **Total** | **186** |
 
-[Inference] Exact numbers vary by machine; the benchmark suite fails CI on
->15% regression relative to the tracked baseline.
+Perf budgets (M1-class CPU, `pnpm bench`; budgets match `packages/workflow-core/tests/perf/bench.bench.ts`):
 
-Coverage thresholds (spec §22.5) are enforced per package.
+- parse + validate at 50 states: < 30 ms
+- parse + validate at 500 states: < 250 ms (dense `generateGrid(500, 4)` fixture; typical real workflows are faster)
+- serialize at 500 states: < 100 ms
+- applyPatch on 100-state graph: < 8 ms
 
-Visual regression: `apps/docs-embed-demo/tests/visual/alert-triage.spec.ts`
-drives Playwright against the running dev server; baseline PNGs are
-captured with `pnpm visual:update` and diffed at 1% pixel tolerance.
-[Unverified] No baselines are committed yet — capture them before the
-first `test:visual` CI run.
+> **Note:** The 500-state parse benchmark uses an artificially dense grid fixture (~2000 transitions). Measured mean on M1 Pro at the time of the v0.1 release review was ~630 ms, which exceeds this budget. This is a known tracking item; the budget will be revised or the fixture replaced in a follow-up.
 
----
-
-## Deferred work
-
-These items are scoped but not yet delivered:
-
-- Arrow-key navigation between connected nodes (spec §24).
-- ELK worker path for > 30-node graphs (spec §13.5) — sync path is in
-  place; the worker wrapper is not.
-- Answers to the four spec §30 open questions (scheduled processor
-  `transition` scope, workflow-name uniqueness, concurrency token shape,
-  field-hint endpoint availability).
-- Visual-regression baseline PNGs and UX sign-off against
-  `SVG-workflow.png`.
-- Storybook catalogue for Inspector editors.
-- `@cyoda/workflow-svg-export` (server-side SVG) — explicitly Phase 9.
+Visual regression: `apps/docs-embed-demo/tests/visual/` drives Playwright
+against the running dev server. Capture baselines with
+`pnpm --filter @cyoda/docs-embed-demo visual:update` before the first
+CI run.
 
 ---
 
-## For AI coding agents
+## Release model
 
-Read these first, in order:
+Uses [Changesets](https://github.com/changesets/changesets) for versioning;
+CI is the only publisher.
 
-1. [`README.md`](README.md) — package overview, usage, and release flow.
-2. [`ai/PLAN-workflow-editor-editing.md`](ai/PLAN-workflow-editor-editing.md) — implementation notes and phased plan.
-3. `ELK-SVG-workflow.png` at the repo root — visual reference for the viewer.
+```sh
+# 1. Add a changeset in your PR
+pnpm changeset
 
-Invariants that must not be broken without spec consultation:
+# 2. Merge PRs to main; CI maintains the Version Packages PR
 
-- Canonical state is JSON. The graph is derived.
-- Synthetic UUIDs live only in `meta.ids.*`; they never leak into
-  exported JSON.
-- Patch-driven edits only; no mutation. Every patch has an inverse.
-- Deterministic, byte-identical export (fixed key order, no
-  `operatorType`).
-- Eight architectural decisions in spec §2 are locked.
+# 3. Merge the Version Packages PR to publish
+```
 
-Entry points for modification:
+Rules:
+- Do not run `npm publish` from a laptop.
+- `cyoda-workflow-editor` and `@cyoda/docs-embed-demo` remain private.
+- Changesets drives all semver decisions.
 
-- New semantic rules → `packages/workflow-core/src/validate/rules/`.
-- New patch families → `packages/workflow-core/src/patch/` + inverse +
-  revision bump.
-- New projection badges → `packages/workflow-graph/src/summaries/` +
-  matching viewer chip in `packages/workflow-viewer/src/components/`.
-- New editor modals → `packages/workflow-react/src/modals/` + messages
-  entry in `src/i18n/en.ts`.
-- New Monaco wiring → `packages/workflow-monaco/src/` (no direct
-  `monaco-editor` imports — use the structural types).
+---
 
-Out of scope (spec §27 — do not silently add): full BPMN, arbitrary
-flowcharts, whiteboarding, criteria-as-graph-nodes by default,
-multiplayer, in-editor VCS UI, execution simulation, immutable history
-timeline, SVG-as-primary-runtime.
+## Deferred / future work
+
+- Arrow-key navigation between connected nodes on the canvas.
+- ELK worker offload for workflows with > 30 states (sync path is in
+  place; worker wrapper not yet wired).
+- Storybook catalogue for Inspector editor components.
+- `@cyoda/workflow-svg-export` — server-side SVG generation.
+- Visual regression baselines (capture before first `test:visual` CI run).
 
 ---
 

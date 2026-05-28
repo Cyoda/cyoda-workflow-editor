@@ -3,6 +3,7 @@ import { Position } from "reactflow";
 export type Anchor = "top" | "right" | "bottom" | "left";
 
 export interface Rect {
+  id?: string;
   x: number;
   y: number;
   width: number;
@@ -17,6 +18,8 @@ export interface OrthogonalEdgeInput {
   targetY: number;
   sourcePosition: Position;
   targetPosition: Position;
+  sourceRect?: Rect;
+  targetRect?: Rect;
   /** Pre-computed polyline from the layout engine — if present, used verbatim. */
   routePoints?: { x: number; y: number }[];
   /** Other nodes' bounding boxes; the router may nudge past these. */
@@ -26,6 +29,11 @@ export interface OrthogonalEdgeInput {
   alignmentTolerance?: number;
   /** Stub length extending the edge along its anchor normal before turning. */
   stubLength?: number;
+  /**
+   * Lateral offset for parallel edges sharing the same source/target pair.
+   * Positive shifts the mid-segment right (vertical paths) or down (horizontal paths).
+   */
+  parallelOffset?: number;
 }
 
 export interface OrthogonalEdge {
@@ -61,10 +69,13 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
     targetY,
     sourcePosition,
     targetPosition,
+    sourceRect,
+    targetRect,
     routePoints,
     obstacles = [],
     alignmentTolerance = DEFAULT_TOLERANCE,
     stubLength = DEFAULT_STUB,
+    parallelOffset = 0,
   } = input;
 
   if (routePoints && routePoints.length >= 2) {
@@ -82,18 +93,34 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
   const tx = targetX;
   const ty = targetY;
 
+  if (sourceRect && targetRect && sourceRect.id === targetRect.id) {
+    const loop = selfLoopPath({
+      sx,
+      sy,
+      tx,
+      ty,
+      sourcePosition,
+      targetPosition,
+      sourceRect,
+      stubLength,
+    });
+    return {
+      path: polylineToPath(loop.points),
+      labelX: loop.labelX,
+      labelY: loop.labelY,
+      points: loop.points,
+    };
+  }
+
   const sourceNormal = normalOf(sourcePosition);
   const targetNormal = normalOf(targetPosition);
 
   // Straight-line shortcut: if the two anchors face each other AND are
   // nearly colinear on the non-normal axis, emit one straight segment.
-  const straight = tryStraight(
-    { x: sx, y: sy },
-    sourceNormal,
-    { x: tx, y: ty },
-    targetNormal,
-    alignmentTolerance,
-  );
+  // Skip shortcut for offset parallel edges — they need a Z-path to diverge.
+  const straight = parallelOffset === 0
+    ? tryStraight({ x: sx, y: sy }, sourceNormal, { x: tx, y: ty }, targetNormal, alignmentTolerance)
+    : null;
   if (straight) {
     return {
       path: polylineToPath(straight),
@@ -114,36 +141,70 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
   let path: { x: number; y: number }[];
 
   if (sourceAxis === "vertical") {
-    // mid segment is horizontal
-    let midY = (sStub.y + tStub.y) / 2;
-    // Obstacle nudge: if the midline passes through an obstacle, shift it.
-    midY = nudgeHorizontalLine(
-      sStub.x,
-      tStub.x,
-      midY,
-      obstacles,
-    );
-    path = [
-      { x: sx, y: sy },
-      { x: sStub.x, y: midY },
-      { x: tStub.x, y: midY },
-      { x: tx, y: ty },
-    ];
+    // mid segment is horizontal; parallelOffset shifts it up/down
+    let midY = (sStub.y + tStub.y) / 2 + parallelOffset;
+    // Clamp so the first and last segments always exit/enter along the handle normal.
+    if (sourceNormal.y > 0) midY = Math.max(midY, sStub.y);
+    else if (sourceNormal.y < 0) midY = Math.min(midY, sStub.y);
+    if (targetNormal.y > 0) midY = Math.max(midY, tStub.y);
+    else if (targetNormal.y < 0) midY = Math.min(midY, tStub.y);
+    // When facing normals conflict (e.g. bottom→top with insufficient space), the
+    // target clamp re-violates the source constraint. Fall back to a staircase path
+    // that routes through both explicit stubs so the source always exits correctly.
+    const srcViolatedY =
+      (sourceNormal.y > 0 && midY < sStub.y) ||
+      (sourceNormal.y < 0 && midY > sStub.y);
+    if (srcViolatedY) {
+      const midX = (sStub.x + tStub.x) / 2 + parallelOffset;
+      path = [
+        { x: sx, y: sy },
+        { x: sStub.x, y: sStub.y },
+        { x: midX, y: sStub.y },
+        { x: midX, y: tStub.y },
+        { x: tStub.x, y: tStub.y },
+        { x: tx, y: ty },
+      ];
+    } else {
+      midY = nudgeHorizontalLine(sStub.x, tStub.x, midY, obstacles);
+      path = [
+        { x: sx, y: sy },
+        { x: sStub.x, y: midY },
+        { x: tStub.x, y: midY },
+        { x: tx, y: ty },
+      ];
+    }
   } else {
-    // mid segment is vertical
-    let midX = (sStub.x + tStub.x) / 2;
-    midX = nudgeVerticalLine(
-      sStub.y,
-      tStub.y,
-      midX,
-      obstacles,
-    );
-    path = [
-      { x: sx, y: sy },
-      { x: midX, y: sStub.y },
-      { x: midX, y: tStub.y },
-      { x: tx, y: ty },
-    ];
+    // mid segment is vertical; parallelOffset shifts it left/right
+    let midX = (sStub.x + tStub.x) / 2 + parallelOffset;
+    // Clamp so the first and last segments always exit/enter along the handle normal.
+    if (sourceNormal.x > 0) midX = Math.max(midX, sStub.x);
+    else if (sourceNormal.x < 0) midX = Math.min(midX, sStub.x);
+    if (targetNormal.x > 0) midX = Math.max(midX, tStub.x);
+    else if (targetNormal.x < 0) midX = Math.min(midX, tStub.x);
+    // When facing normals conflict (e.g. left→right with insufficient space), the
+    // target clamp re-violates the source constraint. Fall back to a staircase path.
+    const srcViolatedX =
+      (sourceNormal.x > 0 && midX < sStub.x) ||
+      (sourceNormal.x < 0 && midX > sStub.x);
+    if (srcViolatedX) {
+      const midY = (sStub.y + tStub.y) / 2 + parallelOffset;
+      path = [
+        { x: sx, y: sy },
+        { x: sStub.x, y: sStub.y },
+        { x: sStub.x, y: midY },
+        { x: tStub.x, y: midY },
+        { x: tStub.x, y: tStub.y },
+        { x: tx, y: ty },
+      ];
+    } else {
+      midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
+      path = [
+        { x: sx, y: sy },
+        { x: midX, y: sStub.y },
+        { x: midX, y: tStub.y },
+        { x: tx, y: ty },
+      ];
+    }
   }
 
   path = simplify(path);
@@ -208,6 +269,153 @@ function tryStraight(
     { x: s.x, y: s.y },
     { x: s.x, y: t.y },
   ];
+}
+
+function selfLoopPath(input: {
+  sx: number;
+  sy: number;
+  tx: number;
+  ty: number;
+  sourcePosition: Position;
+  targetPosition: Position;
+  sourceRect: Rect;
+  stubLength: number;
+}): {
+  points: { x: number; y: number }[];
+  labelX: number;
+  labelY: number;
+} {
+  const {
+    sx,
+    sy,
+    tx,
+    ty,
+    sourcePosition,
+    targetPosition,
+    sourceRect,
+    stubLength,
+  } = input;
+  const loopInset = stubLength + 12;
+  const cornerInset = stubLength + 44;
+
+  if (sourcePosition === Position.Right && targetPosition === Position.Top) {
+    // top-right corner
+    const loopX = sourceRect.x + sourceRect.width + cornerInset;
+    const loopY = sourceRect.y - cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: loopX, y: sy },
+        { x: loopX, y: loopY },
+        { x: tx, y: loopY },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (sy + loopY) / 2,
+    };
+  }
+
+  if (sourcePosition === Position.Left && targetPosition === Position.Top) {
+    // top-left corner
+    const loopX = sourceRect.x - cornerInset;
+    const loopY = sourceRect.y - cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: loopX, y: sy },
+        { x: loopX, y: loopY },
+        { x: tx, y: loopY },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (sy + loopY) / 2,
+    };
+  }
+
+  if (sourcePosition === Position.Bottom && targetPosition === Position.Right) {
+    // bottom-right corner
+    const loopX = sourceRect.x + sourceRect.width + cornerInset;
+    const loopY = sourceRect.y + sourceRect.height + cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: sx, y: loopY },
+        { x: loopX, y: loopY },
+        { x: loopX, y: ty },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (loopY + ty) / 2,
+    };
+  }
+
+  if (sourcePosition === Position.Bottom && targetPosition === Position.Left) {
+    // bottom-left corner
+    const loopX = sourceRect.x - cornerInset;
+    const loopY = sourceRect.y + sourceRect.height + cornerInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: sx, y: loopY },
+        { x: loopX, y: loopY },
+        { x: loopX, y: ty },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: (loopY + ty) / 2,
+    };
+  }
+
+  if (
+    sourcePosition === Position.Bottom &&
+    targetPosition === Position.Top
+  ) {
+    const loopX = sourceRect.x + sourceRect.width + loopInset;
+    const loopY = sourceRect.y + sourceRect.height + loopInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: sx, y: loopY },
+        { x: loopX, y: loopY },
+        { x: loopX, y: ty - loopInset },
+        { x: tx, y: ty - loopInset },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: loopY,
+    };
+  }
+
+  if (
+    sourcePosition === Position.Right &&
+    targetPosition === Position.Left
+  ) {
+    const loopX = sourceRect.x + sourceRect.width + loopInset;
+    const loopY = sourceRect.y + sourceRect.height + loopInset;
+    return {
+      points: [
+        { x: sx, y: sy },
+        { x: loopX, y: sy },
+        { x: loopX, y: loopY },
+        { x: tx - loopInset, y: loopY },
+        { x: tx - loopInset, y: ty },
+        { x: tx, y: ty },
+      ],
+      labelX: loopX,
+      labelY: loopY,
+    };
+  }
+
+  return {
+    points: [
+      { x: sx, y: sy },
+      { x: sx + loopInset, y: sy },
+      { x: tx + loopInset, y: ty },
+      { x: tx, y: ty },
+    ],
+    labelX: (sx + tx) / 2 + loopInset,
+    labelY: (sy + ty) / 2,
+  };
 }
 
 function nudgeHorizontalLine(

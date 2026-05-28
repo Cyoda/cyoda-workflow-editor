@@ -15,6 +15,9 @@ importers:
       '@changesets/cli':
         specifier: ^2.31.0
         version: 2.31.0(@types/node@20.19.39)
+      '@playwright/test':
+        specifier: ^1.45.0
+        version: 1.59.1
       '@types/node':
         specifier: ^20.11.0
         version: 20.19.39
@@ -51,19 +54,37 @@ importers:
       '@cyoda/workflow-graph':
         specifier: workspace:*
         version: link:../../packages/workflow-graph
+      '@cyoda/workflow-layout':
+        specifier: workspace:*
+        version: link:../../packages/workflow-layout
+      '@cyoda/workflow-monaco':
+        specifier: workspace:*
+        version: link:../../packages/workflow-monaco
+      '@cyoda/workflow-react':
+        specifier: workspace:*
+        version: link:../../packages/workflow-react
       '@cyoda/workflow-viewer':
         specifier: workspace:*
         version: link:../../packages/workflow-viewer
+      monaco-editor:
+        specifier: ^0.52.2
+        version: 0.52.2
       react:
         specifier: ^18.3.1
         version: 18.3.1
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      reactflow:
+        specifier: ^11.11.4
+        version: 11.11.4(@types/react@18.3.28)(immer@10.2.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
     devDependencies:
       '@playwright/test':
         specifier: ^1.45.0
         version: 1.59.1
+      '@testing-library/react':
+        specifier: ^14.2.0
+        version: 14.3.1(@types/react@18.3.28)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@types/react':
         specifier: ^18.2.66
         version: 18.3.28
@@ -73,6 +94,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.3.0
         version: 4.7.0(vite@6.4.2(@types/node@20.19.39))
+      jsdom:
+        specifier: ^24.0.0
+        version: 24.1.3
       vite:
         specifier: ^6.4.2
         version: 6.4.2(@types/node@20.19.39)
@@ -110,9 +134,6 @@ importers:
       '@cyoda/workflow-graph':
         specifier: workspace:*
         version: link:../workflow-graph
-      elkjs:
-        specifier: ^0.9.3
-        version: 0.9.3
 
   packages/workflow-monaco:
     dependencies:
@@ -153,6 +174,9 @@ importers:
       '@cyoda/workflow-layout':
         specifier: workspace:*
         version: link:../workflow-layout
+      '@cyoda/workflow-monaco':
+        specifier: workspace:*
+        version: link:../workflow-monaco
       '@cyoda/workflow-viewer':
         specifier: workspace:*
         version: link:../workflow-viewer
@@ -1298,6 +1322,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -1610,9 +1635,6 @@ packages:
 
   electron-to-chromium@1.5.344:
     resolution: {integrity: sha512-4MxfbmNDm+KPh066EZy+eUnkcDPcZ35wNmOWzFuh/ijvHsve6kbLTLURy88uCNK5FbpN+yk2nQY6BYh1GEt+wg==}
-
-  elkjs@0.9.3:
-    resolution: {integrity: sha512-f/ZeWvW/BCXbhGEf1Ujp29EASo/lk1FDnETgNKwJrsVvGZhUWCZyg3xLJjAsxfOmt8KjswHmI5EwCQcPMpOYhQ==}
 
   enquirer@2.4.1:
     resolution: {integrity: sha512-rRqJg/6gd538VHvR3PSrdRBb/1Vy2YfzHqzvbhGIQpDRKIa4FgV/54b5Q1xYSxOOwKvjXweS26E0Q+nAMwp2pQ==}
@@ -2199,6 +2221,9 @@ packages:
 
   monaco-editor@0.50.0:
     resolution: {integrity: sha512-8CclLCmrRRh+sul7C08BmPBP3P8wVWfBHomsTcndxg5NRCEPfu/mc2AGU8k37ajjDVXcXFc12ORAMUkmk+lkFA==}
+
+  monaco-editor@0.52.2:
+    resolution: {integrity: sha512-GEQWEZmfkOGLdd3XK8ryrfWz3AIP8YymVXiPHEdewrUq7mh0qrKrfHLNCXcbB6sTnMLnOZ3ztSiKcciFUkIJwQ==}
 
   mri@1.2.0:
     resolution: {integrity: sha512-tzzskb3bG8LvYGFF/mDTpq3jpI6Q9wc3LEmBaghu+DdCssd1FakN7Bc0hVNmEyGq1bq3RgfkCb3cmQLpNPOroA==}
@@ -4345,8 +4370,6 @@ snapshots:
 
   electron-to-chromium@1.5.344: {}
 
-  elkjs@0.9.3: {}
-
   enquirer@2.4.1:
     dependencies:
       ansi-colors: 4.1.3
@@ -5051,6 +5074,8 @@ snapshots:
       ufo: 1.6.3
 
   monaco-editor@0.50.0: {}
+
+  monaco-editor@0.52.2: {}
 
   mri@1.2.0: {}
 

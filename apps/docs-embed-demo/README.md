@@ -1,8 +1,8 @@
 # docs-embed-demo
 
-Minimal React + Vite page that embeds `@cyoda/workflow-viewer` on a static
-site, demonstrating the "slim viewer" target (spec §4.5 — bundle budget
-< 80 KB gzipped).
+Internal capability showcase and regression harness for the Cyoda workflow
+editor packages. The original slim embed example still exists, but the app
+now also exercises the full public package surface from the browser.
 
 ## Run
 
@@ -11,43 +11,71 @@ pnpm install
 pnpm --filter @cyoda/docs-embed-demo dev
 ```
 
-Dev server listens on http://localhost:5173.
+Dev server listens on [http://localhost:5173](http://localhost:5173).
 
-## Embed recipe
+## Routes
 
-```tsx
-import { parseImportPayload } from "@cyoda/workflow-core";
-import { projectToGraph } from "@cyoda/workflow-graph";
-import { WorkflowViewer } from "@cyoda/workflow-viewer";
+- `/` overview of the showcase and what each route demonstrates
+- `/viewer` parse, validate, project, render, and edit raw workflow JSON
+- `/layout` compare `WorkflowViewer` fallback layout against `layoutGraph`
+- `/editor` exercise `WorkflowEditor` modes, tabs, chrome, and editing shell
+- `/monaco` wire Monaco JSON editing to controller, markers, and selection sync
+- `/save-flow` simulate `useSaveFlow`, `SaveConfirmModal`, and `ConflictBanner`
+- `/local-file-editor` open a real local workflow JSON file, edit it in the full editor, and save back clean workflow JSON with overwrite protection
+- `/utilities` expose lower-level helpers like patches, graph edits, migrations, and identity lookup
+- `/embed` preserve the original minimal read-only viewer example
 
-const { document } = parseImportPayload(workflowJson);
-const graph = projectToGraph(document);
+## Package coverage
 
-<div style={{ height: 600 }}>
-  <WorkflowViewer graph={graph} onSelectionChange={(id) => console.log(id)} />
-</div>
+- `@cyoda/workflow-core`
+  - parsing, semantic validation, serialization, patching, inverse patches
+  - migration registry, ID lookup, and canonical session state
+- `@cyoda/workflow-graph`
+  - graph projection and representative `applyGraphEdit` conversions
+- `@cyoda/workflow-viewer`
+  - slim SVG rendering, selection, and external layout injection
+- `@cyoda/workflow-layout`
+  - ELK presets, orientation changes, and pinned-node behavior
+- `@cyoda/workflow-react`
+  - `WorkflowEditor`, mode switching, chrome toggles, diff summary, and save flow building blocks
+- `@cyoda/workflow-monaco`
+  - schema registration, patch lifting, marker rendering, and cursor/selection bridging
+
+## Test intent
+
+This app is intentionally useful for both humans and automation:
+
+- focused pages make it easy to visually inspect one package surface at a time
+- fixtures include valid, warning-heavy, multi-workflow, and intentionally-invalid payloads
+- debug panels surface canonical JSON, lift results, generated patches, and migration output
+- Playwright can target the same routes for smoke and screenshot assertions
+
+## Visual regression
+
+```sh
+pnpm --filter @cyoda/docs-embed-demo visual:update
+pnpm --filter @cyoda/docs-embed-demo test:visual
 ```
 
-### What the viewer gives you
+Routes most worth capturing:
 
-- SVG state nodes + transition edges with the Cyoda visual conventions
-  (initial-state marker, terminal pill, dashed loopbacks).
-- Pan / zoom via mouse drag and ctrl+wheel.
-- Click-to-select — selection is a synthetic UUID, map it back to domain
-  objects via `document.meta.ids.*`.
-- Theme tokens exported from `@cyoda/workflow-viewer/theme` — override via
-  CSS custom properties to skin for the enterprise website.
+- `/embed`
+- `/layout`
+- `/editor`
+- `/monaco`
 
-### What it does **not** do
+## Local file editor
 
-- No drag-connect, delete, or other edit affordances — use
-  `@cyoda/workflow-react` (`WorkflowEditor`) for those.
-- No Monaco / JSON editor — pair with `@cyoda/workflow-monaco` when needed.
-- No automatic layout — if you want ELK routing, compute a `LayoutResult`
-  with `@cyoda/workflow-layout` and pass it via the `layout` prop.
+`/local-file-editor` is a demo-only developer utility for manual testing
+against workflow JSON files on the local drive. It is intentionally scoped to
+`apps/docs-embed-demo` and does not change any published package surface.
 
-## Bundle check
-
-The slim viewer target is < 80 KB gzipped with React externalised. After
-`pnpm build`, inspect `dist/assets/*.js` sizes — the Cyoda packages should
-contribute roughly 30-40 KB gzipped; the remainder is React.
+- The page uses the browser File System Access API when available to open a
+  file handle, reload from disk, and write back to the same file.
+- Every direct overwrite requires an explicit `Overwrite local file?`
+  confirmation first.
+- In browsers without File System Access API support, open falls back to a file
+  input and save falls back to a download.
+- Saved files always come from `serializeImportPayload(document)`, so editor
+  layout metadata, comments, edge anchors, and viewports are excluded from the
+  written JSON.

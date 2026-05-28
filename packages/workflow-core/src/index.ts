@@ -3,6 +3,7 @@
 
 export type {
   ArrayCriterion,
+  CommentMeta,
   ConcurrencyToken,
   Criterion,
   DomainPatch,
@@ -28,6 +29,7 @@ export type {
   JsonValue,
   LifecycleCriterion,
   OperatorType,
+  PatchTransaction,
   Processor,
   ProcessorPointer,
   SaveStatus,
@@ -52,6 +54,7 @@ export type {
 
 export {
   OPERATOR_TYPES,
+  PatchConflictError,
   WorkflowApiConflictError,
   WorkflowApiTransportError,
 } from "./types/index.js";
@@ -79,6 +82,8 @@ export {
 } from "./schema/index.js";
 
 export {
+  MAX_JSON_BYTES,
+  MAX_JSON_OBJECT_DEPTH,
   ParseJsonError,
   SchemaError,
   normalizeOperatorAlias,
@@ -126,7 +131,9 @@ export {
 export {
   applyPatch,
   applyPatches,
+  applyTransaction,
   invertPatch,
+  invertTransaction,
   validateAfterPatch,
 } from "./patch/index.js";
 
@@ -137,3 +144,22 @@ export {
   registerMigration,
 } from "./migrate/index.js";
 export type { MigrationEntry, MigrationFn } from "./migrate/index.js";
+
+export {
+  CRITERION_DEPTH_WARNING_THRESHOLD,
+  MAX_CRITERION_DEPTH,
+  OPERATOR_GROUPS,
+  OPERATOR_VALUE_SHAPE,
+  SUPPORTED_GROUP_OPERATORS,
+  SUPPORTED_SIMPLE_OPERATORS,
+  UNSUPPORTED_OPERATORS,
+  describeCriterion,
+  validateJsonPathSubset,
+} from "./criteria/index.js";
+export type {
+  JsonPathRejectReason,
+  JsonPathValidationResult,
+  OperatorGroup,
+  OperatorGroupId,
+  OperatorValueShape,
+} from "./criteria/index.js";
