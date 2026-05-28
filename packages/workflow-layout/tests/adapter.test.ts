@@ -11,26 +11,6 @@ function project(json: unknown) {
   return projectToGraph(parsed.document);
 }
 
-const minimal = {
-  importMode: "MERGE",
-  workflows: [
-    {
-      version: "1.0",
-      name: "wf",
-      initialState: "a",
-      active: true,
-      states: {
-        a: {
-          transitions: [{ name: "go", next: "b", manual: false, disabled: false }],
-        },
-        b: {
-          transitions: [{ name: "back", next: "a", manual: false, disabled: false }],
-        },
-      },
-    },
-  ],
-};
-
 const linear = {
   importMode: "MERGE",
   workflows: [
