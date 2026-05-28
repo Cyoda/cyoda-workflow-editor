@@ -66,6 +66,7 @@ export interface WorkflowEditorProps {
   chrome?: ChromeOptions;
   onChange?: (doc: WorkflowEditorDocument) => void;
   onSave?: (doc: WorkflowEditorDocument) => void;
+  showSaveButton?: boolean;
   toolbarStart?: ReactNode;
   toolbarCenter?: ReactNode;
   toolbarEnd?: ReactNode;
@@ -151,6 +152,7 @@ export function WorkflowEditor({
   chrome,
   onChange,
   onSave,
+  showSaveButton = true,
   toolbarStart,
   toolbarCenter,
   toolbarEnd,
@@ -838,6 +840,7 @@ export function WorkflowEditor({
               derived={derived}
               readOnly={readOnly}
               saveDisabled={saveDisabled}
+              showSaveButton={showSaveButton}
               openIssueSeverity={openIssueSeverity}
               onSave={onSave ? () => onSave(state.document) : undefined}
               onIssueBadgeClick={(severity) =>

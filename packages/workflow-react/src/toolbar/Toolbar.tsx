@@ -10,6 +10,7 @@ export interface ToolbarProps {
   derived: DerivedState;
   readOnly: boolean;
   saveDisabled?: boolean;
+  showSaveButton?: boolean;
   /** Severity whose issues drawer is currently open, if any. */
   openIssueSeverity?: IssueSeverity | null;
   onSave?: () => void;
@@ -23,6 +24,7 @@ export function Toolbar({
   derived,
   readOnly,
   saveDisabled = false,
+  showSaveButton = true,
   openIssueSeverity = null,
   onSave,
   onIssueBadgeClick,
@@ -75,12 +77,12 @@ export function Toolbar({
           testId="toolbar-infos"
         />
       </span>
-      {onSave && (
+      {onSave && showSaveButton && (
         <button
           type="button"
           onClick={onSave}
           disabled={readOnly || saveDisabled}
-          style={{ ...btnStyle, background: "#0F172A", color: "white", borderColor: "#0F172A" }}
+          style={{ ...btnStyle, background: "#161616", color: "white", borderColor: "#161616" }}
           data-testid="toolbar-save"
         >
           {messages.toolbar.save}
@@ -120,11 +122,12 @@ function ValidationPill({
       aria-label={`${count} ${label}${interactive ? ` — ${openLabel}` : ""}`}
       data-testid={testId}
       style={{
-        padding: "3px 8px",
+        padding: "2px 8px",
         background: tone.bg,
         border: `1px solid ${tone.border}`,
         color: tone.fg,
         borderRadius: 999,
+        minHeight: 24,
         fontSize: 12,
         fontWeight: 600,
         cursor: interactive ? "pointer" : "default",
@@ -139,11 +142,13 @@ function ValidationPill({
 }
 
 const btnStyle = {
-  padding: "4px 10px",
+  minHeight: 32,
+  padding: "0 12px",
   background: "white",
   border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  borderRadius: 3,
   fontSize: 13,
+  fontWeight: 500,
   cursor: "pointer",
 };
 

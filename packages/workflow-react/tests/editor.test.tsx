@@ -82,6 +82,13 @@ describe("WorkflowEditor", () => {
     expect(screen.getByTestId("toolbar-save")).toBeTruthy();
   });
 
+  it("can hide the toolbar save button while keeping editor controls visible", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} onSave={() => {}} showSaveButton={false} />);
+    expect(screen.queryByTestId("toolbar-save")).toBeNull();
+    expect(screen.getByTestId("toolbar-errors")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
+  });
+
   it("does not render save button without onSave", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.queryByTestId("toolbar-save")).toBeNull();

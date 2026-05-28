@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   serializeImportPayload,
-  type ValidationIssue,
   type WorkflowEditorDocument
 } from "@cyoda/workflow-core";
 import { WorkflowEditor } from "@cyoda/workflow-react";
@@ -29,22 +28,6 @@ type MessageTone = "error" | "info" | "success";
 interface BannerMessage {
   tone: MessageTone;
   text: string;
-}
-
-function summarizeIssues(issues: ValidationIssue[]): string {
-  const summary = issues.reduce(
-    (counts, issue) => {
-      counts[issue.severity] += 1;
-      return counts;
-    },
-    { error: 0, warning: 0, info: 0 },
-  );
-
-  if (summary.error === 0 && summary.warning === 0 && summary.info === 0) {
-    return "No validation issues";
-  }
-
-  return `${summary.error} errors · ${summary.warning} warnings · ${summary.info} infos`;
 }
 
 function MessageBanner({ message }: { message: BannerMessage }) {
@@ -95,7 +78,6 @@ export function LocalFileEditorPage() {
   const monaco = useMemo(() => getMonacoRuntime(), []);
   const fileSystemAccess = supportsFileSystemAccess();
   const [document, setDocument] = useState<WorkflowEditorDocument | null>(null);
-  const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [currentFileName, setCurrentFileName] = useState<string>("");
   const [fileHandle, setFileHandle] = useState<LocalWorkflowFileHandle | null>(null);
   const [baselineSerialized, setBaselineSerialized] = useState<string | null>(null);
@@ -127,7 +109,6 @@ export function LocalFileEditorPage() {
       const parsed = parseLocalWorkflowFile(opened.text);
       const serialized = serializeImportPayload(parsed.document);
       setDocument(parsed.document);
-      setIssues(parsed.issues);
       setCurrentFileName(opened.name);
       setFileHandle(opened.handle);
       setBaselineSerialized(serialized);
@@ -238,7 +219,6 @@ export function LocalFileEditorPage() {
     await writeSerializedDocument(handle, handle.name || suggestedName);
   };
 
-  const issueSummary = summarizeIssues(issues);
   const toolbarStart = (
     <div className="local-file-editor__toolbar-group">
       <a href="/" className="local-file-editor__back-link">
@@ -260,7 +240,6 @@ export function LocalFileEditorPage() {
         {currentFileName || "No file opened"}
       </span>
       {dirty && <span className="local-file-editor__dirty">Unsaved changes</span>}
-      <span className="local-file-editor__status-chip">{issueSummary}</span>
     </div>
   );
   const toolbarEnd = (
@@ -342,6 +321,7 @@ export function LocalFileEditorPage() {
               onSave={() => {
                 requestSave();
               }}
+              showSaveButton={false}
               toolbarStart={toolbarStart}
               toolbarCenter={toolbarCenter}
               toolbarEnd={toolbarEnd}
