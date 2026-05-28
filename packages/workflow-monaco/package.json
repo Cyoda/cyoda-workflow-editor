@@ -1,6 +1,6 @@
 {
   "name": "@cyoda/workflow-monaco",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Monaco JSON editor wired to the Cyoda workflow domain — schema registration, validation markers, debounced replaceSession.",
   "license": "Apache-2.0",
   "type": "module",
