@@ -54,7 +54,6 @@ jobs:
           title: Version packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   manual-branch-publish:
     if: github.event_name == 'workflow_dispatch'
@@ -87,5 +86,3 @@ jobs:
 
       - name: Publish current branch state
         run: pnpm release
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
