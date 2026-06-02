@@ -337,19 +337,26 @@ export function WorkflowEditor({
   const saveDisabled = readOnly || derived.errorCount > 0 || saveBlockedByJson;
 
   const handleNodeDragStop = useCallback(
-    (nodeId: string, x: number, y: number) => {
-      const ptr = state.document.meta.ids.states[nodeId];
-      if (!ptr) return;
-      actions.dispatch({
-        op: "setNodePosition",
-        workflow: ptr.workflow,
-        stateCode: ptr.state,
-        x,
-        y,
-        pinned: true,
-      });
+    (nodeId: string, _x: number, _y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
+      const ids = state.document.meta.ids.states;
+      // Build a per-workflow map of stateCode → position for all visible nodes.
+      const nodesByWorkflow: Record<string, Record<string, { x: number; y: number; pinned?: boolean }>> = {};
+      for (const { id, x, y } of allPositions) {
+        const ptr = ids[id];
+        if (!ptr) continue;
+        if (!nodesByWorkflow[ptr.workflow]) {
+          nodesByWorkflow[ptr.workflow] = { ...(state.document.meta.workflowUi[ptr.workflow]?.layout?.nodes ?? {}) };
+        }
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        nodesByWorkflow[ptr.workflow]![ptr.state] = { x, y, ...(id === nodeId ? { pinned: true } : {}) };
+      }
+      const workflowUi = { ...state.document.meta.workflowUi };
+      for (const [wf, nodes] of Object.entries(nodesByWorkflow)) {
+        workflowUi[wf] = { ...(workflowUi[wf] ?? {}), layout: { nodes } };
+      }
+      actions.silentReplace({ session: state.document.session, meta: { ...state.document.meta, workflowUi } });
     },
-    [state.document.meta.ids.states, actions],
+    [state.document.meta, actions],
   );
 
   const handleAutoLayout = useCallback(() => {
@@ -384,12 +391,13 @@ export function WorkflowEditor({
     for (const [uuid, ptr] of Object.entries(state.document.meta.ids.states)) {
       if (ptr.workflow === workflow) codeToUuid.set(ptr.state, uuid);
     }
-    return Object.entries(layoutNodes)
+    const result = Object.entries(layoutNodes)
       .map(([stateCode, pos]) => {
         const id = codeToUuid.get(stateCode);
         return id ? { id, x: pos.x, y: pos.y } : null;
       })
       .filter((p): p is PinnedNode => p !== null);
+    return result;
   }, [
     state.activeWorkflow,
     state.document.meta.ids.states,

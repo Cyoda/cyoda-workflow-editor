@@ -48,8 +48,8 @@ export interface CanvasProps {
   onReconnect?: (edge: Edge<RfEdgeData>, connection: Connection) => void;
   onNodesDelete?: (nodes: Node<RfStateNodeData>[]) => void;
   onEdgesDelete?: (edges: Edge<RfEdgeData>[]) => void;
-  /** Called once per completed drag with the node UUID and its final position. */
-  onNodeDragStop?: (nodeId: string, x: number, y: number) => void;
+  /** Called once per completed drag with the dragged node UUID, its final position, and a snapshot of ALL nodes' positions. */
+  onNodeDragStop?: (nodeId: string, x: number, y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => void;
   /** Called when the user double-clicks an empty canvas pane location. */
   onPaneDoubleClick?: (x: number, y: number) => void;
   /**
@@ -799,6 +799,13 @@ function CanvasInner({
   };
 
   const handleNodeDragStop: NodeDragHandler = (_, node) => {
+    // Snapshot all node positions before the state update — rf.getNodes() reflects
+    // the pre-update positions for every node except the one being dragged.
+    const allPositions = rf.getNodes().map((n) => ({
+      id: n.id,
+      x: n.id === node.id ? node.position.x : n.position.x,
+      y: n.id === node.id ? node.position.y : n.position.y,
+    }));
     setNodes((currentNodes) =>
       currentNodes.map((currentNode) =>
         currentNode.id === node.id
@@ -806,7 +813,7 @@ function CanvasInner({
           : currentNode,
       ),
     );
-    onNodeDragStop?.(node.id, node.position.x, node.position.y);
+    onNodeDragStop?.(node.id, node.position.x, node.position.y, allPositions);
     setDraggingIds(new Set<string>());
   };
 
