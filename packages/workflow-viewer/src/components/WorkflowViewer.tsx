@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import type { WorkflowEditorDocument } from "@cyoda/workflow-core";
 import type {
   GraphDocument,
-  GraphEdge,
   GraphNode,
   StateNode,
   TransitionEdge,
+  WorkflowInspection,
 } from "@cyoda/workflow-graph";
+import { computeHighlightSet, inspectGraphFocus, projectToGraph } from "@cyoda/workflow-graph";
 import { simpleLayout, nudgeLabels, type LayoutResult, type NodePosition } from "../layout.js";
 import { usePanZoom } from "../hooks/usePanZoom.js";
 import { Defs } from "./Defs.js";
@@ -16,32 +18,81 @@ import { EdgeLabel } from "./EdgeLabel.js";
 import { workflowPalette } from "../theme/tokens.js";
 
 export interface WorkflowViewerProps {
-  graph: GraphDocument;
-  /** Optional pre-computed layout (e.g. from @cyoda/workflow-layout). */
-  layout?: LayoutResult;
+  graph?: GraphDocument;
+  document?: WorkflowEditorDocument;
+  /**
+   * Product layout preset, or a pre-computed graph layout for existing
+   * advanced callers. Passing a LayoutResult remains supported.
+   */
+  layout?: WorkflowViewerLayout | LayoutResult;
   width?: number | string;
   height?: number | string;
   selectedId?: string;
   onSelectionChange?: (id: string | null) => void;
+  surface?: WorkflowViewerSurface;
+  layoutMode?: WorkflowViewerLayout;
+  /** Alias for hosts that need both a pre-computed `layout` and a product preset. */
+  viewerLayout?: WorkflowViewerLayout;
+  interaction?: WorkflowViewerInteraction;
+  /**
+   * Receives lightweight adjacent-state/transition inspection for hover-path.
+   * TODO: add pathProvider support for explicit STP or representative paths.
+   */
+  onInspect?: (inspection: WorkflowInspection | null) => void;
+  /** Render the synthetic start-marker badge produced by graph projection. */
+  showStartMarker?: boolean;
   className?: string;
 }
+
+export type WorkflowViewerSurface = "website" | "ops-console";
+export type WorkflowViewerLayout = "embedded" | "fullWidth";
+export type WorkflowViewerInteraction =
+  | "none"
+  | "select"
+  | "hover-highlight"
+  | "hover-path";
 
 /**
  * Slim read-only SVG renderer. Renders workflow state nodes, transitions,
  * and edge-label chips using the theme tokens. No editing affordances.
  */
 export function WorkflowViewer({
-  graph,
+  graph: graphInput,
+  document,
   layout,
   width = "100%",
   height = "100%",
   selectedId,
   onSelectionChange,
+  surface = "website",
+  layoutMode,
+  viewerLayout,
+  interaction = "hover-highlight",
+  onInspect,
+  showStartMarker = false,
   className,
 }: WorkflowViewerProps) {
+  const graph = useMemo(() => {
+    if (graphInput) return graphInput;
+    if (document) return projectToGraph(document);
+    throw new Error("WorkflowViewer requires either graph or document.");
+  }, [graphInput, document]);
+  const visibleGraph = useMemo<GraphDocument>(() => {
+    if (showStartMarker) return graph;
+    return {
+      ...graph,
+      nodes: graph.nodes.filter((node) => node.kind !== "startMarker"),
+      edges: graph.edges.filter((edge) => edge.kind !== "startMarker"),
+    };
+  }, [graph, showStartMarker]);
+  const graphLayout = typeof layout === "string" ? undefined : layout;
+  const productLayout = viewerLayout ??
+    layoutMode ??
+    (typeof layout === "string" ? layout : undefined) ??
+    "embedded";
   const effectiveLayout = useMemo(
-    () => layout ?? simpleLayout(graph),
-    [graph, layout],
+    () => normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? simpleLayout(visibleGraph),
+    [graphLayout, visibleGraph],
   );
   const pan = usePanZoom();
   const [internalSelection, setInternalSelection] = useState<string | null>(null);
@@ -49,8 +100,8 @@ export function WorkflowViewer({
   const selection = selectedId ?? internalSelection;
 
   const stateNodes = useMemo(
-    () => graph.nodes.filter((n): n is StateNode => n.kind === "state"),
-    [graph.nodes],
+    () => visibleGraph.nodes.filter((n): n is StateNode => n.kind === "state"),
+    [visibleGraph.nodes],
   );
   const stateById = useMemo(() => {
     const m = new Map<string, StateNode>();
@@ -59,13 +110,13 @@ export function WorkflowViewer({
   }, [stateNodes]);
 
   const transitionEdges = useMemo(
-    () => graph.edges.filter((e): e is TransitionEdge => e.kind === "transition"),
-    [graph.edges],
+    () => visibleGraph.edges.filter((e): e is TransitionEdge => e.kind === "transition"),
+    [visibleGraph.edges],
   );
 
   // Dev-mode hint when the fallback renderer is used on a branching graph.
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" || layout) return;
+    if (process.env.NODE_ENV === "production" || graphLayout) return;
     const sourceCounts = new Map<string, number>();
     for (const e of graph.edges) {
       if (e.kind !== "transition") continue;
@@ -77,7 +128,7 @@ export function WorkflowViewer({
           "Pass a layout from `layoutGraph()` (@cyoda/workflow-layout) for best results.",
       );
     }
-  }, [layout, graph.edges]);
+  }, [graphLayout, visibleGraph.edges]);
 
   // Pre-compute fallback label positions with collision avoidance.
   // Only used when effectiveLayout has no .edges (the ELK path already provides label coords).
@@ -96,21 +147,45 @@ export function WorkflowViewer({
     return nudgeLabels(items);
   }, [effectiveLayout, transitionEdges]);
 
-  const highlightSet = useMemo(
-    () => computeHighlightSet(hovered ?? selection, graph.nodes, graph.edges),
-    [hovered, selection, graph.nodes, graph.edges],
-  );
+  const focusId = hovered ?? selection;
+  const highlightSet = useMemo(() => {
+    if (interaction === "none") return null;
+    if (interaction === "select") {
+      return computeHighlightSet(selection, visibleGraph.nodes, visibleGraph.edges);
+    }
+    return computeHighlightSet(focusId, visibleGraph.nodes, visibleGraph.edges);
+  }, [interaction, focusId, selection, visibleGraph.nodes, visibleGraph.edges]);
 
   const anythingFocused = highlightSet !== null;
 
   const handleSelect = (id: string) => {
+    if (interaction === "none") return;
     setInternalSelection(id);
     onSelectionChange?.(id);
   };
 
   const handleBackgroundClick = () => {
+    if (interaction === "none") return;
     setInternalSelection(null);
     onSelectionChange?.(null);
+  };
+
+  const handleHoverEnter = (id: string) => {
+    if (interaction === "hover-highlight" || interaction === "hover-path") {
+      setHovered(id);
+    }
+    if (interaction === "hover-path") {
+      onInspect?.(inspectGraphFocus(visibleGraph, id));
+    }
+  };
+
+  const handleHoverLeave = () => {
+    if (interaction === "hover-highlight" || interaction === "hover-path") {
+      setHovered(null);
+    }
+    if (interaction === "hover-path") {
+      onInspect?.(null);
+    }
   };
 
   return (
@@ -130,7 +205,11 @@ export function WorkflowViewer({
         background: workflowPalette.neutrals.white,
         fontFamily: "inherit",
         userSelect: "none",
+        ...(productLayout === "fullWidth" ? { display: "block", width: "100%", height: "100%" } : null),
       }}
+      data-surface={surface}
+      data-layout={productLayout}
+      data-interaction={interaction}
       data-testid="workflow-viewer"
     >
       <Defs />
@@ -162,8 +241,8 @@ export function WorkflowViewer({
               dimmed={isDimmed}
               selected={isEdgeSelected}
               onSelect={handleSelect}
-              onHoverEnter={setHovered}
-              onHoverLeave={() => setHovered(null)}
+              onHoverEnter={handleHoverEnter}
+              onHoverLeave={handleHoverLeave}
             />
           );
         })}
@@ -195,17 +274,53 @@ export function WorkflowViewer({
         })}
 
         {/* Nodes on top. */}
-        {graph.nodes.map((node) => renderNode(node, effectiveLayout, {
+        {visibleGraph.nodes.map((node) => renderNode(node, effectiveLayout, {
           selection,
           highlightSet,
           anythingFocused,
           onSelect: handleSelect,
-          onHoverEnter: setHovered,
-          onHoverLeave: () => setHovered(null),
+          onHoverEnter: handleHoverEnter,
+          onHoverLeave: handleHoverLeave,
         }))}
       </g>
     </svg>
   );
+}
+
+function normalizeLayoutForVisibleGraph(
+  layout: LayoutResult | undefined,
+  graph: GraphDocument,
+): LayoutResult | undefined {
+  if (!layout) return undefined;
+  const visibleNodeIds = new Set(graph.nodes.map((node) => node.id));
+  const positions = new Map(
+    Array.from(layout.positions.entries()).filter(([nodeId]) => visibleNodeIds.has(nodeId)),
+  );
+  const visibleEdgeIds = new Set(graph.edges.map((edge) => edge.id));
+  const edges = layout.edges
+    ? new Map(Array.from(layout.edges.entries()).filter(([edgeId]) => visibleEdgeIds.has(edgeId)))
+    : undefined;
+  return {
+    ...layout,
+    positions,
+    edges,
+    width: computeLayoutBound(positions, "x"),
+    height: computeLayoutBound(positions, "y"),
+  };
+}
+
+function computeLayoutBound(
+  positions: Map<string, NodePosition>,
+  axis: "x" | "y",
+): number {
+  let max = 0;
+  for (const position of positions.values()) {
+    const bound = axis === "x"
+      ? position.x + position.width
+      : position.y + position.height;
+    if (bound > max) max = bound;
+  }
+  return Math.max(max + 24, 72);
 }
 
 interface RenderCtx {
@@ -261,33 +376,3 @@ function smallPositionForMarker(pos: NodePosition): NodePosition {
  * or selected. Returns `null` when nothing is focused (all nodes+edges shown
  * at full opacity).
  */
-function computeHighlightSet(
-  focusedId: string | null,
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-): Set<string> | null {
-  if (!focusedId) return null;
-
-  const set = new Set<string>();
-  set.add(focusedId);
-
-  const node = nodes.find((n) => n.id === focusedId);
-  if (node) {
-    for (const e of edges) {
-      if (e.kind !== "transition") continue;
-      if (e.sourceId === focusedId || e.targetId === focusedId) {
-        set.add(e.id);
-        set.add(e.sourceId);
-        set.add(e.targetId);
-      }
-    }
-    return set;
-  }
-
-  const edge = edges.find((e) => e.id === focusedId);
-  if (edge && edge.kind === "transition") {
-    set.add(edge.sourceId);
-    set.add(edge.targetId);
-  }
-  return set;
-}

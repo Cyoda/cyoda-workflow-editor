@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Connection, Edge } from "reactflow";
 import {
   applyPatch,
@@ -58,12 +58,18 @@ export interface ChromeOptions {
 export interface WorkflowEditorProps {
   document: WorkflowEditorDocument;
   mode?: EditorMode;
+  surface?: WorkflowEditorSurface;
+  layout?: WorkflowEditorLayout;
   messages?: PartialMessages;
   layoutOptions?: LayoutOptions;
   /** Selectively suppress editor chrome for compact embed scenarios. */
   chrome?: ChromeOptions;
   onChange?: (doc: WorkflowEditorDocument) => void;
   onSave?: (doc: WorkflowEditorDocument) => void;
+  showSaveButton?: boolean;
+  toolbarStart?: ReactNode;
+  toolbarCenter?: ReactNode;
+  toolbarEnd?: ReactNode;
   /**
    * Host-controlled layout/UI metadata. When provided it takes precedence over
    * the editor's internal localStorage persistence.
@@ -107,7 +113,10 @@ interface PendingAddState {
   position?: { x: number; y: number };
 }
 
-type WorkflowEditorSurface = "graph" | "json";
+export type WorkflowEditorSurface = "dev-console";
+export type WorkflowEditorLayout = "embedded" | "fullWidth";
+
+type WorkflowEditorActiveSurface = "graph" | "json";
 
 function hasPersistedWorkflowUi(meta: WorkflowUiMeta | undefined): meta is WorkflowUiMeta {
   return !!meta && Object.values(meta).some((value) => value !== undefined);
@@ -136,11 +145,17 @@ function defaultNewWorkflow(existing: string[]): Workflow {
 export function WorkflowEditor({
   document: initialDocument,
   mode = "editor",
+  surface = "dev-console",
+  layout = "embedded",
   messages,
   layoutOptions,
   chrome,
   onChange,
   onSave,
+  showSaveButton = true,
+  toolbarStart,
+  toolbarCenter,
+  toolbarEnd,
   layoutMetadata: externalLayoutMeta,
   onLayoutMetadataChange,
   localStorageKey = "cyoda-editor-layout",
@@ -184,7 +199,7 @@ export function WorkflowEditor({
   const [pendingAddState, setPendingAddState] = useState<PendingAddState | null>(null);
   const [reconnectError, setReconnectError] = useState<string | null>(null);
   const [layoutKey, setLayoutKey] = useState(0);
-  const [activeSurface, setActiveSurface] = useState<WorkflowEditorSurface>("graph");
+  const [activeSurface, setActiveSurface] = useState<WorkflowEditorActiveSurface>("graph");
   const [jsonStatus, setJsonStatus] = useState<JsonEditStatus>({ status: "idle" });
   const [openIssueSeverity, setOpenIssueSeverity] = useState<IssueSeverity | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
@@ -818,7 +833,10 @@ export function WorkflowEditor({
             '-apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif',
           outline: "none",
           background: "white",
+          ...(layout === "fullWidth" ? { width: "100%", minHeight: 0 } : null),
         }}
+        data-surface={surface}
+        data-layout={layout}
         data-testid="workflow-editor"
         onKeyDownCapture={handleDeleteKeyDownCapture}
         onKeyDown={handleKeyDown}
@@ -830,11 +848,15 @@ export function WorkflowEditor({
               derived={derived}
               readOnly={readOnly}
               saveDisabled={saveDisabled}
+              showSaveButton={showSaveButton}
               openIssueSeverity={openIssueSeverity}
               onSave={onSave ? () => onSave(state.document) : undefined}
               onIssueBadgeClick={(severity) =>
                 setOpenIssueSeverity((prev) => (prev === severity ? null : severity))
               }
+              toolbarStart={toolbarStart}
+              toolbarCenter={toolbarCenter}
+              toolbarEnd={toolbarEnd}
             />
             <IssuesDrawer
               open={openIssueSeverity !== null}

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { applyPatch, type WorkflowEditorDocument } from "@cyoda/workflow-core";
 import { LocalFileEditorPage } from "../src/pages/LocalFileEditorPage.js";
 import type { LocalWorkflowFileHandle } from "../src/lib/localWorkflowFiles.js";
@@ -21,9 +22,19 @@ vi.mock("@cyoda/workflow-react", () => ({
   WorkflowEditor: ({
     document,
     onChange,
+    onSave,
+    toolbarStart,
+    toolbarCenter,
+    toolbarEnd,
+    showSaveButton = true,
   }: {
     document: WorkflowEditorDocument;
     onChange?: (doc: WorkflowEditorDocument) => void;
+    onSave?: (doc: WorkflowEditorDocument) => void;
+    toolbarStart?: ReactNode;
+    toolbarCenter?: ReactNode;
+    toolbarEnd?: ReactNode;
+    showSaveButton?: boolean;
   }) => {
     editorState.mutate = () => {
       const workflow = document.session.workflows[0];
@@ -46,6 +57,28 @@ vi.mock("@cyoda/workflow-react", () => ({
 
     return (
       <div data-testid="mock-workflow-editor">
+        <div data-testid="mock-editor-toolbar">
+          {toolbarStart}
+          <button type="button" data-testid="mock-editor-add-state">Add State</button>
+          <button type="button" data-testid="mock-editor-undo">Undo</button>
+          <button type="button" data-testid="mock-editor-redo">Redo</button>
+          <button type="button" data-testid="mock-editor-auto-arrange">Auto-arrange</button>
+          <button type="button" data-testid="mock-editor-reset-positions">Reset positions</button>
+          <button type="button" data-testid="mock-editor-errors">0 errors</button>
+          <button type="button" data-testid="mock-editor-warnings">27 warnings</button>
+          <button type="button" data-testid="mock-editor-infos">5 infos</button>
+          {showSaveButton && onSave && (
+            <button
+              type="button"
+              data-testid="mock-editor-save"
+              onClick={() => onSave(document)}
+            >
+              Save
+            </button>
+          )}
+          {toolbarCenter}
+          {toolbarEnd}
+        </div>
         <p data-testid="mock-workflow-name">{document.session.workflows[0]?.name}</p>
         <button type="button" data-testid="mock-editor-mutate" onClick={() => editorState.mutate?.()}>
           mutate
@@ -162,7 +195,60 @@ describe("LocalFileEditorPage", () => {
 
     await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
     expect(screen.getByText("alpha.json")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-add-state")).toBeTruthy();
+    expect(screen.getByTestId("local-file-editor-save")).toBeTruthy();
+    expect(screen.queryByTestId("mock-editor-save")).toBeNull();
     expect(screen.getByTestId("mock-workflow-name").textContent).toBe("Alpha");
+  });
+
+  it("renders exactly one visible Save button in the loaded editor toolbar", async () => {
+    mockFileApi.openWorkflowFile.mockResolvedValue({
+      name: "alpha.json",
+      text: makeWorkflowText("Alpha"),
+      handle: makeHandle("alpha.json"),
+    });
+
+    render(<LocalFileEditorPage />);
+    fireEvent.click(screen.getByTestId("local-file-editor-open-toolbar"));
+
+    await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
+    expect(screen.getAllByRole("button", { name: "Save" })).toHaveLength(1);
+  });
+
+  it("does not render the combined issue summary pill in the loaded editor toolbar", async () => {
+    mockFileApi.openWorkflowFile.mockResolvedValue({
+      name: "alpha.json",
+      text: makeWorkflowText("Alpha"),
+      handle: makeHandle("alpha.json"),
+    });
+
+    render(<LocalFileEditorPage />);
+    fireEvent.click(screen.getByTestId("local-file-editor-open-toolbar"));
+
+    await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
+    expect(screen.queryByText("0 errors · 27 warnings · 5 infos")).toBeNull();
+    expect(screen.getByTestId("mock-editor-errors")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-warnings")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-infos")).toBeTruthy();
+  });
+
+  it("renders editor controls alongside host file actions", async () => {
+    mockFileApi.openWorkflowFile.mockResolvedValue({
+      name: "alpha.json",
+      text: makeWorkflowText("Alpha"),
+      handle: makeHandle("alpha.json"),
+    });
+
+    render(<LocalFileEditorPage />);
+    fireEvent.click(screen.getByTestId("local-file-editor-open-toolbar"));
+
+    await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
+    expect(screen.getByRole("button", { name: "Reload from disk" })).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-add-state")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-undo")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-redo")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-auto-arrange")).toBeTruthy();
+    expect(screen.getByTestId("mock-editor-reset-positions")).toBeTruthy();
   });
 
   it("loads workflow files whose terminal states omit transitions arrays", async () => {
@@ -232,7 +318,7 @@ describe("LocalFileEditorPage", () => {
     await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
     fireEvent.click(screen.getByTestId("mock-editor-mutate"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByTestId("local-file-editor-save"));
     
 
     expect(screen.getByText("Overwrite local file?")).toBeTruthy();
@@ -253,7 +339,7 @@ describe("LocalFileEditorPage", () => {
     fireEvent.click(screen.getByTestId("local-file-editor-open-toolbar"));
     await waitFor(() => expect(screen.getByTestId("mock-workflow-editor")).toBeTruthy());
     fireEvent.click(screen.getByTestId("mock-editor-mutate"));
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByTestId("local-file-editor-save"));
     fireEvent.click(screen.getByRole("button", { name: "Overwrite file" }));
 
     await waitFor(() => expect(mockFileApi.saveWorkflowFile).toHaveBeenCalledTimes(1));

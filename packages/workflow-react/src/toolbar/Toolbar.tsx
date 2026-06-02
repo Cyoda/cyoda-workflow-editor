@@ -1,4 +1,5 @@
 import type { ValidationIssue } from "@cyoda/workflow-core";
+import type { ReactNode } from "react";
 import { useMessages } from "../i18n/context.js";
 import type { DerivedState } from "../state/derive.js";
 import { severityTone } from "../style/tokens.js";
@@ -9,19 +10,27 @@ export interface ToolbarProps {
   derived: DerivedState;
   readOnly: boolean;
   saveDisabled?: boolean;
+  showSaveButton?: boolean;
   /** Severity whose issues drawer is currently open, if any. */
   openIssueSeverity?: IssueSeverity | null;
   onSave?: () => void;
   onIssueBadgeClick?: (severity: IssueSeverity) => void;
+  toolbarStart?: ReactNode;
+  toolbarCenter?: ReactNode;
+  toolbarEnd?: ReactNode;
 }
 
 export function Toolbar({
   derived,
   readOnly,
   saveDisabled = false,
+  showSaveButton = true,
   openIssueSeverity = null,
   onSave,
   onIssueBadgeClick,
+  toolbarStart,
+  toolbarCenter,
+  toolbarEnd,
 }: ToolbarProps) {
   const messages = useMessages();
   return (
@@ -36,7 +45,9 @@ export function Toolbar({
       }}
       data-testid="toolbar"
     >
-      <div style={{ flex: 1 }} />
+      {toolbarStart && <div style={slotStyle} data-testid="toolbar-start">{toolbarStart}</div>}
+      {toolbarCenter && <div style={{ ...slotStyle, flex: 1, justifyContent: "center" }} data-testid="toolbar-center">{toolbarCenter}</div>}
+      {!toolbarCenter && <div style={{ flex: 1 }} />}
       <span role="status" aria-live="polite" style={{ display: "inline-flex", gap: 6 }}>
         <ValidationPill
           severity="error"
@@ -66,17 +77,18 @@ export function Toolbar({
           testId="toolbar-infos"
         />
       </span>
-      {onSave && (
+      {onSave && showSaveButton && (
         <button
           type="button"
           onClick={onSave}
           disabled={readOnly || saveDisabled}
-          style={{ ...btnStyle, background: "#0F172A", color: "white", borderColor: "#0F172A" }}
+          style={{ ...btnStyle, background: "#161616", color: "white", borderColor: "#161616" }}
           data-testid="toolbar-save"
         >
           {messages.toolbar.save}
         </button>
       )}
+      {toolbarEnd && <div style={slotStyle} data-testid="toolbar-end">{toolbarEnd}</div>}
     </header>
   );
 }
@@ -110,11 +122,12 @@ function ValidationPill({
       aria-label={`${count} ${label}${interactive ? ` — ${openLabel}` : ""}`}
       data-testid={testId}
       style={{
-        padding: "3px 8px",
+        padding: "2px 8px",
         background: tone.bg,
         border: `1px solid ${tone.border}`,
         color: tone.fg,
         borderRadius: 999,
+        minHeight: 24,
         fontSize: 12,
         fontWeight: 600,
         cursor: interactive ? "pointer" : "default",
@@ -129,10 +142,19 @@ function ValidationPill({
 }
 
 const btnStyle = {
-  padding: "4px 10px",
+  minHeight: 32,
+  padding: "0 12px",
   background: "white",
   border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  borderRadius: 3,
   fontSize: 13,
+  fontWeight: 500,
   cursor: "pointer",
+};
+
+const slotStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  minWidth: 0,
 };

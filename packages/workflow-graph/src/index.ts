@@ -11,6 +11,13 @@ export {
 export { opShort, truncate } from "./project/op-short.js";
 export { applyGraphEdit } from "./edit/apply-edit.js";
 export type { GraphEditEvent } from "./edit/apply-edit.js";
+export { computeHighlightSet, inspectGraphFocus } from "./inspect.js";
+export type {
+  WorkflowInspection,
+  WorkflowInspectionKind,
+  WorkflowInspectionState,
+  WorkflowInspectionTransition,
+} from "./inspect.js";
 export type {
   CriterionSummary,
   ExecutionSummary,

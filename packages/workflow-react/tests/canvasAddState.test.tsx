@@ -5,11 +5,8 @@ import { estimateNodeSize } from "@cyoda/workflow-layout";
 import { WorkflowEditor } from "../src/index.js";
 import type { CanvasProps } from "../src/components/Canvas.js";
 
-let latestCanvasProps: CanvasProps | undefined;
-
 vi.mock("../src/components/Canvas.js", () => ({
   Canvas: (props: CanvasProps) => {
-    latestCanvasProps = props;
     return (
       <button
         type="button"
@@ -36,7 +33,6 @@ function doc(states: string[], initialState = states[0]!): WorkflowEditorDocumen
 }
 
 afterEach(() => {
-  latestCanvasProps = undefined;
   cleanup();
 });
 

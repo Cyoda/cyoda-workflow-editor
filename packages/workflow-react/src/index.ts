@@ -1,5 +1,10 @@
 export { WorkflowEditor } from "./components/WorkflowEditor.js";
-export type { WorkflowEditorProps, ChromeOptions } from "./components/WorkflowEditor.js";
+export type {
+  ChromeOptions,
+  WorkflowEditorLayout,
+  WorkflowEditorProps,
+  WorkflowEditorSurface,
+} from "./components/WorkflowEditor.js";
 export type {
   JsonEditStatus,
   WorkflowJsonEditorConfig,

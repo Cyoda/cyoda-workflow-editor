@@ -82,9 +82,46 @@ describe("WorkflowEditor", () => {
     expect(screen.getByTestId("toolbar-save")).toBeTruthy();
   });
 
+  it("can hide the toolbar save button while keeping editor controls visible", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} onSave={() => {}} showSaveButton={false} />);
+    expect(screen.queryByTestId("toolbar-save")).toBeNull();
+    expect(screen.getByTestId("toolbar-errors")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
+  });
+
   it("does not render save button without onSave", () => {
     render(<WorkflowEditor document={fixture(MINIMAL)} />);
     expect(screen.queryByTestId("toolbar-save")).toBeNull();
+  });
+
+  it("surface dev-console keeps standard editor controls", () => {
+    render(<WorkflowEditor document={fixture(MINIMAL)} surface="dev-console" layout="fullWidth" />);
+    const editor = screen.getByTestId("workflow-editor");
+    expect(editor.getAttribute("data-surface")).toBe("dev-console");
+    expect(editor.getAttribute("data-layout")).toBe("fullWidth");
+    expect(screen.getByTestId("toolbar")).toBeTruthy();
+    expect(screen.getByTestId("canvas-undo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-redo")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
+  });
+
+  it("renders toolbar slots without hiding editor controls", () => {
+    render(
+      <WorkflowEditor
+        document={fixture(MINIMAL)}
+        onSave={() => {}}
+        toolbarStart={<button type="button">Open workflow file</button>}
+        toolbarCenter={<span>workflow.json</span>}
+        toolbarEnd={<button type="button">Reload from disk</button>}
+      />,
+    );
+
+    expect(screen.getByText("Open workflow file")).toBeTruthy();
+    expect(screen.getByText("workflow.json")).toBeTruthy();
+    expect(screen.getByText("Reload from disk")).toBeTruthy();
+    expect(screen.getByTestId("toolbar-save")).toBeTruthy();
+    expect(screen.getByTestId("toolbar-errors")).toBeTruthy();
+    expect(screen.getByTestId("canvas-add-state")).toBeTruthy();
   });
 });
 

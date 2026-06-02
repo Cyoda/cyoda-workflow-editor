@@ -16,6 +16,7 @@ export function StartMarker({ position }: Props) {
   return (
     <g aria-hidden="true">
       <circle
+        data-testid="start-marker"
         cx={cx}
         cy={cy}
         r={r}
