@@ -253,11 +253,8 @@ export function WorkflowEditor({
     if (ui) onLayoutMetadataChange(ui);
   }, [state.document.meta.workflowUi, state.activeWorkflow, onLayoutMetadataChange]);
 
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
-  }, []);
+  // No longer using the Web Fullscreen API — it is unreliable in Tauri's WKWebView.
+  // Fullscreen is simulated via CSS (position:fixed / inset:0) instead.
 
   const handleInspectorResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -276,11 +273,7 @@ export function WorkflowEditor({
   }, [inspectorWidth]);
 
   const handleToggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      editorContainerRef.current?.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
+    setIsFullscreen((v) => !v);
   }, []);
 
   const readOnly = state.mode === "viewer";
@@ -582,6 +575,10 @@ export function WorkflowEditor({
         openAddStateModal();
         return;
       }
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
+        return;
+      }
       if (e.key === "Escape" && (state.selection || inspectorOpen)) {
         e.preventDefault();
         handleSelectionChange(null);
@@ -839,6 +836,7 @@ export function WorkflowEditor({
           outline: "none",
           background: "white",
           ...(layout === "fullWidth" ? { width: "100%", minHeight: 0 } : null),
+          ...(isFullscreen ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh", width: "100vw" } : null),
         }}
         data-surface={surface}
         data-layout={layout}
