@@ -77,6 +77,8 @@ export interface WorkflowEditorProps {
   layoutMetadata?: WorkflowUiMeta;
   /** Called whenever layout positions or other editor-only metadata change. */
   onLayoutMetadataChange?: (meta: WorkflowUiMeta) => void;
+  /** Called with the full per-workflow UI map whenever any layout changes — use this for file-based persistence. */
+  onWorkflowUiChange?: (workflowUi: Record<string, WorkflowUiMeta>) => void;
   /**
    * localStorage key prefix for layout persistence. Defaults to
    * "cyoda-editor-layout". Pass `null` to disable localStorage persistence.
@@ -158,6 +160,7 @@ export function WorkflowEditor({
   toolbarEnd,
   layoutMetadata: externalLayoutMeta,
   onLayoutMetadataChange,
+  onWorkflowUiChange,
   localStorageKey = "cyoda-editor-layout",
   enableJsonEditor = false,
   jsonEditorPlacement = "tab",
@@ -221,9 +224,8 @@ export function WorkflowEditor({
     onChange?.(state.document);
   }, [state.document, onChange]);
 
-  // Persist layout/comments to localStorage whenever workflowUi changes.
+  // Persist layout/comments to localStorage and notify host whenever workflowUi changes.
   useEffect(() => {
-    if (localStorageKey === null) return;
     try {
       const toStore: Record<string, WorkflowUiMeta> = {};
       for (const [wfName, ui] of Object.entries(state.document.meta.workflowUi)) {
@@ -231,15 +233,18 @@ export function WorkflowEditor({
           toStore[wfName] = ui;
         }
       }
-      if (Object.keys(toStore).length > 0) {
-        localStorage.setItem(localStorageKey, JSON.stringify(toStore));
-      } else {
-        localStorage.removeItem(localStorageKey);
+      if (localStorageKey !== null) {
+        if (Object.keys(toStore).length > 0) {
+          localStorage.setItem(localStorageKey, JSON.stringify(toStore));
+        } else {
+          localStorage.removeItem(localStorageKey);
+        }
       }
+      onWorkflowUiChange?.(toStore);
     } catch {
       // Ignore storage quota or SSR errors.
     }
-  }, [state.document.meta.workflowUi, localStorageKey]);
+  }, [state.document.meta.workflowUi, localStorageKey, onWorkflowUiChange]);
 
   // Notify host of layout changes.
   useEffect(() => {
