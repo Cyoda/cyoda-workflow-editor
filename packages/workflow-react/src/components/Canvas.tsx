@@ -577,6 +577,18 @@ function CanvasInner({
     [preset, orientation, nodeSize, pinned],
   );
 
+  // Filter graph to the active workflow so ELK lays out only its nodes.
+  // Without this, nodes from all workflows are laid out together, pushing
+  // the new workflow's states to unexpected positions.
+  const activeGraph = useMemo(() => {
+    if (!activeWorkflow) return graph;
+    return {
+      ...graph,
+      nodes: graph.nodes.filter((n) => n.workflow === activeWorkflow),
+      edges: graph.edges.filter((e) => e.workflow === activeWorkflow),
+    };
+  }, [graph, activeWorkflow]);
+
   // Track which orientation was in effect when each layout was triggered, so
   // that the fitView guard can tell whether layout changed due to an
   // orientation switch (which requires a refit) vs. a graph edit (no refit).
@@ -586,7 +598,7 @@ function CanvasInner({
     let cancelled = false;
     orientationAtLayoutRef.current = orientation;
     previousBasePositionsRef.current = null;
-    layoutGraph(graph, effectiveOpts).then((result) => {
+    layoutGraph(activeGraph, effectiveOpts).then((result) => {
       if (!cancelled) {
         // Always force the next reconcileNodes pass to apply ELK-computed
         // positions directly, discarding any drag offsets.  This is safe
@@ -605,7 +617,7 @@ function CanvasInner({
     };
     // layoutKey is an external force-re-run trigger; bumping it causes a re-layout
     // without changing any of the other dependencies.
-  }, [graph, effectiveOpts, orientation, layoutKey]);
+  }, [activeGraph, effectiveOpts, orientation, layoutKey]);
 
   // ── Viewport fit ────────────────────────────────────────────────────────────
   //

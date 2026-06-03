@@ -879,12 +879,11 @@ export function WorkflowEditor({
             activeWorkflow={state.activeWorkflow}
             readOnly={readOnly}
             onSelect={actions.setActiveWorkflow}
-            onAdd={() =>
-              dispatch({
-                op: "addWorkflow",
-                workflow: defaultNewWorkflow(workflows.map((w) => w.name)),
-              })
-            }
+            onAdd={() => {
+              const newWorkflow = defaultNewWorkflow(workflows.map((w) => w.name));
+              dispatch({ op: "addWorkflow", workflow: newWorkflow });
+              actions.setActiveWorkflow(newWorkflow.name);
+            }}
             onClose={(name) => dispatch({ op: "removeWorkflow", workflow: name })}
             onRename={(from, to) => {
               actions.dispatchTransaction({
