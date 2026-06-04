@@ -62,7 +62,7 @@ export function WorkflowTabs({
         gap: 4,
         padding: "0 12px",
         height: 36,
-        borderBottom: "1px solid #CBD5E1",
+        borderBottom: "1px solid #E2E8F0",
         background: "#F8FAFC",
         overflowX: "auto",
       }}
