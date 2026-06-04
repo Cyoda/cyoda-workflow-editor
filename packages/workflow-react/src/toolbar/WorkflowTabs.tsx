@@ -60,8 +60,9 @@ export function WorkflowTabs({
         display: "flex",
         alignItems: "center",
         gap: 4,
-        padding: "6px 12px",
-        borderBottom: "1px solid #E2E8F0",
+        padding: "0 12px",
+        height: 36,
+        borderBottom: "1px solid #CBD5E1",
         background: "#F8FAFC",
         overflowX: "auto",
       }}
@@ -150,11 +151,16 @@ export function WorkflowTabs({
           type="button"
           onClick={onAdd}
           style={{
-            padding: "4px 8px",
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "4px 10px",
             background: "white",
-            border: "1px solid #CBD5E1",
-            borderRadius: 4,
-            fontSize: 12,
+            color: "#2563EB",
+            border: "1px solid #2563EB",
+            borderRadius: 5,
+            fontSize: 13,
+            fontWeight: 500,
             cursor: "pointer",
           }}
           data-testid="tab-add"

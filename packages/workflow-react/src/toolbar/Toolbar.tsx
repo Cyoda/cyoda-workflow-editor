@@ -34,14 +34,16 @@ export function Toolbar({
 }: ToolbarProps) {
   const messages = useMessages();
   return (
-    <header
+    <footer
       style={{
-        padding: "8px 12px",
-        borderBottom: "1px solid #E2E8F0",
+        padding: "0 12px",
+        borderTop: "1px solid #E2E8F0",
         display: "flex",
         alignItems: "center",
-        gap: 12,
-        background: "white",
+        gap: 8,
+        background: "#F8FAFC",
+        height: 28,
+        flexShrink: 0,
       }}
       data-testid="toolbar"
     >
@@ -89,7 +91,7 @@ export function Toolbar({
         </button>
       )}
       {toolbarEnd && <div style={slotStyle} data-testid="toolbar-end">{toolbarEnd}</div>}
-    </header>
+    </footer>
   );
 }
 
@@ -131,21 +133,21 @@ function ValidationPill({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 4,
-        padding: "2px 6px",
+        gap: 3,
+        padding: "0 4px",
         background: "none",
         border: "none",
-        borderRadius: 4,
-        fontSize: 12,
-        fontWeight: hasIssues ? 600 : 400,
+        borderRadius: 3,
+        fontSize: 11,
+        fontWeight: hasIssues ? 500 : 400,
         color: hasIssues ? tone.fg : "#94A3B8",
         cursor: interactive ? "pointer" : "default",
         outline: isOpen ? `2px solid ${tone.fg}` : "none",
         outlineOffset: 1,
-        textDecoration: isOpen ? "underline" : "none",
+        height: 20,
       }}
     >
-      <span style={{ fontSize: severity === "info" ? 18 : 11, lineHeight: 1 }}>{SEVERITY_ICON[severity]}</span>
+      <span style={{ fontSize: severity === "info" ? 14 : 10, lineHeight: 1 }}>{SEVERITY_ICON[severity]}</span>
       {count}
     </button>
   );

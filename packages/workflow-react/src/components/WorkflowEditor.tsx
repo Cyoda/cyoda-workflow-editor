@@ -838,34 +838,6 @@ export function WorkflowEditor({
         onKeyDown={handleKeyDown}
         tabIndex={-1}
       >
-        {chrome?.toolbar !== false && (
-          <div style={{ position: "relative" }}>
-            <Toolbar
-              derived={derived}
-              readOnly={readOnly}
-              saveDisabled={saveDisabled}
-              showSaveButton={showSaveButton}
-              openIssueSeverity={openIssueSeverity}
-              onSave={onSave ? () => onSave(state.document) : undefined}
-              onIssueBadgeClick={(severity) =>
-                setOpenIssueSeverity((prev) => (prev === severity ? null : severity))
-              }
-              toolbarStart={toolbarStart}
-              toolbarCenter={toolbarCenter}
-              toolbarEnd={toolbarEnd}
-            />
-            <IssuesDrawer
-              open={openIssueSeverity !== null}
-              severity={openIssueSeverity ?? "error"}
-              issues={derived.issues}
-              document={state.document}
-              onClose={() => setOpenIssueSeverity(null)}
-              onJumpTo={(selection) => {
-                handleSelectionChange(selection);
-              }}
-            />
-          </div>
-        )}
         {chrome?.tabs !== false && showTabs && (
           <WorkflowTabs
             workflows={workflows}
@@ -897,7 +869,8 @@ export function WorkflowEditor({
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "6px 12px",
+                  padding: "0 12px",
+                  height: 36,
                   borderBottom: "1px solid #E2E8F0",
                   background: "white",
                 }}
@@ -932,10 +905,10 @@ export function WorkflowEditor({
                       gap: 5,
                       padding: "4px 10px",
                       background: "white",
-                      color: "#0F172A",
-                      border: "1px solid #CBD5E1",
+                      color: "#2563EB",
+                      border: "1px solid #2563EB",
                       borderRadius: 5,
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 500,
                       cursor: "pointer",
                     }}
@@ -1053,6 +1026,34 @@ export function WorkflowEditor({
             onCreate={confirmConnect}
             onCancel={() => setPendingConnect(null)}
           />
+        )}
+        {chrome?.toolbar !== false && (
+          <div style={{ position: "relative" }}>
+            <Toolbar
+              derived={derived}
+              readOnly={readOnly}
+              saveDisabled={saveDisabled}
+              showSaveButton={showSaveButton}
+              openIssueSeverity={openIssueSeverity}
+              onSave={onSave ? () => onSave(state.document) : undefined}
+              onIssueBadgeClick={(severity) =>
+                setOpenIssueSeverity((prev) => (prev === severity ? null : severity))
+              }
+              toolbarStart={toolbarStart}
+              toolbarCenter={toolbarCenter}
+              toolbarEnd={toolbarEnd}
+            />
+            <IssuesDrawer
+              open={openIssueSeverity !== null}
+              severity={openIssueSeverity ?? "error"}
+              issues={derived.issues}
+              document={state.document}
+              onClose={() => setOpenIssueSeverity(null)}
+              onJumpTo={(selection) => {
+                handleSelectionChange(selection);
+              }}
+            />
+          </div>
         )}
       </div>
      </EditorConfigContext.Provider>
@@ -1277,7 +1278,7 @@ function SurfaceTab({
       type="button"
       onClick={onClick}
       style={{
-        padding: "6px 12px",
+        padding: "4px 10px",
         borderRadius: 999,
         border: `1px solid ${active ? "#0F172A" : "#CBD5E1"}`,
         background: active ? "#0F172A" : "white",
