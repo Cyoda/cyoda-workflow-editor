@@ -352,24 +352,17 @@ export function WorkflowEditor({
   const handleNodeDragStop = useCallback(
     (nodeId: string, _x: number, _y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
       const ids = state.document.meta.ids.states;
-      // Build a per-workflow map of stateCode → position for all visible nodes.
-      const nodesByWorkflow: Record<string, Record<string, { x: number; y: number; pinned?: boolean }>> = {};
+      const patches: import("@cyoda/workflow-core").DomainPatch[] = [];
       for (const { id, x, y } of allPositions) {
         const ptr = ids[id];
         if (!ptr) continue;
-        if (!nodesByWorkflow[ptr.workflow]) {
-          nodesByWorkflow[ptr.workflow] = { ...(state.document.meta.workflowUi[ptr.workflow]?.layout?.nodes ?? {}) };
-        }
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        nodesByWorkflow[ptr.workflow]![ptr.state] = { x, y, ...(id === nodeId ? { pinned: true } : {}) };
+        patches.push({ op: "setNodePosition", workflow: ptr.workflow, stateCode: ptr.state, x, y, ...(id === nodeId ? { pinned: true } : {}) });
       }
-      const workflowUi = { ...state.document.meta.workflowUi };
-      for (const [wf, nodes] of Object.entries(nodesByWorkflow)) {
-        workflowUi[wf] = { ...(workflowUi[wf] ?? {}), layout: { nodes } };
-      }
-      actions.silentReplace({ session: state.document.session, meta: { ...state.document.meta, workflowUi } });
+      if (patches.length === 0) return;
+      const inverses = patches.map((p) => invertPatch(state.document, p));
+      actions.dispatchTransaction({ patches, inverses, summary: "Move state" });
     },
-    [state.document.meta, actions],
+    [state.document, actions],
   );
 
   const handleAutoLayout = useCallback(() => {
