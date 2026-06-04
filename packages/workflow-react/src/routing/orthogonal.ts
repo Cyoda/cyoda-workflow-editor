@@ -170,6 +170,10 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
         { x: sx, y: sy },
         { x: sStub.x, y: midY },
         { x: tStub.x, y: midY },
+        // Route through the target stub so the last segment stays orthogonal
+        // when source and target normals are on different axes (e.g. bottom→left).
+        // simplify() collapses this to the original 4-point path when co-linear.
+        { x: tStub.x, y: tStub.y },
         { x: tx, y: ty },
       ];
     }
@@ -202,6 +206,10 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
         { x: sx, y: sy },
         { x: midX, y: sStub.y },
         { x: midX, y: tStub.y },
+        // Route through the target stub so the last segment stays orthogonal
+        // when source and target normals are on different axes (e.g. right→top).
+        // simplify() collapses this to the original 4-point path when co-linear.
+        { x: tStub.x, y: tStub.y },
         { x: tx, y: ty },
       ];
     }
