@@ -93,6 +93,12 @@ export function Toolbar({
   );
 }
 
+const SEVERITY_ICON: Record<IssueSeverity, string> = {
+  error: "✕",
+  warning: "⚠",
+  info: "·",
+};
+
 function ValidationPill({
   severity,
   count,
@@ -112,6 +118,7 @@ function ValidationPill({
 }) {
   const tone = severityTone(severity);
   const interactive = count > 0 && !!onClick;
+  const hasIssues = count > 0;
   return (
     <button
       type="button"
@@ -122,21 +129,24 @@ function ValidationPill({
       aria-label={`${count} ${label}${interactive ? ` — ${openLabel}` : ""}`}
       data-testid={testId}
       style={{
-        padding: "2px 8px",
-        background: tone.bg,
-        border: `1px solid ${tone.border}`,
-        color: tone.fg,
-        borderRadius: 999,
-        minHeight: 24,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "2px 6px",
+        background: "none",
+        border: "none",
+        borderRadius: 4,
         fontSize: 12,
-        fontWeight: 600,
+        fontWeight: hasIssues ? 600 : 400,
+        color: hasIssues ? tone.fg : "#94A3B8",
         cursor: interactive ? "pointer" : "default",
-        opacity: interactive ? 1 : 0.7,
         outline: isOpen ? `2px solid ${tone.fg}` : "none",
         outlineOffset: 1,
+        textDecoration: isOpen ? "underline" : "none",
       }}
     >
-      {count} {label}
+      <span style={{ fontSize: severity === "info" ? 18 : 11, lineHeight: 1 }}>{SEVERITY_ICON[severity]}</span>
+      {count}
     </button>
   );
 }
