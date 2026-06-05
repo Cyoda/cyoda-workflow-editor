@@ -481,24 +481,46 @@ function computeAutoHandles(
     // edge goes right → bottom arc; reverse goes left → top arc
     const [rightEdge, leftEdge] = srcCX <= tgtCX ? [edge, reverse] : [reverse, edge];
 
-    // Helper: find the best free handle on exactly this side (top or bottom).
-    // Unlike splitHandleFor, never spills to adjacent sides — bidirectional
-    // arcs MUST exit from the correct side for orthogonal routing to work.
-    const assignBiDir = (edgeId: string, role: "source" | "target", nodeId: string, side: "top" | "bottom") => {
+    // Pick the sub-handle on the given side that's closest to the opposite
+    // node. Before searching, release the endpoint's current group-phase
+    // assignment from occ so it doesn't block the search — this lets the
+    // bidirectional pair "swap" sides cleanly (e.g. rightEdge.target moves
+    // from "top" → "bottom-left", freeing "top" for leftEdge.source).
+    const assignBiDir = (
+      edgeId: string,
+      role: "source" | "target",
+      nodeId: string,
+      side: "top" | "bottom",
+      oppositeNodeId: string,
+    ) => {
       const occ = explicitByNode.get(nodeId) ?? new Set<string>();
-      const candidates = side === "top"
-        ? ["top", "top-left", "top-right"] as const
-        : ["bottom", "bottom-left", "bottom-right"] as const;
-      const h = candidates.find((c) => !occ.has(c)) ?? candidates[0];
+
+      // Release the current (group-phase) assignment so it doesn't block search.
+      const currentHandle = assignments.get(`${edgeId}:${role}`);
+      if (currentHandle) occ.delete(currentHandle);
+
+      const nodePos = displayPositions.get(nodeId);
+      const oppPos = displayPositions.get(oppositeNodeId);
+      const nodeCX = nodePos ? nodePos.x + nodePos.width / 2 : 0;
+      const oppCX  = oppPos  ? oppPos.x  + oppPos.width  / 2 : nodeCX;
+      const closer  = oppCX < nodeCX ? `${side}-left`  : `${side}-right`;
+      const farther = oppCX < nodeCX ? `${side}-right` : `${side}-left`;
+      const candidates = [closer, farther, side] as const;
+      const h = candidates.find((c) => !occ.has(c));
+      if (!h) {
+        // Still no free slot — restore current assignment and leave as-is.
+        if (currentHandle) occ.add(currentHandle);
+        return;
+      }
       occ.add(h);
       explicitByNode.set(nodeId, occ);
       assignments.set(`${edgeId}:${role}`, h);
     };
 
-    if (!rightEdge.sourceAnchor) assignBiDir(rightEdge.id, "source", rightEdge.sourceId, "bottom");
-    if (!rightEdge.targetAnchor) assignBiDir(rightEdge.id, "target", rightEdge.targetId, "bottom");
-    if (!leftEdge.sourceAnchor)  assignBiDir(leftEdge.id,  "source", leftEdge.sourceId,  "top");
-    if (!leftEdge.targetAnchor)  assignBiDir(leftEdge.id,  "target", leftEdge.targetId,  "top");
+    if (!rightEdge.sourceAnchor) assignBiDir(rightEdge.id, "source", rightEdge.sourceId, "bottom", rightEdge.targetId);
+    if (!rightEdge.targetAnchor) assignBiDir(rightEdge.id, "target", rightEdge.targetId, "bottom", rightEdge.sourceId);
+    if (!leftEdge.sourceAnchor)  assignBiDir(leftEdge.id,  "source", leftEdge.sourceId,  "top",    leftEdge.targetId);
+    if (!leftEdge.targetAnchor)  assignBiDir(leftEdge.id,  "target", leftEdge.targetId,  "top",    leftEdge.sourceId);
   }
 
   return assignments;
