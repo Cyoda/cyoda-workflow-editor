@@ -8,8 +8,7 @@ import type {
   WorkflowInspection,
 } from "@cyoda/workflow-graph";
 import { computeHighlightSet, inspectGraphFocus, projectToGraph } from "@cyoda/workflow-graph";
-import { layoutGraph } from "@cyoda/workflow-layout";
-import { nudgeLabels, type LayoutResult, type NodePosition } from "../layout.js";
+import { simpleLayout, nudgeLabels, type LayoutResult, type NodePosition } from "../layout.js";
 import { usePanZoom } from "../hooks/usePanZoom.js";
 import { Defs } from "./Defs.js";
 import { StartMarker } from "./StartMarker.js";
@@ -94,6 +93,8 @@ export function WorkflowViewer({
 
   // When no pre-computed layout is supplied, run layoutGraph (same engine as
   // the editor) so the viewer always shows the same arrangement.
+  // layoutGraph is loaded dynamically so the viewer can render immediately
+  // with simpleLayout while the async result loads.
   const [computedLayout, setComputedLayout] = useState<LayoutResult | null>(
     graphLayout ? normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? null : null,
   );
@@ -103,15 +104,19 @@ export function WorkflowViewer({
       return;
     }
     let cancelled = false;
-    layoutGraph(visibleGraph, { preset: "configuratorReadable", orientation: "vertical" }).then(
+    import("@cyoda/workflow-layout").then(({ layoutGraph }) =>
+      layoutGraph(visibleGraph, { preset: "configuratorReadable", orientation: "vertical" })
+    ).then(
       (result) => {
         if (!cancelled) setComputedLayout(result as unknown as LayoutResult);
       },
-    );
+    ).catch(() => {
+      // layoutGraph unavailable — simpleLayout fallback stays in place
+    });
     return () => { cancelled = true; };
   }, [graphLayout, visibleGraph]);
 
-  const effectiveLayout = computedLayout ?? { positions: new Map(), edges: new Map(), width: 0, height: 0 };
+  const effectiveLayout = computedLayout ?? simpleLayout(visibleGraph);
   const pan = usePanZoom();
   const [internalSelection, setInternalSelection] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
