@@ -587,8 +587,12 @@ a {
   padding: 0 18px 18px;
 }
 
+.local-file-editor__toolbar--top {
+  margin-bottom: 8px;
+}
+
 .local-file-editor__editor-shell {
-  height: calc(100vh - 104px);
+  height: calc(100vh - 136px);
   min-height: 560px;
   border: 1px solid #dbe4f0;
   border-radius: 8px;
