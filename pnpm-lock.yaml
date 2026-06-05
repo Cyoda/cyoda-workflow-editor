@@ -211,6 +211,9 @@ importers:
       '@cyoda/workflow-graph':
         specifier: workspace:*
         version: link:../workflow-graph
+      '@cyoda/workflow-layout':
+        specifier: workspace:*
+        version: link:../workflow-layout
     devDependencies:
       '@testing-library/react':
         specifier: ^14.2.0

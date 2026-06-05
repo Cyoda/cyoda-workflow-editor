@@ -79,10 +79,30 @@ export function computeEdgeGeometry(
 
   const srcCX = source.x + source.width / 2;
   const tgtCX = target.x + target.width / 2;
-  const isBackEdge = source.y >= target.y - source.height / 2;
 
+  // Same-level nodes: source and target are at the same vertical layer.
+  // Route going-right edges BELOW the nodes and going-left edges ABOVE so
+  // bidirectional pairs naturally separate without needing a shared offset.
+  const sameLevel = Math.abs(source.y - target.y) < source.height * 0.75;
+  if (sameLevel) {
+    const goingRight = srcCX < tgtCX;
+    if (goingRight) {
+      // Arc below: exit source bottom → dip down → enter target bottom
+      const arcY = Math.max(source.y + source.height, target.y + target.height) + SIDE_MARGIN + Math.abs(parallelOffset);
+      const d = `M ${sx} ${sy} L ${sx} ${arcY} L ${tx} ${arcY} L ${tx} ${target.y + target.height}`;
+      return { d, midX: (sx + tx) / 2, midY: arcY };
+    } else {
+      // Arc above: exit source top → rise up → enter target top
+      const arcY = Math.min(source.y, target.y) - SIDE_MARGIN - Math.abs(parallelOffset);
+      const d = `M ${sx} ${source.y} L ${sx} ${arcY} L ${tx} ${arcY} L ${tx} ${target.y}`;
+      return { d, midX: (sx + tx) / 2, midY: arcY };
+    }
+  }
+
+  // True back-edge: source is below target — wrap around the side determined
+  // by relative X position.
+  const isBackEdge = source.y > target.y;
   if (isBackEdge) {
-    // Back-edge: wrap around the side determined by relative X position.
     const wrapLeft = srcCX <= tgtCX;
     if (wrapLeft) {
       const loopX = Math.min(source.x, target.x) - SIDE_MARGIN - Math.abs(parallelOffset);
