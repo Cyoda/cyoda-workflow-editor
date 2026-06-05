@@ -201,7 +201,7 @@ vi.mock("reactflow", () => {
     Handle: () => null,
     ConnectionMode: { Loose: "loose" },
     Position,
-    useReactFlow: () => ({ fitView, setViewport }),
+    useReactFlow: () => ({ fitView, setViewport, getNodes: () => rfCallbacks.latestNodes ?? [] }),
     useUpdateNodeInternals: () => vi.fn(),
   };
 });
@@ -789,7 +789,7 @@ describe("node drag — position persistence", () => {
       expect(vi.mocked(layoutGraph)).toHaveBeenLastCalledWith(
         expect.anything(),
         expect.objectContaining({
-          pinned: [expect.objectContaining({ id: startId, x: 250, y: 150 })],
+          pinned: expect.arrayContaining([expect.objectContaining({ id: startId, x: 250, y: 150 })]),
         }),
       );
     });

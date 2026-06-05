@@ -374,7 +374,7 @@ function computeAutoHandles(
       if (srcPos && tgtPos) {
         const srcCX = srcPos.x + srcPos.width / 2;
         const tgtCX = tgtPos.x + tgtPos.width / 2;
-        backEdgeSide = srcCX <= tgtCX ? "left" : "right";
+        backEdgeSide = srcCX < tgtCX ? "left" : "right";
       }
     }
 
