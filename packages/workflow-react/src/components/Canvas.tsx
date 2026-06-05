@@ -296,6 +296,7 @@ function anchorHandleId(
   orientation: "vertical" | "horizontal",
   isBackEdge = false,
   toTerminalSide?: "left" | "right",
+  backEdgeSide?: "left" | "right",
 ): string | undefined {
   if (anchor) return anchor;
   if (orientation === "horizontal") {
@@ -306,7 +307,9 @@ function anchorHandleId(
   if (toTerminalSide) {
     return role === "source" ? toTerminalSide : (toTerminalSide === "left" ? "right" : "left");
   }
-  if (isBackEdge) return "right";
+  // Vertical back-edges: wrap around whichever side keeps the arc away from
+  // the main flow. Source left of target → wrap left; otherwise wrap right.
+  if (isBackEdge) return backEdgeSide ?? "right";
   return role === "source" ? "bottom" : "top";
 }
 
@@ -361,19 +364,35 @@ function computeAutoHandles(
       }
     }
 
+    // In vertical mode, back-edges wrap around the side that keeps the arc
+    // away from the main flow: source left of target → wrap left, else right.
+    let backEdgeSide: "left" | "right" | undefined;
+    const back = isBackEdge(edge, displayPositions, orientation);
+    if (back && orientation === "vertical") {
+      const srcPos = displayPositions.get(edge.sourceId);
+      const tgtPos = displayPositions.get(edge.targetId);
+      if (srcPos && tgtPos) {
+        const srcCX = srcPos.x + srcPos.width / 2;
+        const tgtCX = tgtPos.x + tgtPos.width / 2;
+        backEdgeSide = srcCX <= tgtCX ? "left" : "right";
+      }
+    }
+
     const sourceSide = anchorHandleId(
       edge.sourceAnchor,
       "source",
       orientation,
-      isBackEdge(edge, displayPositions, orientation),
+      back,
       toTerminalSide,
+      backEdgeSide,
     ) as BaseHandle;
     const targetSide = anchorHandleId(
       edge.targetAnchor,
       "target",
       orientation,
-      isBackEdge(edge, displayPositions, orientation),
+      back,
       toTerminalSide,
+      backEdgeSide,
     ) as BaseHandle;
 
     if (edge.sourceAnchor) {
@@ -400,14 +419,40 @@ function computeAutoHandles(
     }
   }
 
+  // Build a map of handles claimed on each node that auto-assignment must avoid:
+  // - explicit anchors stored on regular edges (sourceAnchor / targetAnchor)
+  // - both endpoints of every self-loop (their corner handles are reserved)
+  const explicitByNode = new Map<string, Set<string>>();
+  function markOccupied(nodeId: string, handle: string) {
+    const s = explicitByNode.get(nodeId) ?? new Set<string>();
+    s.add(handle);
+    explicitByNode.set(nodeId, s);
+  }
+  for (const edge of edges) {
+    if (edge.sourceAnchor) markOccupied(edge.sourceId, edge.sourceAnchor);
+    if (edge.targetAnchor) markOccupied(edge.targetId, edge.targetAnchor);
+    if (edge.isSelf) {
+      // Self-loop handles were already assigned above — reserve both corners
+      // so regular edges can't land on them.
+      const src = assignments.get(`${edge.id}:source`);
+      const tgt = assignments.get(`${edge.id}:target`);
+      if (src) markOccupied(edge.sourceId, src);
+      if (tgt) markOccupied(edge.sourceId, tgt); // same node for self-loop
+    }
+  }
+
   for (const [groupKey, endpoints] of grouped) {
-    const [, baseSide] = groupKey.split("|") as [string, BaseHandle];
+    const [nodeId, baseSide] = groupKey.split("|") as [string, BaseHandle];
+    const occupied = explicitByNode.get(nodeId) ?? new Set<string>();
     const sorted = [...endpoints].sort((a, b) =>
       sortEndpointAssignments(a, b, baseSide, displayPositions),
     );
     // Always use split handles — every node has 12 anchor points (3 per side).
     sorted.forEach((endpoint, index) => {
-      const handleId = splitHandleFor(baseSide, index, sorted.length);
+      const handleId = splitHandleFor(baseSide, index, sorted.length, occupied);
+      // Mark as occupied so subsequent groups on the same node don't reuse it.
+      occupied.add(handleId);
+      explicitByNode.set(nodeId, occupied);
       assignments.set(`${endpoint.edgeId}:${endpoint.role}`, handleId);
     });
   }
@@ -470,22 +515,36 @@ function splitHandleFor(
   side: BaseHandle,
   index: number,
   total: number,
+  occupied: ReadonlySet<string> = new Set(),
 ): string {
-  const variants =
-    side === "top"
-      ? ["top-left", "top", "top-right"]
-      : side === "right"
-        ? ["right-top", "right", "right-bottom"]
-        : side === "bottom"
-          ? ["bottom-left", "bottom", "bottom-right"]
-          : ["left-top", "left", "left-bottom"];
-
-  if (total <= 1) return variants[1]!;
-  if (total === 2) return variants[index === 0 ? 0 : 2]!;
-  if (total === 3) return variants[index]!;
-  // total > 3: fan out across all 12 handles — no repeats, no wasted free anchors
+  // Full ordered candidate list for this side — 12 unique handles, no repeats.
   const overflow = HANDLE_OVERFLOW[side];
-  return overflow[index % overflow.length]!;
+
+  // Prefer the "natural" assignment first, then fall back to any free slot.
+  function natural(): string {
+    const variants =
+      side === "top"
+        ? ["top-left", "top", "top-right"]
+        : side === "right"
+          ? ["right-top", "right", "right-bottom"]
+          : side === "bottom"
+            ? ["bottom-left", "bottom", "bottom-right"]
+            : ["left-top", "left", "left-bottom"];
+
+    if (total <= 1) return variants[1]!;
+    if (total === 2) return variants[index === 0 ? 0 : 2]!;
+    if (total === 3) return variants[index]!;
+    return overflow[index % overflow.length]!;
+  }
+
+  const preferred = natural();
+  if (!occupied.has(preferred)) return preferred;
+
+  // Preferred slot is taken — find the next free handle in the fan order.
+  for (const candidate of overflow) {
+    if (!occupied.has(candidate)) return candidate;
+  }
+  return preferred; // all 12 taken (shouldn't happen in practice)
 }
 
 function insetForHandle(handle: string | undefined): number {

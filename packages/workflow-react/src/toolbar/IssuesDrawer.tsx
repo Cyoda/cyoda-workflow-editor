@@ -129,7 +129,7 @@ export function IssuesDrawer({
       data-severity={severity}
       style={{
         position: "absolute",
-        top: 48,
+        bottom: 32,
         right: 12,
         zIndex: 30,
         width: 360,

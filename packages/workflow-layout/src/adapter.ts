@@ -386,34 +386,31 @@ function nodeSpacingForPreset(preset: LayoutPreset): number {
 }
 
 /**
- * Computes the maximum number of non-self edges incident on any single node
- * (max of in-degree and out-degree). Used to scale spacing when nodes have
- * many transitions and labels would otherwise pile up.
+ * Computes the maximum total degree (in + out, non-self edges) across all
+ * nodes. A node with 3 outgoing + 3 incoming = 6 total, which is what
+ * matters for label crowding between layers.
  */
 function computeMaxEdgeDegree(graph: GraphDocument): number {
-  const outDeg = new Map<string, number>();
-  const inDeg  = new Map<string, number>();
+  const totalDeg = new Map<string, number>();
   for (const e of graph.edges) {
     if (e.kind !== "transition" || e.isSelf) continue;
-    outDeg.set(e.sourceId, (outDeg.get(e.sourceId) ?? 0) + 1);
-    inDeg.set(e.targetId,  (inDeg.get(e.targetId)  ?? 0) + 1);
+    totalDeg.set(e.sourceId, (totalDeg.get(e.sourceId) ?? 0) + 1);
+    totalDeg.set(e.targetId, (totalDeg.get(e.targetId)  ?? 0) + 1);
   }
-  const maxOut = outDeg.size > 0 ? Math.max(...outDeg.values()) : 0;
-  const maxIn  = inDeg.size  > 0 ? Math.max(...inDeg.values())  : 0;
-  return Math.max(maxOut, maxIn);
+  return totalDeg.size > 0 ? Math.max(...totalDeg.values()) : 0;
 }
 
 /**
- * Spacing scale factor based on the busiest node's edge count.
- * For each degree above 3, adds 20 % extra space, capped at 2.5×.
+ * Spacing scale factor based on the busiest node's total edge count.
+ * Kicks in above 4 total edges, adds 25% per step, capped at 3×.
  *
- *   degree ≤ 3 → 1.0×   (no change)
- *   degree = 5 → 1.4×
- *   degree = 7 → 1.8×
- *   degree ≥ 10 → 2.5×  (cap)
+ *   total ≤ 4 → 1.0×
+ *   total = 6 → 1.5×
+ *   total = 8 → 2.0×
+ *   total ≥ 12 → 3.0× (cap)
  */
 function degreeSpacingScale(maxDegree: number): number {
-  return Math.min(2.5, 1 + Math.max(0, maxDegree - 3) * 0.2);
+  return Math.min(3, 1 + Math.max(0, maxDegree - 4) * 0.25);
 }
 
 function buildLayoutResult(
