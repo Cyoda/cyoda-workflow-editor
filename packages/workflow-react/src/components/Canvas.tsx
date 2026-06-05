@@ -457,6 +457,35 @@ function computeAutoHandles(
     });
   }
 
+  // ── Bidirectional same-level pairs ──────────────────────────────────────
+  // Two edges between the same node pair at the same y-level both get
+  // bottom→top routing with identical midY, drawing an X. Fix: route the
+  // going-right edge via bottom→bottom (arc below) and the going-left edge
+  // via top→top (arc above). orthogonalEdgePath already handles these
+  // correctly without any additional changes.
+  const edgeByPair = new Map<string, TransitionEdge>();
+  for (const edge of edges) {
+    if (!edge.isSelf) edgeByPair.set(`${edge.sourceId}->${edge.targetId}`, edge);
+  }
+  for (const edge of edges) {
+    if (edge.isSelf) continue;
+    const reverse = edgeByPair.get(`${edge.targetId}->${edge.sourceId}`);
+    if (!reverse || edge.id >= reverse.id) continue; // process each pair once
+    const srcPos = displayPositions.get(edge.sourceId);
+    const tgtPos = displayPositions.get(edge.targetId);
+    if (!srcPos || !tgtPos) continue;
+    if (Math.abs(srcPos.y - tgtPos.y) >= srcPos.height * 0.75) continue;
+    // Same-level bidirectional pair detected.
+    const srcCX = srcPos.x + srcPos.width / 2;
+    const tgtCX = tgtPos.x + tgtPos.width / 2;
+    // edge goes right → bottom arc; reverse goes left → top arc
+    const [rightEdge, leftEdge] = srcCX <= tgtCX ? [edge, reverse] : [reverse, edge];
+    if (!rightEdge.sourceAnchor) assignments.set(`${rightEdge.id}:source`, "bottom");
+    if (!rightEdge.targetAnchor) assignments.set(`${rightEdge.id}:target`, "bottom");
+    if (!leftEdge.sourceAnchor) assignments.set(`${leftEdge.id}:source`, "top");
+    if (!leftEdge.targetAnchor) assignments.set(`${leftEdge.id}:target`, "top");
+  }
+
   return assignments;
 }
 
