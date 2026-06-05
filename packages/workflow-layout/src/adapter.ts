@@ -308,8 +308,9 @@ function computeTreePositions(
 ): Map<string, PinnedNode> {
   const stateNodes = graph.nodes.filter((n): n is StateNode => n.kind === "state");
   const tree = buildLayoutTree(graph, happyPathEdgeIds, options);
-  const nodeSpacing = nodeSpacingForPreset(preset);
-  const layerGap = layerGapForPreset(preset, orientation);
+  const scale = degreeSpacingScale(computeMaxEdgeDegree(graph));
+  const nodeSpacing = nodeSpacingForPreset(preset) * scale;
+  const layerGap = layerGapForPreset(preset, orientation) * scale;
   const memo = new Map<string, number>();
   const rawPositions = new Map<string, { x: number; y: number }>();
 
@@ -382,6 +383,37 @@ function nodeSpacingForPreset(preset: LayoutPreset): number {
     case "configuratorReadable": return 150;
     case "opsAudit":             return 72;
   }
+}
+
+/**
+ * Computes the maximum number of non-self edges incident on any single node
+ * (max of in-degree and out-degree). Used to scale spacing when nodes have
+ * many transitions and labels would otherwise pile up.
+ */
+function computeMaxEdgeDegree(graph: GraphDocument): number {
+  const outDeg = new Map<string, number>();
+  const inDeg  = new Map<string, number>();
+  for (const e of graph.edges) {
+    if (e.kind !== "transition" || e.isSelf) continue;
+    outDeg.set(e.sourceId, (outDeg.get(e.sourceId) ?? 0) + 1);
+    inDeg.set(e.targetId,  (inDeg.get(e.targetId)  ?? 0) + 1);
+  }
+  const maxOut = outDeg.size > 0 ? Math.max(...outDeg.values()) : 0;
+  const maxIn  = inDeg.size  > 0 ? Math.max(...inDeg.values())  : 0;
+  return Math.max(maxOut, maxIn);
+}
+
+/**
+ * Spacing scale factor based on the busiest node's edge count.
+ * For each degree above 3, adds 20 % extra space, capped at 2.5×.
+ *
+ *   degree ≤ 3 → 1.0×   (no change)
+ *   degree = 5 → 1.4×
+ *   degree = 7 → 1.8×
+ *   degree ≥ 10 → 2.5×  (cap)
+ */
+function degreeSpacingScale(maxDegree: number): number {
+  return Math.min(2.5, 1 + Math.max(0, maxDegree - 3) * 0.2);
 }
 
 function buildLayoutResult(

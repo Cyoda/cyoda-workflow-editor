@@ -454,6 +454,18 @@ function sortEndpointAssignments(
   return a.edgeId.localeCompare(b.edgeId);
 }
 
+/**
+ * When more than 3 edges share the same base side on a node, overflow handles
+ * fan out to adjacent sides so every edge gets a unique departure point.
+ * No repeats for up to 12 edges per side.
+ */
+const HANDLE_OVERFLOW: Record<BaseHandle, readonly string[]> = {
+  bottom: ["bottom-left", "bottom", "bottom-right", "left-bottom", "right-bottom", "left", "right", "left-top", "right-top", "top-left", "top", "top-right"],
+  top:    ["top-left",    "top",    "top-right",    "right-top",   "left-top",    "right", "left", "right-bottom", "left-bottom", "bottom-left", "bottom", "bottom-right"],
+  right:  ["right-top",   "right",  "right-bottom", "bottom-right","top-right",   "bottom","top",  "bottom-left",  "top-left",    "left-bottom", "left",   "left-top"],
+  left:   ["left-top",    "left",   "left-bottom",  "top-left",    "bottom-left", "top",   "bottom","top-right",   "bottom-right","right-top",   "right",  "right-bottom"],
+};
+
 function splitHandleFor(
   side: BaseHandle,
   index: number,
@@ -471,7 +483,9 @@ function splitHandleFor(
   if (total <= 1) return variants[1]!;
   if (total === 2) return variants[index === 0 ? 0 : 2]!;
   if (total === 3) return variants[index]!;
-  return variants[index % variants.length]!;
+  // total > 3: fan out across all 12 handles — no repeats, no wasted free anchors
+  const overflow = HANDLE_OVERFLOW[side];
+  return overflow[index % overflow.length]!;
 }
 
 function insetForHandle(handle: string | undefined): number {
