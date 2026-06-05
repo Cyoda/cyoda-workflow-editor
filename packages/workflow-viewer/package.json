@@ -46,7 +46,8 @@
   },
   "dependencies": {
     "@cyoda/workflow-core": "workspace:*",
-    "@cyoda/workflow-graph": "workspace:*"
+    "@cyoda/workflow-graph": "workspace:*",
+    "@cyoda/workflow-layout": "workspace:*"
   },
   "peerDependencies": {
     "react": "^18.3.1",

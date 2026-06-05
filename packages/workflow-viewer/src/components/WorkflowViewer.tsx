@@ -8,7 +8,8 @@ import type {
   WorkflowInspection,
 } from "@cyoda/workflow-graph";
 import { computeHighlightSet, inspectGraphFocus, projectToGraph } from "@cyoda/workflow-graph";
-import { simpleLayout, nudgeLabels, type LayoutResult, type NodePosition } from "../layout.js";
+import { layoutGraph } from "@cyoda/workflow-layout";
+import { nudgeLabels, type LayoutResult, type NodePosition } from "../layout.js";
 import { usePanZoom } from "../hooks/usePanZoom.js";
 import { Defs } from "./Defs.js";
 import { StartMarker } from "./StartMarker.js";
@@ -90,10 +91,27 @@ export function WorkflowViewer({
     layoutMode ??
     (typeof layout === "string" ? layout : undefined) ??
     "embedded";
-  const effectiveLayout = useMemo(
-    () => normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? simpleLayout(visibleGraph),
-    [graphLayout, visibleGraph],
+
+  // When no pre-computed layout is supplied, run layoutGraph (same engine as
+  // the editor) so the viewer always shows the same arrangement.
+  const [computedLayout, setComputedLayout] = useState<LayoutResult | null>(
+    graphLayout ? normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? null : null,
   );
+  useEffect(() => {
+    if (graphLayout) {
+      setComputedLayout(normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? null);
+      return;
+    }
+    let cancelled = false;
+    layoutGraph(visibleGraph, { preset: "configuratorReadable", orientation: "vertical" }).then(
+      (result) => {
+        if (!cancelled) setComputedLayout(result as unknown as LayoutResult);
+      },
+    );
+    return () => { cancelled = true; };
+  }, [graphLayout, visibleGraph]);
+
+  const effectiveLayout = computedLayout ?? { positions: new Map(), edges: new Map(), width: 0, height: 0 };
   const pan = usePanZoom();
   const [internalSelection, setInternalSelection] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -114,21 +132,6 @@ export function WorkflowViewer({
     [visibleGraph.edges],
   );
 
-  // Dev-mode hint when the fallback renderer is used on a branching graph.
-  useEffect(() => {
-    if (process.env.NODE_ENV === "production" || graphLayout) return;
-    const sourceCounts = new Map<string, number>();
-    for (const e of graph.edges) {
-      if (e.kind !== "transition") continue;
-      sourceCounts.set(e.sourceId, (sourceCounts.get(e.sourceId) ?? 0) + 1);
-    }
-    if ([...sourceCounts.values()].some((n) => n > 1)) {
-      console.warn(
-        "[WorkflowViewer] Rendering without an ELK layout — branching graphs may not look polished. " +
-          "Pass a layout from `layoutGraph()` (@cyoda/workflow-layout) for best results.",
-      );
-    }
-  }, [graphLayout, visibleGraph.edges]);
 
   // Pre-compute fallback label positions with collision avoidance.
   // Only used when effectiveLayout has no .edges (the ELK path already provides label coords).
