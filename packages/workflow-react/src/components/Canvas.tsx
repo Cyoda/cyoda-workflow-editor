@@ -480,10 +480,25 @@ function computeAutoHandles(
     const tgtCX = tgtPos.x + tgtPos.width / 2;
     // edge goes right → bottom arc; reverse goes left → top arc
     const [rightEdge, leftEdge] = srcCX <= tgtCX ? [edge, reverse] : [reverse, edge];
-    if (!rightEdge.sourceAnchor) assignments.set(`${rightEdge.id}:source`, "bottom");
-    if (!rightEdge.targetAnchor) assignments.set(`${rightEdge.id}:target`, "bottom");
-    if (!leftEdge.sourceAnchor) assignments.set(`${leftEdge.id}:source`, "top");
-    if (!leftEdge.targetAnchor) assignments.set(`${leftEdge.id}:target`, "top");
+
+    // Helper: find the best free handle on exactly this side (top or bottom).
+    // Unlike splitHandleFor, never spills to adjacent sides — bidirectional
+    // arcs MUST exit from the correct side for orthogonal routing to work.
+    const assignBiDir = (edgeId: string, role: "source" | "target", nodeId: string, side: "top" | "bottom") => {
+      const occ = explicitByNode.get(nodeId) ?? new Set<string>();
+      const candidates = side === "top"
+        ? ["top", "top-left", "top-right"] as const
+        : ["bottom", "bottom-left", "bottom-right"] as const;
+      const h = candidates.find((c) => !occ.has(c)) ?? candidates[0];
+      occ.add(h);
+      explicitByNode.set(nodeId, occ);
+      assignments.set(`${edgeId}:${role}`, h);
+    };
+
+    if (!rightEdge.sourceAnchor) assignBiDir(rightEdge.id, "source", rightEdge.sourceId, "bottom");
+    if (!rightEdge.targetAnchor) assignBiDir(rightEdge.id, "target", rightEdge.targetId, "bottom");
+    if (!leftEdge.sourceAnchor)  assignBiDir(leftEdge.id,  "source", leftEdge.sourceId,  "top");
+    if (!leftEdge.targetAnchor)  assignBiDir(leftEdge.id,  "target", leftEdge.targetId,  "top");
   }
 
   return assignments;
