@@ -72,6 +72,10 @@ export interface CanvasProps {
    * data, so React Flow can recompute handles and edge attachments.
    */
   resizeKey?: number;
+  /** Opens the editor's quick-reference help modal. Omit to hide the button. */
+  onHelp?: () => void;
+  /** Accessible label / tooltip for the help button. */
+  helpLabel?: string;
 }
 
 function toRfNodes(
@@ -685,6 +689,8 @@ function CanvasInner({
   isFullscreen = false,
   onToggleFullscreen,
   resizeKey = 0,
+  onHelp,
+  helpLabel,
 }: CanvasProps) {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
@@ -1030,6 +1036,14 @@ function CanvasInner({
                 </CtrlBtn>
               </>
             )}
+            {onHelp && (
+              <>
+                <div style={{ height: 1, background: "#E2E8F0" }} />
+                <CtrlBtn onClick={onHelp} title={helpLabel ?? "Help"} testId="canvas-help">
+                  <HelpIcon />
+                </CtrlBtn>
+              </>
+            )}
           </div>
         )}
         <ReactFlow
@@ -1165,6 +1179,16 @@ function AutoArrangeIcon() {
       <line x1="18" y1="9" x2="18" y2="12" />
       <rect x="0" y="12" width="8" height="5" rx="1.5" />
       <rect x="14" y="12" width="8" height="5" rx="1.5" />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
     </svg>
   );
 }

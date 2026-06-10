@@ -33,6 +33,7 @@ import { WorkflowTabs } from "../toolbar/WorkflowTabs.js";
 import { DeleteStateModal } from "../modals/DeleteStateModal.js";
 import { DragConnectModal } from "../modals/DragConnectModal.js";
 import { AddStateModal } from "../modals/AddStateModal.js";
+import { HelpModal } from "../modals/HelpModal.js";
 import { CommentNode } from "./CommentNode.js";
 import type { RfEdgeData } from "./RfTransitionEdge.js";
 import {
@@ -200,6 +201,7 @@ export function WorkflowEditor({
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null);
   const [pendingAddState, setPendingAddState] = useState<PendingAddState | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [reconnectError, setReconnectError] = useState<string | null>(null);
   const [layoutKey, setLayoutKey] = useState(0);
   const [activeSurface, setActiveSurface] = useState<WorkflowEditorActiveSurface>("graph");
@@ -530,7 +532,7 @@ export function WorkflowEditor({
     [pendingAddState, state.activeWorkflow, actions],
   );
 
-  const anyModalOpen = pendingDelete !== null || pendingConnect !== null || pendingAddState !== null;
+  const anyModalOpen = pendingDelete !== null || pendingConnect !== null || pendingAddState !== null || helpOpen;
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -744,6 +746,8 @@ export function WorkflowEditor({
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
         resizeKey={inspectorVisible ? 1 : 0}
+        onHelp={() => setHelpOpen(true)}
+        helpLabel={mergedMessages.toolbar.help}
       />
       {reconnectError && (
         <div
@@ -1027,6 +1031,7 @@ export function WorkflowEditor({
             onCancel={() => setPendingConnect(null)}
           />
         )}
+        {helpOpen && <HelpModal onCancel={() => setHelpOpen(false)} />}
         {chrome?.toolbar !== false && (
           <div style={{ position: "relative" }}>
             <Toolbar
