@@ -145,7 +145,8 @@ function ShortcutRow({ keys, label }: { keys: string; label: string }) {
     <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#1E293B" }}>
       <kbd
         style={{
-          minWidth: 84,
+          width: 104,
+          boxSizing: "border-box",
           textAlign: "center",
           padding: "2px 6px",
           background: "#F1F5F9",
@@ -154,6 +155,7 @@ function ShortcutRow({ keys, label }: { keys: string; label: string }) {
           fontSize: 12,
           fontFamily: "ui-monospace, monospace",
           color: "#334155",
+          whiteSpace: "nowrap",
           flexShrink: 0,
         }}
       >
