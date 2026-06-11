@@ -265,9 +265,12 @@ describe("criterion modal UX", () => {
     const view = renderTransitionForm({ manual: false });
     fireEvent.click(view.getByTestId("inspector-criterion-add"));
     expect(view.queryByTestId("criterion-edit-json")).toBeNull();
-    expect(view.getByTestId("criterion-advanced-toggle").textContent).toBe("▸ Advanced");
-    fireEvent.click(view.getByTestId("criterion-advanced-toggle"));
-    expect(view.getByTestId("criterion-advanced-toggle").textContent).toBe("▾ Advanced");
+    const advancedToggle = view.getByTestId("criterion-advanced-toggle");
+    expect(advancedToggle.textContent?.trim()).toBe(defaultMessages.criterion.advanced);
+    expect(advancedToggle.querySelector("svg")?.style.transform).toBe("rotate(-90deg)");
+    fireEvent.click(advancedToggle);
+    expect(advancedToggle.textContent?.trim()).toBe(defaultMessages.criterion.advanced);
+    expect(advancedToggle.querySelector("svg")?.style.transform).toBe("rotate(0deg)");
     fireEvent.click(view.getByTestId("criterion-edit-json"));
     fireEvent.change(view.getByTestId("criterion-json-editor"), {
       target: { value: "{not-json" },

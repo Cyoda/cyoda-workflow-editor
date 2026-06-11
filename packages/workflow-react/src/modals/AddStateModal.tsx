@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NAME_REGEX } from "@cyoda/workflow-core";
+import { colors, radii } from "../style/tokens.js";
 import { ModalFrame } from "./DeleteStateModal.js";
 
 export interface AddStateModalProps {
@@ -43,7 +44,7 @@ export function AddStateModal({ existingNames, onCreate, onCancel }: AddStateMod
         Add State
       </h2>
       <div style={{ marginTop: 16, display: "flex", flexDirection: "column", gap: 6 }}>
-        <label htmlFor="add-state-name-input" style={{ fontSize: 12, color: "#475569" }}>
+        <label htmlFor="add-state-name-input" style={{ fontSize: 12, color: colors.textSecondary }}>
           State name
         </label>
         <input
@@ -64,8 +65,8 @@ export function AddStateModal({ existingNames, onCreate, onCancel }: AddStateMod
           style={{
             padding: "6px 8px",
             fontSize: 14,
-            border: `1px solid ${error ? "#FCA5A5" : "#CBD5E1"}`,
-            borderRadius: 4,
+            border: `1px solid ${error ? colors.dangerBorder : colors.border}`,
+            borderRadius: radii.sm,
             background: "white",
           }}
         />
@@ -73,7 +74,7 @@ export function AddStateModal({ existingNames, onCreate, onCancel }: AddStateMod
           <div
             id="add-state-error"
             role="alert"
-            style={{ color: "#B91C1C", fontSize: 12 }}
+            style={{ color: colors.danger, fontSize: 12 }}
           >
             {error}
           </div>
@@ -104,15 +105,15 @@ export function AddStateModal({ existingNames, onCreate, onCancel }: AddStateMod
 const ghostBtn = {
   padding: "6px 12px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 13,
   cursor: "pointer",
 };
 
 const primaryBtn = {
   ...ghostBtn,
-  background: "#0F172A",
+  background: colors.primary,
   color: "white",
-  borderColor: "#0F172A",
+  borderColor: colors.primary,
 };

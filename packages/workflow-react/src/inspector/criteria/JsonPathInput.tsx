@@ -7,6 +7,7 @@ import {
   type CSSProperties,
 } from "react";
 import { useMessages } from "../../i18n/context.js";
+import { colors, fonts, radii } from "../../style/tokens.js";
 import { useFieldHints } from "./FieldHintsContext.js";
 
 export interface JsonPathInputProps {
@@ -84,7 +85,7 @@ export function JsonPathInput({
   );
 
   const mergedInputStyle: CSSProperties | undefined = hasError
-    ? { ...inputStyle, borderColor: "#FCA5A5" }
+    ? { ...inputStyle, borderColor: colors.dangerBorder }
     : inputStyle;
 
   return (
@@ -233,8 +234,8 @@ const panelStyle: CSSProperties = {
   maxHeight: 220,
   overflowY: "auto",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   boxShadow: "0 4px 12px rgba(15,23,42,0.08)",
   fontSize: 12,
 };
@@ -242,12 +243,12 @@ const panelStyle: CSSProperties = {
 const rowStyle: CSSProperties = {
   padding: "6px 8px",
   cursor: "pointer",
-  borderBottom: "1px solid #F1F5F9",
+  borderBottom: `1px solid ${colors.surfaceMuted}`,
 };
 
 const activeRowStyle: CSSProperties = {
   ...rowStyle,
-  background: "#EFF6FF",
+  background: colors.infoBg,
 };
 
 const rowMainStyle: CSSProperties = {
@@ -258,24 +259,24 @@ const rowMainStyle: CSSProperties = {
 };
 
 const pathTextStyle: CSSProperties = {
-  fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
-  color: "#0F172A",
+  fontFamily: fonts.mono,
+  color: colors.textPrimary,
 };
 
 const typeTextStyle: CSSProperties = {
-  color: "#64748B",
+  color: colors.textTertiary,
   fontSize: 11,
 };
 
 const descTextStyle: CSSProperties = {
   marginTop: 2,
-  color: "#475569",
+  color: colors.textSecondary,
   fontSize: 11,
 };
 
 const hintRowStyle: CSSProperties = {
   padding: "6px 8px",
-  color: "#64748B",
+  color: colors.textTertiary,
   fontStyle: "italic",
 };
 
@@ -285,15 +286,15 @@ const errorRowStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "space-between",
   gap: 8,
-  color: "#B91C1C",
+  color: colors.danger,
 };
 
 const retryBtnStyle: CSSProperties = {
   padding: "2px 6px",
   background: "white",
-  border: "1px solid #FCA5A5",
-  borderRadius: 4,
-  color: "#B91C1C",
+  border: `1px solid ${colors.dangerBorder}`,
+  borderRadius: radii.sm,
+  color: colors.danger,
   fontSize: 11,
   cursor: "pointer",
 };

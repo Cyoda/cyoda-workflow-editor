@@ -22,6 +22,7 @@ import {
   validateJsonPathSubset,
 } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, fonts, radii } from "../style/tokens.js";
 import { CustomSelectInput } from "./fields.js";
 import { ModalFrame } from "../modals/DeleteStateModal.js";
 import type { Selection } from "../state/types.js";
@@ -36,6 +37,32 @@ function cloneCriterion(c: Criterion): Criterion {
   return typeof structuredClone === "function"
     ? structuredClone(c)
     : (JSON.parse(JSON.stringify(c)) as Criterion);
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 12 12"
+      fill="none"
+      aria-hidden="true"
+      style={{
+        flexShrink: 0,
+        transform: open ? "rotate(0deg)" : "rotate(-90deg)",
+        transition: "transform 0.15s ease",
+      }}
+    >
+      <polyline
+        points="2,4 6,8 10,4"
+        fill="none"
+        stroke={colors.textSecondary}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
 function defaultCriterion(type: CriterionType): Criterion {
@@ -267,7 +294,7 @@ function CriterionEditorModal({
           <h2 id="criterion-modal-title" style={{ margin: 0, fontSize: 18 }}>
             {title}
           </h2>
-          <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>{context}</p>
+          <p style={{ margin: 0, fontSize: 12, color: colors.textTertiary }}>{context}</p>
         </header>
 
         <div style={modalBodyStyle}>
@@ -326,7 +353,7 @@ function CriterionEditorModal({
                 style={advancedSummaryStyle}
                 data-testid="criterion-advanced-toggle"
               >
-                {advancedOpen ? "▾" : "▸"} {messages.criterion.advanced}
+                <ChevronIcon open={advancedOpen} /> {messages.criterion.advanced}
               </button>
               {advancedOpen && (
                 <button
@@ -336,7 +363,7 @@ function CriterionEditorModal({
                     setJsonError(null);
                     setUseJson(true);
                   }}
-                  style={{ ...ghostBtn, marginTop: 6 }}
+                  style={ghostBtn}
                   data-testid="criterion-edit-json"
                 >
                   {messages.criterion.editJson}
@@ -740,7 +767,7 @@ function SimpleCriterionFields({
                   const value = isDateLikeValue ? e.target.value : parseScalar(e.target.value);
                   onChange({ ...criterion, value: [value, range[1] ?? ""] as never });
                 }}
-                style={betweenError ? { ...inputStyle, borderColor: "#FCA5A5" } : inputStyle}
+                style={betweenError ? { ...inputStyle, borderColor: colors.dangerBorder } : inputStyle}
                 data-testid="criterion-simple-low"
               />
             </label>
@@ -756,7 +783,7 @@ function SimpleCriterionFields({
                   const value = isDateLikeValue ? e.target.value : parseScalar(e.target.value);
                   onChange({ ...criterion, value: [range[0] ?? "", value] as never });
                 }}
-                style={betweenError ? { ...inputStyle, borderColor: "#FCA5A5" } : inputStyle}
+                style={betweenError ? { ...inputStyle, borderColor: colors.dangerBorder } : inputStyle}
                 data-testid="criterion-simple-high"
               />
             </label>
@@ -1196,7 +1223,7 @@ function FunctionCriterionFields({
           value={criterion.function.name}
           disabled={disabled}
           onChange={(e) => updateFunction({ name: e.target.value })}
-          style={nameError ? { ...inputStyle, borderColor: "#FCA5A5" } : inputStyle}
+          style={nameError ? { ...inputStyle, borderColor: colors.dangerBorder } : inputStyle}
           data-testid="criterion-fn-name"
           aria-invalid={nameError ? true : undefined}
         />
@@ -1214,7 +1241,7 @@ function FunctionCriterionFields({
           disabled={disabled}
           rows={6}
           data-testid="criterion-fn-config"
-          style={{ ...jsonTextAreaStyle, minHeight: 140, borderColor: configError ? "#FCA5A5" : "#CBD5E1" }}
+          style={{ ...jsonTextAreaStyle, minHeight: 140, borderColor: configError ? colors.dangerBorder : colors.border }}
           aria-invalid={configError ? true : undefined}
         />
         {configError && (
@@ -1225,7 +1252,7 @@ function FunctionCriterionFields({
       </label>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 11, color: "#64748b" }}>{f.precheck}</span>
+        <span style={{ fontSize: 11, color: colors.textTertiary }}>{f.precheck}</span>
         {criterion.function.criterion ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {!disabled && (
@@ -1359,7 +1386,7 @@ function LifecycleCriterionFields({
                 value={low}
                 disabled={disabled}
                 onChange={(e) => onChange({ ...criterion, value: [parseScalar(e.target.value), range[1] ?? ""] as never })}
-                style={betweenError ? { ...inputStyle, borderColor: "#FCA5A5" } : inputStyle}
+                style={betweenError ? { ...inputStyle, borderColor: colors.dangerBorder } : inputStyle}
                 data-testid="criterion-lifecycle-low"
               />
             </label>
@@ -1370,7 +1397,7 @@ function LifecycleCriterionFields({
                 value={high}
                 disabled={disabled}
                 onChange={(e) => onChange({ ...criterion, value: [range[0] ?? "", parseScalar(e.target.value)] as never })}
-                style={betweenError ? { ...inputStyle, borderColor: "#FCA5A5" } : inputStyle}
+                style={betweenError ? { ...inputStyle, borderColor: colors.dangerBorder } : inputStyle}
                 data-testid="criterion-lifecycle-high"
               />
             </label>
@@ -1444,7 +1471,7 @@ function ArrayCriterionFields({
       </label>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 12, color: "#475569" }}>{a.values}</span>
+        <span style={{ fontSize: 12, color: colors.textSecondary }}>{a.values}</span>
         {criterion.value.map((v, idx) => (
           <div key={`${v}-${idx}`} style={{ display: "flex", gap: 4, alignItems: "center" }} data-testid={`criterion-array-item-${idx}`}>
             <span style={arrayValueStyle}>{v}</span>
@@ -1796,10 +1823,10 @@ const OPERATOR_LABELS: Partial<Record<OperatorType, string>> = {
 function SectionHeader({ label, badge }: { label: string; badge: string }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>
+      <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.textSecondary }}>
         {label}
       </span>
-      <span style={{ fontSize: 11, padding: "1px 6px", background: "#F1F5F9", borderRadius: 999, color: "#64748b" }}>
+      <span style={{ fontSize: 11, padding: "1px 6px", background: colors.surfaceMuted, borderRadius: radii.pill, color: colors.textTertiary }}>
         {badge}
       </span>
     </div>
@@ -1811,18 +1838,18 @@ const cardStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 8,
   padding: 10,
-  border: "1px solid #CBD5E1",
-  borderRadius: 6,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.md,
   background: "white",
 };
-const summaryTextStyle: React.CSSProperties = { margin: 0, fontSize: 12, color: "#475569", lineHeight: 1.45 };
+const summaryTextStyle: React.CSSProperties = { margin: 0, fontSize: 12, color: colors.textSecondary, lineHeight: 1.45 };
 const warningCardStyle: React.CSSProperties = {
   margin: 0,
   padding: "6px 8px",
-  background: "#FFFBEB",
-  border: "1px solid #FCD34D",
-  borderRadius: 4,
-  color: "#92400E",
+  background: colors.warningBg,
+  border: `1px solid ${colors.warningBorder}`,
+  borderRadius: radii.sm,
+  color: colors.warning,
   fontSize: 11,
 };
 const modalStyle: React.CSSProperties = {
@@ -1835,9 +1862,9 @@ const modalStyle: React.CSSProperties = {
 const modalBodyStyle: React.CSSProperties = {
   overflow: "auto",
   padding: 12,
-  border: "1px solid #E2E8F0",
-  borderRadius: 6,
-  background: "#F8FAFC",
+  border: `1px solid ${colors.borderSubtle}`,
+  borderRadius: radii.md,
+  background: colors.surfaceMuted,
 };
 const modalFooterStyle: React.CSSProperties = {
   display: "flex",
@@ -1846,35 +1873,44 @@ const modalFooterStyle: React.CSSProperties = {
   position: "sticky",
   bottom: 0,
   paddingTop: 10,
-  borderTop: "1px solid #E2E8F0",
+  borderTop: `1px solid ${colors.borderSubtle}`,
   background: "white",
 };
-const advancedStyle: React.CSSProperties = { minWidth: 130 };
+const advancedStyle: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+  gap: 6,
+  minWidth: 130,
+};
 const advancedSummaryStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 4,
   padding: 0,
   border: 0,
   background: "transparent",
   cursor: "pointer",
   fontSize: 12,
-  color: "#475569",
+  color: colors.textSecondary,
 };
-const subheadingStyle: React.CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, color: "#0F172A" };
-const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "#334155" };
-const inputStyle: React.CSSProperties = { padding: "6px 8px", fontSize: 13, borderWidth: 1, borderStyle: "solid", borderColor: "#CBD5E1", borderRadius: 4, background: "white" };
-const jsonTextAreaStyle: React.CSSProperties = { fontFamily: "monospace", fontSize: 12, padding: 8, borderWidth: 1, borderStyle: "solid", borderColor: "#CBD5E1", borderRadius: 4, background: "white", resize: "vertical" };
-const ghostBtn: React.CSSProperties = { padding: "6px 10px", background: "white", border: "1px solid #CBD5E1", borderRadius: 4, fontSize: 12, cursor: "pointer" };
+const subheadingStyle: React.CSSProperties = { margin: 0, fontSize: 14, fontWeight: 700, color: colors.textPrimary };
+const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary };
+const inputStyle: React.CSSProperties = { padding: "6px 8px", fontSize: 13, borderWidth: 1, borderStyle: "solid", borderColor: colors.border, borderRadius: radii.sm, background: "white" };
+const jsonTextAreaStyle: React.CSSProperties = { fontFamily: fonts.mono, fontSize: 12, padding: 8, borderWidth: 1, borderStyle: "solid", borderColor: colors.border, borderRadius: radii.sm, background: "white", resize: "vertical" };
+const ghostBtn: React.CSSProperties = { padding: "6px 10px", background: "white", border: `1px solid ${colors.border}`, borderRadius: radii.sm, fontSize: 12, cursor: "pointer" };
 const disabledGhostBtn: React.CSSProperties = { ...ghostBtn, opacity: 0.5, cursor: "not-allowed" };
-const primaryBtn: React.CSSProperties = { ...ghostBtn, background: "#0F172A", color: "white", borderColor: "#0F172A" };
+const primaryBtn: React.CSSProperties = { ...ghostBtn, background: colors.primary, color: "white", borderColor: colors.primary };
 const disabledPrimaryBtn: React.CSSProperties = { ...primaryBtn, opacity: 0.5, cursor: "not-allowed" };
-const dangerBtn: React.CSSProperties = { ...ghostBtn, background: "#FEF2F2", borderColor: "#FCA5A5", color: "#B91C1C" };
+const dangerBtn: React.CSSProperties = { ...ghostBtn, background: colors.dangerBg, borderColor: colors.dangerBorder, color: colors.danger };
 const compactGhostBtn: React.CSSProperties = { ...ghostBtn, padding: "4px 7px", fontSize: 11 };
 const disabledCompactGhostBtn: React.CSSProperties = { ...compactGhostBtn, opacity: 0.35, cursor: "not-allowed" };
 const compactDangerBtn: React.CSSProperties = { ...dangerBtn, padding: "4px 7px", fontSize: 11 };
-const errorStyle: React.CSSProperties = { color: "#B91C1C", fontSize: 11 };
-const warningStyle: React.CSSProperties = { color: "#92400E", fontSize: 11 };
-const hintStyle: React.CSSProperties = { color: "#64748B", fontSize: 11, fontStyle: "italic" };
-const depthWarningStyle: React.CSSProperties = { padding: "6px 8px", background: "#FFFBEB", borderWidth: 1, borderStyle: "solid", borderColor: "#FCD34D", borderRadius: 4, color: "#92400E", fontSize: 11 };
-const arrayValueStyle: React.CSSProperties = { flex: 1, fontSize: 12, padding: "4px 6px", background: "#F1F5F9", borderRadius: 3 };
+const errorStyle: React.CSSProperties = { color: colors.danger, fontSize: 11 };
+const warningStyle: React.CSSProperties = { color: colors.warning, fontSize: 11 };
+const hintStyle: React.CSSProperties = { color: colors.textTertiary, fontSize: 11, fontStyle: "italic" };
+const depthWarningStyle: React.CSSProperties = { padding: "6px 8px", background: colors.warningBg, borderWidth: 1, borderStyle: "solid", borderColor: colors.warningBorder, borderRadius: radii.sm, color: colors.warning, fontSize: 11 };
+const arrayValueStyle: React.CSSProperties = { flex: 1, fontSize: 12, padding: "4px 6px", background: colors.surfaceMuted, borderRadius: radii.sm };
 const builderStyle: React.CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -1885,17 +1921,17 @@ const previewStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 3,
   padding: "8px 10px",
-  borderRadius: 6,
+  borderRadius: radii.md,
   background: "white",
-  border: "1px solid #E2E8F0",
-  color: "#0F172A",
+  border: `1px solid ${colors.borderSubtle}`,
+  color: colors.textPrimary,
   fontSize: 13,
 };
 const previewLabelStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   textTransform: "uppercase",
-  color: "#64748B",
+  color: colors.textTertiary,
   letterSpacing: "0.08em",
 };
 const ruleEditorStyle: React.CSSProperties = {
@@ -1903,9 +1939,9 @@ const ruleEditorStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 10,
   padding: 10,
-  borderRadius: 6,
+  borderRadius: radii.md,
   background: "white",
-  border: "1px solid #E2E8F0",
+  border: `1px solid ${colors.borderSubtle}`,
 };
 const ruleEditorHeaderStyle: React.CSSProperties = {
   display: "grid",
@@ -1923,13 +1959,13 @@ const groupBlockStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 10,
   padding: 10,
-  borderRadius: 6,
+  borderRadius: radii.md,
   background: "white",
 };
 const nestedGroupBlockStyle: React.CSSProperties = {
-  borderLeft: "3px solid #CBD5E1",
+  borderLeft: `3px solid ${colors.border}`,
   borderRadius: 0,
-  background: "#F8FAFC",
+  background: colors.surfaceMuted,
   paddingLeft: 12,
 };
 const groupHeaderStyle: React.CSSProperties = {
@@ -1947,19 +1983,19 @@ const matchControlStyle: React.CSSProperties = {
 const matchLabelStyle: React.CSSProperties = {
   marginRight: 4,
   fontSize: 12,
-  color: "#475569",
+  color: colors.textSecondary,
   fontWeight: 600,
 };
 const segmentedStyle: React.CSSProperties = {
   ...ghostBtn,
   padding: "5px 9px",
-  borderRadius: 999,
-  background: "#F8FAFC",
+  borderRadius: radii.pill,
+  background: colors.surfaceMuted,
 };
 const segmentedActiveStyle: React.CSSProperties = {
   ...segmentedStyle,
-  background: "#0F172A",
-  border: "1px solid #0F172A",
+  background: colors.primary,
+  border: `1px solid ${colors.primary}`,
   color: "white",
 };
 const ruleListStyle: React.CSSProperties = {
@@ -1977,9 +2013,9 @@ const connectorChipStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   padding: "2px 7px",
-  borderRadius: 999,
-  color: "#475569",
-  background: "#E2E8F0",
+  borderRadius: radii.pill,
+  color: colors.textSecondary,
+  background: colors.borderSubtle,
   letterSpacing: "0.04em",
 };
 const ruleRowStyle: React.CSSProperties = {
@@ -1987,19 +2023,19 @@ const ruleRowStyle: React.CSSProperties = {
   flexDirection: "column",
   gap: 8,
   padding: "7px 8px",
-  borderRadius: 6,
-  background: "#F8FAFC",
-  border: "1px solid #E2E8F0",
+  borderRadius: radii.md,
+  background: colors.surfaceMuted,
+  border: `1px solid ${colors.borderSubtle}`,
 };
 const activeRuleRowStyle: React.CSSProperties = {
   ...ruleRowStyle,
-  background: "#FFFFFF",
-  border: "1px solid #94A3B8",
+  background: "white",
+  border: `1px solid ${colors.textTertiary}`,
 };
 const invalidRuleRowStyle: React.CSSProperties = {
   ...ruleRowStyle,
-  background: "#FFFBEB",
-  border: "1px solid #FCD34D",
+  background: colors.warningBg,
+  border: `1px solid ${colors.warningBorder}`,
   cursor: "pointer",
 };
 const ruleRowHeaderStyle: React.CSSProperties = {
@@ -2031,22 +2067,22 @@ const rowMenuPanelStyle: React.CSSProperties = {
   gap: 4,
   padding: 6,
   marginTop: 4,
-  border: "1px solid #CBD5E1",
-  borderRadius: 6,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.md,
   background: "white",
   boxShadow: "0 8px 20px rgba(15, 23, 42, 0.14)",
 };
 const okPillStyle: React.CSSProperties = {
   fontSize: 10,
   padding: "2px 6px",
-  borderRadius: 999,
+  borderRadius: radii.pill,
   background: "#ECFDF5",
   color: "#047857",
 };
 const errorPillStyle: React.CSSProperties = {
   ...okPillStyle,
-  background: "#FEF2F2",
-  color: "#B91C1C",
+  background: colors.dangerBg,
+  color: colors.danger,
 };
 const addMenuStyle: React.CSSProperties = {
   display: "flex",
@@ -2055,9 +2091,9 @@ const addMenuStyle: React.CSSProperties = {
   gap: 6,
   marginTop: 6,
   padding: 8,
-  borderRadius: 6,
-  background: "#F8FAFC",
-  border: "1px solid #E2E8F0",
+  borderRadius: radii.md,
+  background: colors.surfaceMuted,
+  border: `1px solid ${colors.borderSubtle}`,
 };
 const groupActionsStyle: React.CSSProperties = {
   display: "flex",
@@ -2066,10 +2102,10 @@ const groupActionsStyle: React.CSSProperties = {
 };
 const emptyGroupStyle: React.CSSProperties = {
   padding: "8px 10px",
-  borderRadius: 6,
-  border: "1px dashed #CBD5E1",
-  background: "#F8FAFC",
-  color: "#64748B",
+  borderRadius: radii.md,
+  border: `1px dashed ${colors.border}`,
+  background: colors.surfaceMuted,
+  color: colors.textTertiary,
   fontSize: 12,
 };
 const conditionIndexStyle: React.CSSProperties = {
@@ -2078,18 +2114,18 @@ const conditionIndexStyle: React.CSSProperties = {
   justifyContent: "center",
   width: 22,
   height: 22,
-  borderRadius: 999,
-  background: "#E2E8F0",
-  color: "#334155",
+  borderRadius: radii.pill,
+  background: colors.borderSubtle,
+  color: colors.textSecondary,
   fontSize: 11,
   fontWeight: 700,
 };
 const criterionTypeBadgeStyle: React.CSSProperties = {
   fontSize: 11,
   padding: "1px 6px",
-  borderRadius: 999,
-  background: "#F1F5F9",
-  color: "#475569",
+  borderRadius: radii.pill,
+  background: colors.surfaceMuted,
+  color: colors.textSecondary,
   flexShrink: 0,
 };
 const conditionSummaryStyle: React.CSSProperties = {
@@ -2098,9 +2134,9 @@ const conditionSummaryStyle: React.CSSProperties = {
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
   fontSize: 12,
-  color: "#334155",
+  color: colors.textSecondary,
 };
 const nestedEditorStyle: React.CSSProperties = {
   paddingTop: 8,
-  borderTop: "1px solid #E2E8F0",
+  borderTop: `1px solid ${colors.borderSubtle}`,
 };

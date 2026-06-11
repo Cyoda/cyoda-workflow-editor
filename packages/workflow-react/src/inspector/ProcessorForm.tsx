@@ -8,6 +8,7 @@ import {
   type Workflow,
 } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, radii } from "../style/tokens.js";
 import { CustomSelectInput } from "./fields.js";
 import { ModalFrame } from "../modals/DeleteStateModal.js";
 
@@ -294,7 +295,7 @@ export function ProcessorEditorModal({
           <h2 id="processor-modal-title" style={{ margin: 0, fontSize: 18 }}>
             {title}
           </h2>
-          <p style={{ margin: 0, fontSize: 12, color: "#64748B" }}>
+          <p style={{ margin: 0, fontSize: 12, color: colors.textTertiary }}>
             Processor changes stay local until Apply.
           </p>
         </header>
@@ -560,7 +561,7 @@ export function ProcessorForm({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <strong style={{ fontSize: 13 }}>{processor.name}</strong>
-          <span style={{ fontSize: 12, color: "#475569" }}>{summarizeProcessor(processor)}</span>
+          <span style={{ fontSize: 12, color: colors.textSecondary }}>{summarizeProcessor(processor)}</span>
         </div>
         <span style={chipStyle}>{processor.type}</span>
       </div>
@@ -648,22 +649,22 @@ function collectProcessorNames(workflow: Workflow, transitionUuid: string): stri
 
 const labelStyle = {
   fontSize: 12,
-  color: "#475569",
+  color: colors.textSecondary,
   marginBottom: 2,
 };
 
 const inputStyle = {
   padding: "6px 8px",
   fontSize: 13,
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   background: "white",
 };
 
 const disabledInputStyle = {
   ...inputStyle,
-  background: "#F8FAFC",
-  color: "#94A3B8",
+  background: colors.surfaceMuted,
+  color: colors.textTertiary,
 };
 
 const modalStyle = {
@@ -691,33 +692,33 @@ const checkboxRowStyle = {
   alignItems: "center",
   gap: 6,
   fontSize: 12,
-  color: "#334155",
+  color: colors.textSecondary,
   cursor: "pointer",
 };
 
 const errorStyle = {
   padding: "8px 10px",
-  border: "1px solid #FCA5A5",
-  background: "#FEF2F2",
-  borderRadius: 6,
-  color: "#991B1B",
+  border: `1px solid ${colors.dangerBorder}`,
+  background: colors.dangerBg,
+  borderRadius: radii.md,
+  color: colors.danger,
   fontSize: 12,
 };
 
 const ghostBtn = {
   padding: "6px 10px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 12,
   cursor: "pointer",
 };
 
 const primaryBtn = {
   ...ghostBtn,
-  background: "#0F172A",
+  background: colors.primary,
   color: "white",
-  borderColor: "#0F172A",
+  borderColor: colors.primary,
 };
 
 const disabledPrimaryBtn = {
@@ -728,17 +729,17 @@ const disabledPrimaryBtn = {
 
 const dangerBtn = {
   ...ghostBtn,
-  background: "#FEF2F2",
-  borderColor: "#FCA5A5",
-  color: "#B91C1C",
+  background: colors.dangerBg,
+  borderColor: colors.dangerBorder,
+  color: colors.danger,
 };
 
 const chipStyle = {
   fontSize: 11,
   padding: "2px 6px",
-  borderRadius: 999,
-  background: "#E2E8F0",
-  color: "#334155",
+  borderRadius: radii.pill,
+  background: colors.borderSubtle,
+  color: colors.textSecondary,
   textTransform: "lowercase" as const,
 };
 
@@ -747,7 +748,7 @@ const summaryCardStyle = {
   flexDirection: "column" as const,
   gap: 8,
   padding: 10,
-  border: "1px solid #CBD5E1",
-  borderRadius: 6,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.md,
   background: "white",
 };

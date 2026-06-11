@@ -11,6 +11,7 @@ import type {
 } from "@cyoda/workflow-core";
 import { NAME_REGEX } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, radii } from "../style/tokens.js";
 import { CheckboxField, CustomSelectInput, FieldGroup, SelectField, TextField } from "./fields.js";
 import { CriterionSection } from "./CriterionForm.js";
 import {
@@ -143,7 +144,7 @@ export function TransitionForm({
           testId="inspector-transition-name"
         />
         {renameError && (
-          <div role="alert" style={{ color: "#B91C1C", fontSize: 12 }}>
+          <div role="alert" style={{ color: colors.danger, fontSize: 12 }}>
             {renameError}
           </div>
         )}
@@ -227,7 +228,7 @@ export function TransitionForm({
           <p
             style={{
               fontSize: 11,
-              color: "#64748B",
+              color: colors.textTertiary,
               margin: 0,
               lineHeight: 1.4,
             }}
@@ -237,7 +238,7 @@ export function TransitionForm({
           </p>
         </div>
 
-        <hr style={{ border: "none", borderTop: "1px solid #E2E8F0", margin: 0 }} />
+        <hr style={{ border: "none", borderTop: `1px solid ${colors.borderSubtle}`, margin: 0 }} />
 
         <button
           type="button"
@@ -249,7 +250,7 @@ export function TransitionForm({
           Delete transition
         </button>
 
-        <hr style={{ border: "none", borderTop: "1px solid #E2E8F0", margin: 0 }} />
+        <hr style={{ border: "none", borderTop: `1px solid ${colors.borderSubtle}`, margin: 0 }} />
 
         {/* Inline validation issues */}
         {issues && issues.length > 0 && (
@@ -260,11 +261,11 @@ export function TransitionForm({
                 role="alert"
                 style={{
                   padding: "4px 8px",
-                  background: issue.severity === "error" ? "#FEF2F2" : "#FFFBEB",
-                  border: `1px solid ${issue.severity === "error" ? "#FCA5A5" : "#FCD34D"}`,
-                  borderRadius: 4,
+                  background: issue.severity === "error" ? colors.dangerBg : colors.warningBg,
+                  border: `1px solid ${issue.severity === "error" ? colors.dangerBorder : colors.warningBorder}`,
+                  borderRadius: radii.sm,
                   fontSize: 12,
-                  color: issue.severity === "error" ? "#B91C1C" : "#B45309",
+                  color: issue.severity === "error" ? colors.danger : colors.warning,
                 }}
               >
                 {issue.message}
@@ -454,7 +455,7 @@ const transitionSectionStyle = {
   flexDirection: "column" as const,
   gap: 8,
   paddingTop: 12,
-  borderTop: "1px solid #E2E8F0",
+  borderTop: `1px solid ${colors.borderSubtle}`,
 };
 
 const sectionHeaderStyle = {
@@ -462,23 +463,23 @@ const sectionHeaderStyle = {
   fontWeight: 600,
   letterSpacing: "0.08em",
   textTransform: "uppercase" as const,
-  color: "#475569",
+  color: colors.textSecondary,
 };
 
 const ghostBtn = {
   padding: "4px 8px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 12,
   cursor: "pointer",
 };
 
 const dangerBtn = {
   ...ghostBtn,
-  background: "#FEF2F2",
-  borderColor: "#FCA5A5",
-  color: "#B91C1C",
+  background: colors.dangerBg,
+  borderColor: colors.dangerBorder,
+  color: colors.danger,
 };
 
 const processorRowStyle = {
@@ -486,8 +487,8 @@ const processorRowStyle = {
   flexDirection: "column" as const,
   gap: 10,
   padding: 10,
-  border: "1px solid #CBD5E1",
-  borderRadius: 6,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.md,
   background: "white",
 };
 
@@ -495,36 +496,36 @@ const processorTypeChipStyle = {
   fontSize: 11,
   padding: "2px 6px",
   borderRadius: 999,
-  background: "#E2E8F0",
-  color: "#334155",
+  background: colors.borderSubtle,
+  color: colors.textSecondary,
   textTransform: "lowercase" as const,
 };
 
 const processorOrderStyle = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#475569",
+  color: colors.textSecondary,
   minWidth: 18,
 };
 
 const summaryTextStyle = {
   margin: 0,
   fontSize: 12,
-  color: "#475569",
+  color: colors.textSecondary,
   lineHeight: 1.45,
 };
 
 const processorHelperStyle = {
   margin: 0,
   fontSize: 12,
-  color: "#64748B",
+  color: colors.textTertiary,
 };
 
 const emptyProcessorStateStyle = {
   padding: 10,
-  border: "1px dashed #CBD5E1",
-  borderRadius: 6,
-  background: "#F8FAFC",
+  border: `1px dashed ${colors.border}`,
+  borderRadius: radii.md,
+  background: colors.surfaceMuted,
 };
 
 function AnchorSelect({
@@ -559,7 +560,7 @@ function AnchorSelect({
   ] as const;
 
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "#334155" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary }}>
       <span style={{ fontWeight: 500 }}>{label}</span>
       <CustomSelectInput
         value={value ?? ""}

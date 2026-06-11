@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NAME_REGEX, type State } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, radii } from "../style/tokens.js";
 import { ModalFrame } from "./DeleteStateModal.js";
 
 export interface DragConnectModalProps {
@@ -38,11 +39,11 @@ export function DragConnectModal({
   return (
     <ModalFrame onCancel={onCancel}>
       <h2 style={{ margin: 0, fontSize: 16 }}>{messages.dragConnect.title}</h2>
-      <p style={{ margin: "6px 0 14px", fontSize: 12, color: "#475569" }}>
+      <p style={{ margin: "6px 0 14px", fontSize: 12, color: colors.textSecondary }}>
         {fromState} → {toState}
       </p>
       <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: 12, color: "#475569" }}>{messages.dragConnect.transitionName}</span>
+        <span style={{ fontSize: 12, color: colors.textSecondary }}>{messages.dragConnect.transitionName}</span>
         <input
           type="text"
           value={name}
@@ -51,8 +52,8 @@ export function DragConnectModal({
           style={{
             padding: "6px 8px",
             fontSize: 13,
-            border: "1px solid #CBD5E1",
-            borderRadius: 4,
+            border: `1px solid ${colors.border}`,
+            borderRadius: radii.sm,
           }}
           data-testid="dragconnect-name"
           autoFocus
@@ -89,19 +90,19 @@ export function DragConnectModal({
 const errorMsg = {
   marginTop: 6,
   fontSize: 12,
-  color: "#B91C1C",
+  color: colors.danger,
 };
 const ghostBtn = {
   padding: "6px 12px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 13,
   cursor: "pointer",
 };
 const primaryBtn = {
   ...ghostBtn,
-  background: "#0F172A",
+  background: colors.primary,
   color: "white",
-  borderColor: "#0F172A",
+  borderColor: colors.primary,
 };

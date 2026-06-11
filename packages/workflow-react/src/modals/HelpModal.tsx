@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { workflowPalette } from "@cyoda/workflow-viewer/theme";
 import { useMessages } from "../i18n/context.js";
-import { ghostBtnStyle } from "../style/tokens.js";
+import { colors, fonts, ghostBtnStyle, radii } from "../style/tokens.js";
 import { ModalFrame } from "./DeleteStateModal.js";
 
 export interface HelpModalProps {
@@ -38,8 +38,8 @@ export function HelpModal({ onCancel }: HelpModalProps) {
             <ColorRow fill={node.processing.fill} border={node.processing.border} label={h.stateProcessing} />
             <ColorRow fill={node.manualReview.fill} border={node.manualReview.border} label={h.stateManualReview} />
             <ColorRow fill={node.terminal.fill} border={node.terminal.border} label={h.stateTerminal} />
-            <ColorRow fill="#FFFFFF" border="#DC2626" label={h.stateError} />
-            <ColorRow fill="#FFFFFF" border="#D97706" label={h.stateWarning} />
+            <ColorRow fill="#FFFFFF" border={colors.danger} label={h.stateError} />
+            <ColorRow fill="#FFFFFF" border={colors.warning} label={h.stateWarning} />
           </Section>
 
           <Section title={h.transitionsTitle}>
@@ -63,7 +63,7 @@ export function HelpModal({ onCancel }: HelpModalProps) {
           </Section>
 
           <Section title={h.tipsTitle}>
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: "#475569", display: "flex", flexDirection: "column", gap: 6 }}>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: colors.textSecondary, display: "flex", flexDirection: "column", gap: 6 }}>
               <li>{h.tipDoubleClick}</li>
               <li>{h.tipConnect}</li>
               <li>{h.tipSelect}</li>
@@ -92,7 +92,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
           fontWeight: 700,
           textTransform: "uppercase",
           letterSpacing: "0.06em",
-          color: "#94A3B8",
+          color: colors.textTertiary,
         }}
       >
         {title}
@@ -104,12 +104,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function ColorRow({ fill, border, label }: { fill: string; border: string; label: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#1E293B" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: colors.textPrimary }}>
       <span
         style={{
           width: 22,
           height: 14,
-          borderRadius: 4,
+          borderRadius: radii.sm,
           background: fill,
           border: `1.5px solid ${border}`,
           flexShrink: 0,
@@ -122,7 +122,7 @@ function ColorRow({ fill, border, label }: { fill: string; border: string; label
 
 function LineRow({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#1E293B" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: colors.textPrimary }}>
       <svg width="28" height="14" style={{ flexShrink: 0 }} aria-hidden="true">
         <line
           x1="2"
@@ -142,19 +142,19 @@ function LineRow({ color, label, dashed }: { color: string; label: string; dashe
 
 function ShortcutRow({ keys, label }: { keys: string; label: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: "#1E293B" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, color: colors.textPrimary }}>
       <kbd
         style={{
           width: 104,
           boxSizing: "border-box",
           textAlign: "center",
           padding: "2px 6px",
-          background: "#F1F5F9",
-          border: "1px solid #CBD5E1",
-          borderRadius: 4,
+          background: colors.surfaceMuted,
+          border: `1px solid ${colors.border}`,
+          borderRadius: radii.sm,
           fontSize: 12,
-          fontFamily: "ui-monospace, monospace",
-          color: "#334155",
+          fontFamily: fonts.mono,
+          color: colors.textSecondary,
           whiteSpace: "nowrap",
           flexShrink: 0,
         }}

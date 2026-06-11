@@ -8,6 +8,7 @@ import type {
 import { serializeEditorDocument } from "@cyoda/workflow-core";
 import { useEditorConfig, useMessages } from "../i18n/context.js";
 import type { Selection } from "../state/types.js";
+import { colors, fonts, radii, severityTone } from "../style/tokens.js";
 import { processorUuidsInOrder, resolveSelection } from "./resolve.js";
 import { WorkflowForm } from "./WorkflowForm.js";
 import { StateForm } from "./StateForm.js";
@@ -81,20 +82,21 @@ export function Inspector({
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: "#F8FAFC",
-        borderLeft: "1px solid #E2E8F0",
+        background: colors.surfaceMuted,
+        borderLeft: `1px solid ${colors.borderSubtle}`,
         flex: `0 0 ${width}px`,
         width,
         minWidth: 360,
+        fontFamily: fonts.sans,
       }}
       data-testid="inspector"
     >
       <header
         style={{
           padding: "10px 12px",
-          borderBottom: "1px solid #E2E8F0",
+          borderBottom: `1px solid ${colors.borderSubtle}`,
           fontSize: 12,
-          color: "#475569",
+          color: colors.textSecondary,
           display: "flex",
           alignItems: "center",
           gap: 8,
@@ -112,10 +114,10 @@ export function Inspector({
             style={{
               width: 24,
               height: 24,
-              border: "1px solid #CBD5E1",
-              borderRadius: 4,
+              border: `1px solid ${colors.border}`,
+              borderRadius: radii.sm,
               background: "white",
-              color: "#334155",
+              color: colors.textSecondary,
               cursor: "pointer",
               fontSize: 18,
               lineHeight: "18px",
@@ -130,7 +132,7 @@ export function Inspector({
         )}
       </header>
       {developerMode && (
-        <div style={{ display: "flex", borderBottom: "1px solid #E2E8F0" }}>
+        <div style={{ display: "flex", borderBottom: `1px solid ${colors.borderSubtle}` }}>
           <TabButton
             active={effectiveTab === "properties"}
             onClick={() => setTab("properties")}
@@ -245,7 +247,7 @@ function TabButton({
         padding: "8px 12px",
         background: active ? "white" : "transparent",
         border: "none",
-        borderBottom: active ? "2px solid #0F172A" : "2px solid transparent",
+        borderBottom: active ? `2px solid ${colors.primary}` : "2px solid transparent",
         fontSize: 13,
         fontWeight: active ? 600 : 400,
         cursor: "pointer",
@@ -257,7 +259,7 @@ function TabButton({
 }
 
 function EmptyState({ message }: { message: string }) {
-  return <p style={{ color: "#64748B", fontSize: 13 }}>{message}</p>;
+  return <p style={{ color: colors.textTertiary, fontSize: 13 }}>{message}</p>;
 }
 
 function IssuesList({
@@ -269,37 +271,29 @@ function IssuesList({
 }) {
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <header style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>
+      <header style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.textSecondary }}>
         {title}
       </header>
-      {issues.map((issue, i) => (
-        <div
-          key={`${issue.code}-${i}`}
-          style={{
-            padding: 8,
-            border: `1px solid ${severityBorder(issue.severity)}`,
-            background: severityBackground(issue.severity),
-            borderRadius: 4,
-            fontSize: 12,
-          }}
-        >
-          <strong>{issue.code}</strong>
-          <div>{issue.message}</div>
-        </div>
-      ))}
+      {issues.map((issue, i) => {
+        const tone = severityTone(issue.severity);
+        return (
+          <div
+            key={`${issue.code}-${i}`}
+            style={{
+              padding: 8,
+              border: `1px solid ${tone.border}`,
+              background: tone.bg,
+              borderRadius: radii.sm,
+              fontSize: 12,
+            }}
+          >
+            <strong>{issue.code}</strong>
+            <div>{issue.message}</div>
+          </div>
+        );
+      })}
     </section>
   );
-}
-
-function severityBorder(severity: ValidationIssue["severity"]): string {
-  if (severity === "error") return "#FCA5A5";
-  if (severity === "warning") return "#FCD34D";
-  return "#93C5FD";
-}
-function severityBackground(severity: ValidationIssue["severity"]): string {
-  if (severity === "error") return "#FEF2F2";
-  if (severity === "warning") return "#FFFBEB";
-  return "#EFF6FF";
 }
 
 function JsonPreview({
@@ -320,13 +314,13 @@ function JsonPreview({
   return (
     <pre
       style={{
-        fontFamily: "ui-monospace, 'SF Mono', Menlo, monospace",
+        fontFamily: fonts.mono,
         fontSize: 12,
         margin: 0,
         padding: 8,
         background: "white",
-        border: "1px solid #E2E8F0",
-        borderRadius: 4,
+        border: `1px solid ${colors.borderSubtle}`,
+        borderRadius: radii.sm,
         flex: 1,
         minHeight: 0,
         minWidth: 0,
