@@ -373,7 +373,7 @@ export function WorkflowEditor({
     // Clear all pinned positions so ELK can arrange everything from scratch.
     const workflowUi = { ...state.document.meta.workflowUi };
     const current = workflowUi[workflow] ?? {};
-    workflowUi[workflow] = { ...current, layout: undefined };
+    workflowUi[workflow] = { ...current, layout: undefined, edgeAnchors: undefined };
     actions.silentReplace(
       { session: state.document.session, meta: { ...state.document.meta, workflowUi } },
       { preserveEditorState: true },
