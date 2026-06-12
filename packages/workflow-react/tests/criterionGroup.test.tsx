@@ -420,6 +420,48 @@ describe("GroupCriterionFields", () => {
     expect(next?.conditions).toEqual([SIMPLE_B, SIMPLE_A, SIMPLE_C]);
   });
 
+  it("moving an unrelated row does not steal focus from another row's open editor", () => {
+    const { getByTestId, queryByTestId } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [SIMPLE_A, SIMPLE_B, SIMPLE_C],
+    });
+
+    fireEvent.click(getByTestId("criterion-group-edit-2"));
+    expect(getByTestId("criterion-group-editor-2")).toBeTruthy();
+
+    fireEvent.click(getByTestId("criterion-group-move-down-0"));
+
+    expect(getByTestId("criterion-group-editor-2")).toBeTruthy();
+    expect((getByTestId("criterion-simple-path") as HTMLInputElement).value).toBe("$.c");
+    expect(queryByTestId("criterion-group-editor-1")).toBeNull();
+  });
+
+  it("reordering resyncs the function config editor instead of leaving a stale error", () => {
+    const FN_Y: Criterion = {
+      type: "function",
+      function: { name: "yFn", config: { responseTimeoutMs: 1000 } },
+    };
+    const FN_X: Criterion = {
+      type: "function",
+      function: { name: "xFn", config: { responseTimeoutMs: 2000 } },
+    };
+    const { getByTestId } = renderGroup({
+      type: "group",
+      operator: "AND",
+      conditions: [FN_Y, FN_X],
+    });
+
+    fireEvent.click(getByTestId("criterion-group-edit-0"));
+    fireEvent.change(getByTestId("criterion-fn-config"), { target: { value: "{not-json" } });
+    expect((getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(getByTestId("criterion-group-move-up-1"));
+
+    expect((getByTestId("criterion-fn-config") as HTMLTextAreaElement).value).toContain('"responseTimeoutMs": 2000');
+    expect((getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(false);
+  });
+
   it("Duplicate inserts a structural clone after the targeted index", () => {
     const { getByTestId, onDispatch } = renderGroup({
       type: "group",

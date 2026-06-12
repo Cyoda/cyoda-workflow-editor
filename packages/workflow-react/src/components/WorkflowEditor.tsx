@@ -354,7 +354,7 @@ export function WorkflowEditor({
   const handleNodeDragStop = useCallback(
     (nodeId: string, _x: number, _y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
       const ids = state.document.meta.ids.states;
-      const patches: import("@cyoda/workflow-core").DomainPatch[] = [];
+      const patches: DomainPatch[] = [];
       for (const { id, x, y } of allPositions) {
         const ptr = ids[id];
         if (!ptr) continue;

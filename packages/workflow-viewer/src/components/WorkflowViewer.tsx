@@ -139,9 +139,9 @@ export function WorkflowViewer({
 
 
   // Pre-compute fallback label positions with collision avoidance.
-  // Only used when effectiveLayout has no .edges (the ELK path already provides label coords).
+  // Only used when effectiveLayout has no edge routes (the ELK path provides its own label coords).
   const fallbackLabelPositions = useMemo(() => {
-    if (effectiveLayout.edges) return null;
+    if (effectiveLayout.edges && effectiveLayout.edges.size > 0) return null;
     const CHAR_W = 6.5;
     const PILL_H = 24;
     const items = transitionEdges.flatMap((edge) => {

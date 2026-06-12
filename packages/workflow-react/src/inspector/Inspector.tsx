@@ -193,6 +193,7 @@ export function Inspector({
                 processor={resolved.processor}
                 processorUuid={resolved.processorUuid}
                 processorIndex={resolved.processorIndex}
+                transition={resolved.transition}
                 transitionUuid={resolved.transitionUuid}
                 workflow={resolved.workflow}
                 disabled={readOnly}

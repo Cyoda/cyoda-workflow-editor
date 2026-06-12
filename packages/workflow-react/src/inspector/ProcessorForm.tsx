@@ -5,6 +5,7 @@ import {
   type ExecutionMode,
   type ExternalizedProcessor,
   type Processor,
+  type Transition,
   type Workflow,
 } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
@@ -540,6 +541,7 @@ export function ProcessorForm({
   processor,
   processorUuid,
   processorIndex,
+  transition,
   transitionUuid,
   workflow,
   disabled,
@@ -548,6 +550,7 @@ export function ProcessorForm({
   processor: Processor;
   processorUuid: string;
   processorIndex: number;
+  transition: Transition;
   transitionUuid: string;
   workflow?: Workflow;
   disabled: boolean;
@@ -616,7 +619,9 @@ export function ProcessorForm({
           title={`Edit ${processor.name}`}
           workflow={workflow}
           initialProcessor={processor}
-          existingNames={workflow ? collectProcessorNames(workflow, transitionUuid) : [processor.name]}
+          existingNames={(transition.processors ?? [])
+            .filter((_p, index) => index !== processorIndex)
+            .map((p) => p.name)}
           disabled={disabled}
           onCancel={() => setModalOpen(false)}
           onApply={(nextProcessor) => {
@@ -631,20 +636,6 @@ export function ProcessorForm({
       )}
     </div>
   );
-}
-
-function collectProcessorNames(workflow: Workflow, transitionUuid: string): string[] {
-  const names: string[] = [];
-  for (const state of Object.values(workflow.states)) {
-    for (const transition of state.transitions) {
-      if (!transition.processors) continue;
-      if (transitionUuid === "") continue;
-      for (const processor of transition.processors) {
-        if (!names.includes(processor.name)) names.push(processor.name);
-      }
-    }
-  }
-  return names;
 }
 
 const labelStyle = {

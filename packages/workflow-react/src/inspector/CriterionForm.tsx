@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ArrayCriterion,
   Criterion,
@@ -938,14 +938,24 @@ function RuleGroupBlock({
               const next = [...criterion.conditions];
               [next[idx - 1], next[idx]] = [next[idx]!, next[idx - 1]!];
               onChange({ ...criterion, conditions: next });
-              onActiveKeyChange(`${pathKey}.conditions.${idx - 1}`);
+              if (
+                isActivePath(activeKey, `${pathKey}.conditions.${idx - 1}`) ||
+                isActivePath(activeKey, `${pathKey}.conditions.${idx}`)
+              ) {
+                onActiveKeyChange(`${pathKey}.conditions.${idx - 1}`);
+              }
             }}
             onMoveDown={() => {
               if (idx >= criterion.conditions.length - 1) return;
               const next = [...criterion.conditions];
               [next[idx], next[idx + 1]] = [next[idx + 1]!, next[idx]!];
               onChange({ ...criterion, conditions: next });
-              onActiveKeyChange(`${pathKey}.conditions.${idx + 1}`);
+              if (
+                isActivePath(activeKey, `${pathKey}.conditions.${idx}`) ||
+                isActivePath(activeKey, `${pathKey}.conditions.${idx + 1}`)
+              ) {
+                onActiveKeyChange(`${pathKey}.conditions.${idx + 1}`);
+              }
             }}
             onDuplicate={() => {
               const next = [...criterion.conditions];
@@ -1174,6 +1184,11 @@ function FunctionCriterionFields({
   const [configText, setConfigText] = useState(() =>
     criterion.function.config ? JSON.stringify(criterion.function.config, null, 2) : "",
   );
+  const syncedConfigRef = useRef(criterion.function.config);
+  if (criterion.function.config !== syncedConfigRef.current) {
+    syncedConfigRef.current = criterion.function.config;
+    setConfigText(criterion.function.config ? JSON.stringify(criterion.function.config, null, 2) : "");
+  }
   const configKey = `${pathKey}.function.config`;
 
   const nameError = criterion.function.name === ""
@@ -1203,12 +1218,15 @@ function FunctionCriterionFields({
   const updateConfig = (value: string) => {
     setConfigText(value);
     if (value.trim() === "") {
+      syncedConfigRef.current = undefined;
       const { config: _config, ...rest } = criterion.function;
       onChange({ type: "function", function: rest });
       return;
     }
     try {
-      updateFunction({ config: JSON.parse(value) });
+      const parsed = JSON.parse(value);
+      syncedConfigRef.current = parsed;
+      updateFunction({ config: parsed });
     } catch {
       // Keep invalid JSON local until the user fixes it.
     }
@@ -1693,6 +1711,12 @@ function criterionBlockingError(criterion: Criterion): string | null {
       return jsonPathBlockingError(criterion.jsonPath);
     case "lifecycle":
       if (!NAME_REGEX.test(criterion.field)) return null;
+      if (
+        OPERATOR_VALUE_SHAPE[criterion.operation] === "scalar" &&
+        (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
+      ) {
+        return "Value is required.";
+      }
       return rangeBlockingError(criterion.operation, criterion.value);
     case "function":
       if (!criterion.function.name || !NAME_REGEX.test(criterion.function.name)) {

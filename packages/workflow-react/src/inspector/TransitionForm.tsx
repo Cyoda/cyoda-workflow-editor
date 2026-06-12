@@ -139,6 +139,7 @@ export function TransitionForm({
         <TextField
           label={messages.inspector.name}
           value={transition.name}
+          entityKey={transitionUuid}
           disabled={disabled}
           onCommit={handleRename}
           testId="inspector-transition-name"

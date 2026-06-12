@@ -54,6 +54,7 @@ export function StateForm({
       <TextField
         label={messages.inspector.name}
         value={stateCode}
+        entityKey={`${workflow.name}:${stateCode}`}
         disabled={disabled}
         onCommit={handleRename}
         testId="inspector-state-name"

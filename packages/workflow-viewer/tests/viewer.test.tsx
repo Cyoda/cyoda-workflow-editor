@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { parseImportPayload } from "@cyoda/workflow-core";
-import { projectToGraph } from "@cyoda/workflow-graph";
+import { projectToGraph, type TransitionEdge } from "@cyoda/workflow-graph";
 import { WorkflowViewer } from "../src/index.js";
 import { computeEdgeGeometry } from "../src/components/EdgePath.js";
 import { nudgeLabels } from "../src/layout.js";
 import { laneDashArray } from "../src/theme/lane.js";
+import { workflowPalette } from "../src/theme/tokens.js";
 
 afterEach(() => cleanup());
 
@@ -359,6 +360,77 @@ describe("WorkflowViewer", () => {
 
     expect(laneDashArray(manualEdge)).toBe("2 4");
     expect(laneDashArray(automaticEdge)).toBeUndefined();
+  });
+
+  test("nudges overlapping edge labels apart even when the supplied layout has an empty edges map", () => {
+    const summary = {
+      display: "go",
+      processor: null,
+      criterion: false,
+      execution: null,
+    } as unknown as TransitionEdge["summary"];
+
+    const stateNode = (id: string, role: "initial" | "normal" | "terminal") => ({
+      kind: "state" as const,
+      id,
+      workflow: "wf",
+      stateCode: id,
+      role,
+      hasDisabledOutgoing: false,
+      category: "STATE" as const,
+    });
+
+    const transitionEdge = (id: string, sourceId: string, targetId: string) => ({
+      kind: "transition" as const,
+      id,
+      workflow: "wf",
+      sourceId,
+      targetId,
+      label: "go",
+      manual: false,
+      disabled: false,
+      isSelf: false,
+      isLoopback: false,
+      parallelIndex: 0,
+      parallelGroupSize: 1,
+      summary,
+    });
+
+    const graph = {
+      nodes: [
+        stateNode("a", "initial"),
+        stateNode("b", "normal"),
+        stateNode("c", "normal"),
+        stateNode("d", "terminal"),
+      ],
+      edges: [transitionEdge("e1", "a", "b"), transitionEdge("e2", "c", "d")],
+      annotations: [],
+    };
+
+    // Engineered so both edges compute the same (midX, midY) via
+    // computeEdgeGeometry's "forward edge" branch: midX = (sx+tx)/2,
+    // midY = (sy+ty)/2. e1: sx=80,sy=40,tx=80,ty=120 -> (80,80).
+    // e2: sx=280,sy=40,tx=-120,ty=120 -> (80,80).
+    const positions = new Map([
+      ["a", { id: "a", x: 0, y: 0, width: 160, height: 40 }],
+      ["b", { id: "b", x: 0, y: 120, width: 160, height: 40 }],
+      ["c", { id: "c", x: 200, y: 0, width: 160, height: 40 }],
+      ["d", { id: "d", x: -200, y: 120, width: 160, height: 40 }],
+    ]);
+
+    const { container } = render(
+      <WorkflowViewer
+        graph={graph as unknown as Parameters<typeof WorkflowViewer>[0]["graph"]}
+        layout={{ positions, edges: new Map(), width: 400, height: 300 }}
+      />,
+    );
+
+    const labelRects = Array.from(container.querySelectorAll("rect")).filter(
+      (r) => r.getAttribute("fill") === workflowPalette.edgeLabel.fill,
+    );
+    expect(labelRects).toHaveLength(2);
+    const yValues = labelRects.map((r) => r.getAttribute("y"));
+    expect(new Set(yValues).size).toBe(2);
   });
 });
 

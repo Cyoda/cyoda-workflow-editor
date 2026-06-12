@@ -15,6 +15,7 @@ export function TextField({
   disabled,
   placeholder,
   testId,
+  entityKey,
 }: {
   label: string;
   value: string;
@@ -22,12 +23,21 @@ export function TextField({
   disabled?: boolean;
   placeholder?: string;
   testId?: string;
+  /**
+   * Identity of the entity being edited (e.g. a stable UUID). When this
+   * changes, the draft resets to `value` even if `value` itself is
+   * unchanged, so a different entity that happens to share the same
+   * current value doesn't inherit a stale, uncommitted draft.
+   */
+  entityKey?: string;
 }) {
   const [draft, setDraft] = useState(value);
-
-  useEffect(() => {
+  const syncKey = entityKey ?? value;
+  const syncedKeyRef = useRef(syncKey);
+  if (syncKey !== syncedKeyRef.current) {
+    syncedKeyRef.current = syncKey;
     setDraft(value);
-  }, [value]);
+  }
 
   return (
     <label style={rowStyle}>

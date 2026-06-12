@@ -26,6 +26,7 @@ export function WorkflowForm({
       <TextField
         label={messages.inspector.version}
         value={workflow.version}
+        entityKey={workflow.name}
         disabled={disabled}
         onCommit={(next) =>
           onDispatch({
@@ -39,6 +40,7 @@ export function WorkflowForm({
       <TextField
         label={messages.inspector.description}
         value={workflow.desc ?? ""}
+        entityKey={workflow.name}
         disabled={disabled}
         onCommit={(next) =>
           onDispatch({
@@ -65,6 +67,7 @@ export function WorkflowForm({
       <TextField
         label={messages.inspector.initialState}
         value={workflow.initialState}
+        entityKey={workflow.name}
         disabled={disabled}
         onCommit={(next) =>
           onDispatch({

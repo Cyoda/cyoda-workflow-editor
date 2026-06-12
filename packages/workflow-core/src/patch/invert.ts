@@ -129,11 +129,7 @@ export function invertPatch(
     case "updateProcessor": {
       const p = findProcessor(doc, patch.processorUuid);
       if (!p) return noop();
-      const prior: Partial<Processor> = {};
-      for (const key of Object.keys(patch.updates) as Array<keyof Processor>) {
-        (prior as Record<string, unknown>)[key] = (p as unknown as Record<string, unknown>)[key];
-      }
-      return { op: "updateProcessor", processorUuid: patch.processorUuid, updates: prior };
+      return { op: "updateProcessor", processorUuid: patch.processorUuid, updates: structuredClone(p) };
     }
 
     case "removeProcessor": {

@@ -165,9 +165,8 @@ export function applyPatch(
         const wf = draft.workflows.find((w) => w.name === procLoc.workflow);
         const state = wf?.states[procLoc.state];
         const transition = state?.transitions[procLoc.transitionIndex];
-        const processor = transition?.processors?.[procLoc.processorIndex];
-        if (!processor) return;
-        Object.assign(processor, patch.updates);
+        if (!transition?.processors?.[procLoc.processorIndex]) return;
+        transition.processors[procLoc.processorIndex] = patch.updates;
         return;
       }
       case "removeProcessor": {

@@ -75,6 +75,39 @@ describe("exact patch inverses", () => {
     roundTrip(doc2, { op: "removeProcessor", processorUuid });
   });
 
+  test("updateProcessor clearing config removes it entirely (not a stale merge)", () => {
+    const doc0 = makeDoc();
+    const doc1 = applyPatch(doc0, {
+      op: "addTransition",
+      workflow: "wf",
+      fromState: "start",
+      transition: { name: "go", next: "end", manual: false, disabled: false },
+    });
+    const transitionUuid = firstTransitionUuid(doc1, "wf", "start");
+    const doc2 = applyPatch(doc1, {
+      op: "addProcessor",
+      transitionUuid,
+      processor: {
+        type: "externalized",
+        name: "proc1",
+        executionMode: "ASYNC_NEW_TX",
+        config: { context: "ctx" },
+      },
+    });
+    const processorUuid = Object.keys(doc2.meta.ids.processors)[0]!;
+
+    const patch = {
+      op: "updateProcessor" as const,
+      processorUuid,
+      updates: { type: "externalized" as const, name: "proc1", executionMode: "ASYNC_NEW_TX" as const },
+    };
+    const doc3 = applyPatch(doc2, patch);
+    const processor = doc3.session.workflows[0]!.states["start"]!.transitions[0]!.processors![0]!;
+    expect(processor).not.toHaveProperty("config");
+
+    roundTrip(doc2, patch);
+  });
+
   test("reorderProcessor has exact inverse", () => {
     const doc0 = makeDoc();
     const doc1 = applyPatch(doc0, {

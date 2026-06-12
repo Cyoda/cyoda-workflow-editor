@@ -184,4 +184,17 @@ describe("LifecycleCriterionFields", () => {
       value: "APPROVED",
     });
   });
+
+  it("clearing the value for a scalar operator disables Apply", () => {
+    const { getByTestId } = renderLifecycle({
+      type: "lifecycle",
+      field: "state",
+      operation: "EQUALS",
+      value: "APPROVED",
+    });
+    fireEvent.change(getByTestId("criterion-lifecycle-value"), {
+      target: { value: "" },
+    });
+    expect((getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(true);
+  });
 });

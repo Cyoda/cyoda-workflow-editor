@@ -62,8 +62,11 @@ export function useSaveFlow(args: UseSaveFlowArgs): SaveFlow {
     workflows: doc.session.workflows,
   };
 
+  const savingRef = useRef(false);
+
   const performImport = useCallback(
     async (token: ConcurrencyToken | null) => {
+      if (savingRef.current) return;
       const entity = entityRef.current;
       if (!entity) {
         setStatus({
@@ -72,6 +75,7 @@ export function useSaveFlow(args: UseSaveFlowArgs): SaveFlow {
         });
         return;
       }
+      savingRef.current = true;
       setStatus({ kind: "saving" });
       try {
         const result = await api.importWorkflows(entity, payloadRef.current, {
@@ -91,6 +95,8 @@ export function useSaveFlow(args: UseSaveFlowArgs): SaveFlow {
           kind: "error",
           message: err instanceof Error ? err.message : "Unknown save error.",
         });
+      } finally {
+        savingRef.current = false;
       }
     },
     [api, onSaved],

@@ -36,7 +36,7 @@ export type DomainPatch =
       transitionName: string;
     }
   | { op: "addProcessor"; transitionUuid: string; processor: Processor; index?: number }
-  | { op: "updateProcessor"; processorUuid: string; updates: Partial<Processor> }
+  | { op: "updateProcessor"; processorUuid: string; updates: Processor }
   | { op: "removeProcessor"; processorUuid: string }
   | {
       op: "reorderProcessor";
