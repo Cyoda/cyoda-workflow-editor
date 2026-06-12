@@ -375,7 +375,10 @@ export function WorkflowEditor({
     const current = workflowUi[workflow] ?? {};
     workflowUi[workflow] = { ...current, layout: undefined, edgeAnchors: undefined };
     actions.silentReplace(
-      { session: state.document.session, meta: { ...state.document.meta, workflowUi } },
+      {
+        session: state.document.session,
+        meta: { ...state.document.meta, workflowUi, revision: state.document.meta.revision + 1 },
+      },
       { preserveEditorState: true },
     );
     // Bump layoutKey to force Canvas to re-run ELK.
