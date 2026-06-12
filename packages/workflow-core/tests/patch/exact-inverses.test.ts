@@ -153,6 +153,35 @@ describe("exact patch inverses", () => {
     });
   });
 
+  test("moveTransitionSource preserves source-state ordering on exact inverse", () => {
+    const doc0 = makeDoc();
+    const doc1 = applyPatch(doc0, {
+      op: "addTransition",
+      workflow: "wf",
+      fromState: "start",
+      transition: { name: "a", next: "end", manual: false, disabled: false },
+    });
+    const doc2 = applyPatch(doc1, {
+      op: "addTransition",
+      workflow: "wf",
+      fromState: "start",
+      transition: { name: "go", next: "end", manual: false, disabled: false },
+    });
+    const doc3 = applyPatch(doc2, {
+      op: "addTransition",
+      workflow: "wf",
+      fromState: "start",
+      transition: { name: "b", next: "end", manual: false, disabled: false },
+    });
+    roundTrip(doc3, {
+      op: "moveTransitionSource",
+      workflow: "wf",
+      fromState: "start",
+      toState: "end",
+      transitionName: "go",
+    });
+  });
+
   test("setNodePosition has exact inverse (removeNodePosition when no prior)", () => {
     const doc = makeDoc();
     const next = applyPatch(doc, {

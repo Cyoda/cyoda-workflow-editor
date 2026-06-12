@@ -113,14 +113,19 @@ export function invertPatch(
       };
     }
 
-    case "moveTransitionSource":
+    case "moveTransitionSource": {
+      const wf = findWorkflow(doc, patch.workflow);
+      const fromState = wf?.states[patch.fromState];
+      const toIndex = fromState?.transitions.findIndex((t) => t.name === patch.transitionName);
       return {
         op: "moveTransitionSource",
         workflow: patch.workflow,
         fromState: patch.toState,
         toState: patch.fromState,
         transitionName: patch.transitionName,
+        toIndex: toIndex !== undefined && toIndex >= 0 ? toIndex : undefined,
       };
+    }
 
     case "addProcessor":
       // Cannot know the minted UUID pre-apply. Use dispatchTransaction for exact undo.

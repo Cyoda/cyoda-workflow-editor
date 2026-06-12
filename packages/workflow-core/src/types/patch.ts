@@ -34,6 +34,8 @@ export type DomainPatch =
       fromState: StateCode;
       toState: StateCode;
       transitionName: string;
+      /** Index to insert at within `toState.transitions`; defaults to the end. */
+      toIndex?: number;
     }
   | { op: "addProcessor"; transitionUuid: string; processor: Processor; index?: number }
   | { op: "updateProcessor"; processorUuid: string; updates: Processor }

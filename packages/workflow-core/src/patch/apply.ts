@@ -144,7 +144,11 @@ export function applyPatch(
           );
         }
         const [transition] = fromState.transitions.splice(idx, 1);
-        if (transition) toState.transitions.push(transition);
+        if (transition) {
+          const insertAt = patch.toIndex ?? toState.transitions.length;
+          const clamped = Math.max(0, Math.min(insertAt, toState.transitions.length));
+          toState.transitions.splice(clamped, 0, transition);
+        }
         return;
       }
       case "addProcessor": {
