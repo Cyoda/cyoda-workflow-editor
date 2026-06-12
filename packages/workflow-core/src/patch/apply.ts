@@ -236,7 +236,11 @@ export function applyPatch(
 
   const nextMeta = assignSyntheticIds(nextSession, doc.meta);
   preserveMovedTransitionUuid(doc, patch, nextSession, nextMeta);
-  const cleanedWorkflowUi = cleanupWorkflowUi(nextMeta.workflowUi, nextSession, nextMeta);
+  const workflowUiAfterRename =
+    patch.op === "renameState" && patch.from !== patch.to
+      ? renameStateInWorkflowUi(nextMeta.workflowUi, patch.workflow, patch.from, patch.to)
+      : nextMeta.workflowUi;
+  const cleanedWorkflowUi = cleanupWorkflowUi(workflowUiAfterRename, nextSession, nextMeta);
   return {
     session: nextSession,
     meta: { ...nextMeta, workflowUi: cleanedWorkflowUi, revision: doc.meta.revision + 1 },
@@ -523,6 +527,30 @@ function locateProcessor(
     state: tLoc.state,
     transitionIndex: tLoc.index,
     processorIndex: pIdx,
+  };
+}
+
+/**
+ * Carry a state's saved layout position over to its new name on rename.
+ * Without this, cleanupWorkflowUi drops the `from` entry (it's no longer a
+ * valid state code) and the renamed node falls back to a freshly computed
+ * layout position, looking like the manual arrangement was "forgotten".
+ */
+function renameStateInWorkflowUi(
+  workflowUi: Record<string, WorkflowUiMeta>,
+  workflow: string,
+  from: string,
+  to: string,
+): Record<string, WorkflowUiMeta> {
+  const ui = workflowUi[workflow];
+  const nodes = ui?.layout?.nodes;
+  if (!nodes || !(from in nodes) || to in nodes) return workflowUi;
+
+  const nextNodes = { ...nodes, [to]: nodes[from]! };
+  delete nextNodes[from];
+  return {
+    ...workflowUi,
+    [workflow]: { ...ui, layout: { ...ui.layout, nodes: nextNodes } },
   };
 }
 
