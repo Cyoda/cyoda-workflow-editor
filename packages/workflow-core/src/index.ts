@@ -29,6 +29,7 @@ export type {
   JsonValue,
   LifecycleCriterion,
   OperatorType,
+  OperatorValue,
   PatchTransaction,
   Processor,
   ProcessorPointer,

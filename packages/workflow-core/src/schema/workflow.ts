@@ -13,7 +13,9 @@ export const TransitionSchema = z.object({
 });
 
 export const StateSchema = z.object({
-  transitions: z.array(TransitionSchema),
+  // cyoda-go export serializes a transition-less state as `{}` (omits the
+  // `transitions` key). Default to `[]` so such exports parse. See issue #21.
+  transitions: z.array(TransitionSchema).default([]),
 });
 
 export const WorkflowSchema = z.object({
@@ -21,7 +23,10 @@ export const WorkflowSchema = z.object({
   name: NameSchema,
   desc: z.string().optional(),
   initialState: NameSchema,
-  active: z.boolean(),
+  // The server marks `active` optional in WorkflowConfigurationDto and import
+  // forces it true regardless; default to true so an export omitting it parses.
+  // See issue #23.
+  active: z.boolean().optional().default(true),
   criterion: CriterionSchema.optional(),
   states: z
     .record(NameSchema, StateSchema)

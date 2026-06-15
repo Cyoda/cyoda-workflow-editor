@@ -10,6 +10,7 @@ import type {
   JsonPathRejectReason,
   LifecycleCriterion,
   OperatorType,
+  OperatorValue,
   SimpleCriterion,
 } from "@cyoda/workflow-core";
 import {
@@ -31,6 +32,16 @@ import { JsonPathInput } from "./criteria/JsonPathInput.js";
 
 const LIFECYCLE_FIELDS = ["state", "creationDate", "previousTransition"] as const;
 const CRITERION_TYPES = ["simple", "group", "function", "lifecycle", "array"] as const;
+
+// An imported criterion may carry an operator outside the curated set (issue
+// #22). Resolve its value shape safely (unknown → "scalar" so the value field
+// stays editable) and test engine-support without a type cast at every site.
+function shapeOf(op: OperatorValue): (typeof OPERATOR_VALUE_SHAPE)[OperatorType] {
+  return OPERATOR_VALUE_SHAPE[op as OperatorType] ?? "scalar";
+}
+function isUnsupportedOp(op: OperatorValue): boolean {
+  return UNSUPPORTED_OPERATORS.has(op as OperatorType);
+}
 type CriterionType = (typeof CRITERION_TYPES)[number];
 
 function cloneCriterion(c: Criterion): Criterion {
@@ -634,7 +645,7 @@ function SimpleCriterionFields({
   const messages = useMessages();
   const { hints } = useFieldHints();
   const m = messages.criterion;
-  const shape = OPERATOR_VALUE_SHAPE[criterion.operation];
+  const shape = shapeOf(criterion.operation);
   const valueEditorKind = getValueEditorKind(criterion.jsonPath, hints);
   const isDateLikeValue = valueEditorKind !== "text";
   const pathError = jsonPathError(criterion.jsonPath, m);
@@ -689,7 +700,7 @@ function SimpleCriterionFields({
           value={criterion.operation}
           groups={buildOperatorGroups()}
           disabledOption={
-            UNSUPPORTED_OPERATORS.has(criterion.operation)
+            isUnsupportedOp(criterion.operation)
               ? { value: criterion.operation, label: `${criterion.operation} ${m.legacySuffix}` }
               : undefined
           }
@@ -1329,7 +1340,7 @@ function LifecycleCriterionFields({
   const messages = useMessages();
   const m = messages.criterion;
   const l = messages.criterion.lifecycle;
-  const shape = OPERATOR_VALUE_SHAPE[criterion.operation];
+  const shape = shapeOf(criterion.operation);
   const range = Array.isArray(criterion.value) ? criterion.value : [];
   const low = formatScalar(range[0]);
   const high = formatScalar(range[1]);
@@ -1361,7 +1372,7 @@ function LifecycleCriterionFields({
           value={criterion.operation}
           groups={buildOperatorGroups()}
           disabledOption={
-            UNSUPPORTED_OPERATORS.has(criterion.operation)
+            isUnsupportedOp(criterion.operation)
               ? { value: criterion.operation, label: `${criterion.operation} ${m.legacySuffix}` }
               : undefined
           }
@@ -1478,7 +1489,7 @@ function ArrayCriterionFields({
           value={criterion.operation}
           groups={buildOperatorGroups()}
           disabledOption={
-            UNSUPPORTED_OPERATORS.has(criterion.operation)
+            isUnsupportedOp(criterion.operation)
               ? { value: criterion.operation, label: `${criterion.operation} ${m.legacySuffix}` }
               : undefined
           }
@@ -1658,7 +1669,7 @@ function summarizeCriterionReadable(criterion: Criterion): string {
   if (criterion.type === "simple") {
     const missing: string[] = [];
     if (!criterion.jsonPath) missing.push("path");
-    const shape = OPERATOR_VALUE_SHAPE[criterion.operation];
+    const shape = shapeOf(criterion.operation);
     if (
       shape === "scalar" &&
       (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
@@ -1671,7 +1682,7 @@ function summarizeCriterionReadable(criterion: Criterion): string {
       }
       return `Incomplete simple condition: ${missing.join("/")} required`;
     }
-    const value = criterion.value !== undefined && OPERATOR_VALUE_SHAPE[criterion.operation] !== "none"
+    const value = criterion.value !== undefined && shapeOf(criterion.operation) !== "none"
       ? ` ${formatScalar(criterion.value)}`
       : "";
     return `${criterion.jsonPath || "$.…"} ${operatorLabel(criterion.operation)}${value}`;
@@ -1686,7 +1697,7 @@ function summarizeCriterionReadable(criterion: Criterion): string {
     return `Function ${criterion.function.name || "…"}`;
   }
   if (criterion.type === "lifecycle") {
-    const value = criterion.value !== undefined && OPERATOR_VALUE_SHAPE[criterion.operation] !== "none"
+    const value = criterion.value !== undefined && shapeOf(criterion.operation) !== "none"
       ? ` ${formatScalar(criterion.value)}`
       : "";
     return `${criterion.field} ${operatorLabel(criterion.operation)}${value}`;
@@ -1700,7 +1711,7 @@ function criterionBlockingError(criterion: Criterion): string | null {
       const pathError = jsonPathBlockingError(criterion.jsonPath);
       if (pathError) return pathError;
       if (
-        OPERATOR_VALUE_SHAPE[criterion.operation] === "scalar" &&
+        shapeOf(criterion.operation) === "scalar" &&
         (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
       ) {
         return "Value is required.";
@@ -1712,7 +1723,7 @@ function criterionBlockingError(criterion: Criterion): string | null {
     case "lifecycle":
       if (!NAME_REGEX.test(criterion.field)) return null;
       if (
-        OPERATOR_VALUE_SHAPE[criterion.operation] === "scalar" &&
+        shapeOf(criterion.operation) === "scalar" &&
         (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
       ) {
         return "Value is required.";
@@ -1738,7 +1749,7 @@ function jsonPathBlockingError(jsonPath: string): string | null {
   return check.ok ? null : `JSON path is invalid (${check.reason}).`;
 }
 
-function rangeBlockingError(operation: OperatorType, value: unknown): string | null {
+function rangeBlockingError(operation: OperatorValue, value: unknown): string | null {
   if (operation !== "BETWEEN" && operation !== "BETWEEN_INCLUSIVE") return null;
   return Array.isArray(value) &&
     value.length === 2 &&
@@ -1796,8 +1807,8 @@ function dateFormatHint(kind: ValueEditorKind): string {
   return kind === "datetime-local" ? "YYYY-MM-DDTHH:mm" : "YYYY-MM-DD";
 }
 
-function operatorLabel(operator: OperatorType): string {
-  return OPERATOR_LABELS[operator] ?? operator;
+function operatorLabel(operator: OperatorValue): string {
+  return OPERATOR_LABELS[operator as OperatorType] ?? operator;
 }
 
 function buildOperatorGroups() {

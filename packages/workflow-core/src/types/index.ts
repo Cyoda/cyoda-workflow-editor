@@ -2,6 +2,7 @@ export type { OperatorType, JsonValue } from "./operator.js";
 export { OPERATOR_TYPES } from "./operator.js";
 export type {
   Criterion,
+  OperatorValue,
   SimpleCriterion,
   GroupCriterion,
   FunctionCriterion,

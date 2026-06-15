@@ -1,5 +1,10 @@
 import type { JsonValue, OperatorType } from "./operator.js";
 
+// Known operators get autocomplete; imported workflows may carry operators
+// outside the curated set, so an arbitrary string is permitted for round-trip.
+// See issue #22.
+export type OperatorValue = OperatorType | (string & NonNullable<unknown>);
+
 export type Criterion =
   | SimpleCriterion
   | GroupCriterion
@@ -10,7 +15,7 @@ export type Criterion =
 export interface SimpleCriterion {
   type: "simple";
   jsonPath: string;
-  operation: OperatorType;
+  operation: OperatorValue;
   value?: JsonValue;
 }
 
@@ -32,14 +37,14 @@ export interface FunctionCriterion {
 export interface LifecycleCriterion {
   type: "lifecycle";
   field: "state" | "creationDate" | "previousTransition";
-  operation: OperatorType;
+  operation: OperatorValue;
   value?: JsonValue;
 }
 
 export interface ArrayCriterion {
   type: "array";
   jsonPath: string;
-  operation: OperatorType;
+  operation: OperatorValue;
   value: string[];
 }
 
