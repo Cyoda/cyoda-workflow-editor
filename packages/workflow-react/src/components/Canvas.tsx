@@ -596,6 +596,19 @@ const HANDLE_OVERFLOW: Record<BaseHandle, readonly string[]> = {
   left:   ["left-top",    "left",   "left-bottom",  "top-left",    "bottom-left", "top",   "bottom","top-right",   "bottom-right","right-top",   "right",  "right-bottom"],
 };
 
+/**
+ * For exactly 4 edges on one side, the two extreme slots (sorted by the
+ * opposite node's coordinate) wrap onto the adjacent side near each corner,
+ * so the edge heading furthest in either direction exits toward that side
+ * instead of doubling back across the node.
+ */
+const HANDLE_FOUR: Record<BaseHandle, readonly string[]> = {
+  top:    ["left-top",    "top-left",   "top-right",    "right-top"],
+  right:  ["top-right",   "right-top",  "right-bottom", "bottom-right"],
+  bottom: ["left-bottom", "bottom-left","bottom-right", "right-bottom"],
+  left:   ["top-left",    "left-top",   "left-bottom",  "bottom-left"],
+};
+
 function splitHandleFor(
   side: BaseHandle,
   index: number,
@@ -619,6 +632,7 @@ function splitHandleFor(
     if (total <= 1) return variants[1]!;
     if (total === 2) return variants[index === 0 ? 0 : 2]!;
     if (total === 3) return variants[index]!;
+    if (total === 4) return HANDLE_FOUR[side][index]!;
     return overflow[index % overflow.length]!;
   }
 

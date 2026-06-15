@@ -254,6 +254,18 @@ function transitionUuid(
   return entry[0];
 }
 
+// Returns the UUIDs of every transition declared on a state, in declaration
+// order (assignForWorkflow assigns IDs by iterating state.transitions).
+function transitionUuidsForState(
+  doc: WorkflowEditorDocument,
+  workflow: string,
+  stateCode: string,
+): string[] {
+  return Object.entries(doc.meta.ids.transitions)
+    .filter(([, ptr]) => ptr.workflow === workflow && ptr.state === stateCode)
+    .map(([uuid]) => uuid);
+}
+
 function buildLayout(doc: WorkflowEditorDocument): LayoutResult {
   const startId = stateUuid(doc, "wf", "start");
   const endId   = stateUuid(doc, "wf", "end");
@@ -334,6 +346,32 @@ const DENSE_TRANSITIONS = JSON.stringify({
           transitions: [{ name: "to_end", next: "end", manual: false, disabled: false }],
         },
         end: { transitions: [] },
+      },
+    },
+  ],
+});
+
+const FOUR_WAY_SPLIT = JSON.stringify({
+  importMode: "MERGE",
+  workflows: [
+    {
+      version: "1.0",
+      name: "wf",
+      initialState: "sent",
+      active: true,
+      states: {
+        sent: {
+          transitions: [
+            { name: "to_signed", next: "signed", manual: false, disabled: false },
+            { name: "to_declined", next: "declined", manual: false, disabled: false },
+            { name: "to_expired", next: "expired", manual: false, disabled: false },
+            { name: "to_revoked", next: "revoked", manual: false, disabled: false },
+          ],
+        },
+        signed: { transitions: [] },
+        declined: { transitions: [] },
+        expired: { transitions: [] },
+        revoked: { transitions: [] },
       },
     },
   ],
@@ -609,6 +647,45 @@ describe("auto handle routing", () => {
     const toEndEdge = rfCallbacks.latestEdges?.find((edge) => edge.id === toEnd);
     expect(toEndEdge?.sourceHandle).toBe("bottom");
     expect(toEndEdge?.targetHandle).toBe("top");
+  });
+
+  it("spreads four outgoing transitions from one side so the outermost targets exit toward them", async () => {
+    const doc = fixture(FOUR_WAY_SPLIT);
+    const sentId = stateUuid(doc, "wf", "sent");
+    const signedId = stateUuid(doc, "wf", "signed");
+    const declinedId = stateUuid(doc, "wf", "declined");
+    const expiredId = stateUuid(doc, "wf", "expired");
+    const revokedId = stateUuid(doc, "wf", "revoked");
+    const [toSigned, toDeclined, toExpired, toRevoked] = transitionUuidsForState(doc, "wf", "sent");
+
+    vi.mocked(layoutGraph).mockResolvedValue({
+      positions: new Map([
+        [sentId, { id: sentId, x: 400, y: 80, width: 160, height: 60 }],
+        [signedId, { id: signedId, x: 80, y: 320, width: 160, height: 60 }],
+        [declinedId, { id: declinedId, x: 300, y: 320, width: 160, height: 60 }],
+        [expiredId, { id: expiredId, x: 520, y: 320, width: 160, height: 60 }],
+        [revokedId, { id: revokedId, x: 740, y: 320, width: 160, height: 60 }],
+      ]),
+      edges: new Map(),
+      width: 1000,
+      height: 460,
+      preset: "configuratorReadable",
+    });
+
+    render(<WorkflowEditor document={doc} />);
+
+    await waitFor(() => expect(rfCallbacks.latestEdges).toBeDefined());
+
+    const sourceHandle = (id: string) =>
+      rfCallbacks.latestEdges?.find((edge) => edge.id === id)?.sourceHandle;
+
+    // Sorted left-to-right by target x: signed, declined, expired, revoked.
+    // The two outermost targets wrap onto the adjacent side toward them
+    // (left/right) instead of crowding the bottom edge.
+    expect(sourceHandle(toSigned)).toBe("left-bottom");
+    expect(sourceHandle(toDeclined)).toBe("bottom-left");
+    expect(sourceHandle(toExpired)).toBe("bottom-right");
+    expect(sourceHandle(toRevoked)).toBe("right-bottom");
   });
 
   it("routes the reverse leg of a bidirectional pair on a different corridor", async () => {
