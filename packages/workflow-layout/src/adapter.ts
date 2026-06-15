@@ -136,12 +136,93 @@ interface TreeNode {
 }
 
 /**
+ * Maps each id in `siblingIds` to the set of other siblings it shares a
+ * direct edge with (in either direction). Used to pull siblings that are
+ * only connected to each other — e.g. a "happy path" state with separate
+ * exits to two terminals — next to one another, instead of leaving their
+ * relative order to depend solely on declaration order / happy-path centering.
+ */
+function buildSameLevelLinks(
+  edges: readonly TransitionEdge[],
+  siblingIds: readonly string[],
+): Map<string, Set<string>> {
+  const siblingSet = new Set(siblingIds);
+  const links = new Map<string, Set<string>>();
+  for (const id of siblingIds) links.set(id, new Set());
+  for (const e of edges) {
+    if (e.isSelf || e.sourceId === e.targetId) continue;
+    if (siblingSet.has(e.sourceId) && siblingSet.has(e.targetId)) {
+      links.get(e.sourceId)!.add(e.targetId);
+      links.get(e.targetId)!.add(e.sourceId);
+    }
+  }
+  return links;
+}
+
+/**
+ * Single best-effort pass that moves siblings connected by a same-level link
+ * next to one another. For each sibling not already adjacent to one of its
+ * linked siblings, swap it next to the nearest linked sibling, displacing
+ * whichever of that sibling's neighbours has the fewest links of its own (so
+ * we avoid undoing an adjacency we just created).
+ */
+function reorderForSameLevelLinks(
+  children: readonly string[],
+  links: Map<string, Set<string>>,
+): string[] {
+  const order = [...children];
+  const neighborIndices = (idx: number): number[] => {
+    const out: number[] = [];
+    if (idx > 0) out.push(idx - 1);
+    if (idx < order.length - 1) out.push(idx + 1);
+    return out;
+  };
+  const isSatisfied = (id: string): boolean => {
+    const linked = links.get(id);
+    if (!linked || linked.size === 0) return true;
+    const idx = order.indexOf(id);
+    return neighborIndices(idx).some((i) => linked.has(order[i]!));
+  };
+
+  for (const id of children) {
+    const linked = links.get(id);
+    if (!linked || linked.size === 0 || isSatisfied(id)) continue;
+
+    const idx = order.indexOf(id);
+    let target: string | undefined;
+    let bestDist = Infinity;
+    for (const candidate of linked) {
+      const d = Math.abs(order.indexOf(candidate) - idx);
+      if (d < bestDist) {
+        bestDist = d;
+        target = candidate;
+      }
+    }
+    if (target === undefined) continue;
+
+    const targetIdx = order.indexOf(target);
+    const swapCandidates = neighborIndices(targetIdx).filter((i) => order[i] !== id);
+    if (swapCandidates.length === 0) continue;
+    swapCandidates.sort(
+      (a, b) => (links.get(order[a]!)?.size ?? 0) - (links.get(order[b]!)?.size ?? 0),
+    );
+    const swapIdx = swapCandidates[0]!;
+    const curIdx = order.indexOf(id);
+    [order[curIdx], order[swapIdx]] = [order[swapIdx]!, order[curIdx]!];
+  }
+
+  return order;
+}
+
+/**
  * Build a spanning tree via BFS from the initial node.
  *
  * Each node is assigned to exactly one parent (the first to reach it).
  * Among a node's children, the happy-path child is inserted at index
  * floor(N/2) so it lands at the center for odd N (N=3 → index 1) and
- * right-of-center for even N (N=2 → index 1, i.e. right of sibling).
+ * right-of-center for even N (N=2 → index 1, i.e. right of sibling). The
+ * resulting order is then adjusted by reorderForSameLevelLinks so siblings
+ * with a direct edge between them end up next to each other.
  */
 function buildLayoutTree(
   graph: GraphDocument,
@@ -160,9 +241,10 @@ function buildLayoutTree(
   );
   if (!initialNode) return tree;
 
-  const forwardEdges = graph.edges.filter(
-    (e): e is TransitionEdge => e.kind === "transition" && !e.isSelf && !e.isLoopback,
+  const linkEdges = graph.edges.filter(
+    (e): e is TransitionEdge => e.kind === "transition" && !e.isSelf,
   );
+  const forwardEdges = linkEdges.filter((e) => !e.isLoopback);
   const adj = new Map<string, { targetId: string; isHappy: boolean }[]>();
   for (const e of forwardEdges) {
     const list = adj.get(e.sourceId) ?? [];
@@ -184,9 +266,12 @@ function buildLayoutTree(
     const treeChildren = [...otherIds];
     if (happyEdge) treeChildren.splice(Math.floor(totalN / 2), 0, happyEdge.targetId);
 
-    for (const childId of treeChildren) queue.push(childId);
+    const sameLevelLinks = buildSameLevelLinks(linkEdges, treeChildren);
+    const reordered = reorderForSameLevelLinks(treeChildren, sameLevelLinks);
+
+    for (const childId of reordered) queue.push(childId);
     const node = tree.get(nodeId);
-    if (node) node.children = treeChildren;
+    if (node) node.children = reordered;
   }
   return tree;
 }
