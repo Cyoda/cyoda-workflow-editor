@@ -7,6 +7,11 @@ import type { CanvasProps } from "../src/components/Canvas.js";
 
 vi.mock("../src/components/Canvas.js", () => ({
   Canvas: (props: CanvasProps) => {
+    // Stand in for the real canvas: register a positioner that returns a fixed
+    // viewport-centred flow point so the toolbar add-state path is exercised.
+    if (props.newStatePositionRef) {
+      props.newStatePositionRef.current = () => ({ x: 400, y: 300 });
+    }
     return (
       <button
         type="button"
@@ -62,6 +67,36 @@ describe("canvas add-state flow", () => {
     expect(latestDoc?.meta.workflowUi.wf?.layout?.nodes?.state1).toEqual({
       x: Math.round((240 - size.width / 2) / 16) * 16,
       y: Math.round((160 - size.height / 2) / 16) * 16,
+      pinned: true,
+    });
+  });
+
+  it("places a toolbar-added state at the viewport-centred fallback position", () => {
+    let latestDoc: WorkflowEditorDocument | undefined;
+    render(
+      <WorkflowEditor
+        document={doc(["start", "end"])}
+        mode="editor"
+        localStorageKey={null}
+        onChange={(next) => {
+          latestDoc = next;
+        }}
+      />,
+    );
+
+    // Toolbar add (no pointer location) should use the registered positioner.
+    fireEvent.click(screen.getByTestId("canvas-add-state"));
+
+    const input = screen.getByTestId("add-state-name-input") as HTMLInputElement;
+    expect(input.value).toBe("state1");
+
+    fireEvent.click(screen.getByTestId("add-state-confirm"));
+
+    expect(latestDoc?.session.workflows[0]?.states.state1).toEqual({ transitions: [] });
+    const size = estimateNodeSize("state1");
+    expect(latestDoc?.meta.workflowUi.wf?.layout?.nodes?.state1).toEqual({
+      x: Math.round((400 - size.width / 2) / 16) * 16,
+      y: Math.round((300 - size.height / 2) / 16) * 16,
       pinned: true,
     });
   });

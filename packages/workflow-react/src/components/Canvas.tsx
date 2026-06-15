@@ -30,6 +30,7 @@ import { ArrowMarkers } from "./ArrowMarkers.js";
 import { RfStateNode, type RfStateNodeData } from "./RfStateNode.js";
 import { RfTransitionEdge, type RfEdgeData } from "./RfTransitionEdge.js";
 import { HoverContext, computeHighlightSet } from "./HoverContext.js";
+import { findNonOverlappingCenter, type Rect } from "./newStatePosition.js";
 import type { Selection } from "../state/types.js";
 
 const nodeTypes = { stateNode: RfStateNode };
@@ -52,6 +53,15 @@ export interface CanvasProps {
   onNodeDragStop?: (nodeId: string, x: number, y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => void;
   /** Called when the user double-clicks an empty canvas pane location. */
   onPaneDoubleClick?: (x: number, y: number) => void;
+  /**
+   * Optional ref the canvas populates with a positioner function. Calling it
+   * returns a flow-coordinate center point for a new state placed in the centre
+   * of the current viewport (nudged to avoid overlapping existing nodes), or
+   * null when no canvas is mounted/measured. Used by the "Add State" toolbar
+   * button and keyboard shortcut, which live outside the React Flow provider
+   * and so cannot read the viewport directly.
+   */
+  newStatePositionRef?: React.MutableRefObject<(() => { x: number; y: number } | null) | null>;
   /**
    * Increment this counter to force a layout re-run without changing the graph.
    * Useful for the "Auto Layout" toolbar button.
@@ -677,6 +687,7 @@ function CanvasInner({
   onEdgesDelete,
   onNodeDragStop,
   onPaneDoubleClick,
+  newStatePositionRef,
   layoutKey = 0,
   readOnly,
   showMinimap = true,
@@ -707,6 +718,9 @@ function CanvasInner({
   const [draggingIds, setDraggingIds] = useState<ReadonlySet<string>>(new Set<string>());
   const rf = useReactFlow();
   const updateNodeInternals = useUpdateNodeInternals();
+  // Wraps the React Flow pane; used to read the visible viewport's screen-space
+  // centre when placing a toolbar/keyboard-added state.
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Extract primitive fields so the effect dep array is stable even when the
   // consumer passes a new object literal on every parent render.
@@ -986,9 +1000,46 @@ function CanvasInner({
     onPaneDoubleClick(position.x, position.y);
   }, [onPaneDoubleClick, rf]);
 
+  // Computes a flow-coordinate centre for a new state at the middle of the
+  // visible viewport, nudged off any existing node so it lands in view and
+  // doesn't overlap. The new node's exact footprint depends on the name (not
+  // known until the modal is confirmed), so an approximate size is used here;
+  // confirmAddState re-centres using the real size.
+  const computeNewStatePosition = useCallback((): { x: number; y: number } | null => {
+    const el = wrapperRef.current;
+    if (!el) return null;
+    const bounds = el.getBoundingClientRect();
+    if (bounds.width === 0 || bounds.height === 0) return null;
+    const center = rf.screenToFlowPosition({
+      x: bounds.left + bounds.width / 2,
+      y: bounds.top + bounds.height / 2,
+    });
+    const newSize = estimateNodeSize("");
+    const obstacles: Rect[] = rf.getNodes().map((n) => {
+      const stateCode = (n.data as RfStateNodeData | undefined)?.node?.stateCode ?? "";
+      const fallback = estimateNodeSize(stateCode);
+      return {
+        x: n.position.x,
+        y: n.position.y,
+        width: n.width ?? fallback.width,
+        height: n.height ?? fallback.height,
+      };
+    });
+    return findNonOverlappingCenter(center, newSize, obstacles);
+  }, [rf]);
+
+  useEffect(() => {
+    if (!newStatePositionRef) return;
+    newStatePositionRef.current = computeNewStatePosition;
+    return () => {
+      newStatePositionRef.current = null;
+    };
+  }, [newStatePositionRef, computeNewStatePosition]);
+
   return (
     <HoverContext.Provider value={{ highlightSet }}>
       <div
+        ref={wrapperRef}
         style={{ width: "100%", height: "100%", background: "white", position: "relative" }}
         data-testid="workflow-canvas"
         onDoubleClick={readOnly ? undefined : handleCanvasDoubleClick}

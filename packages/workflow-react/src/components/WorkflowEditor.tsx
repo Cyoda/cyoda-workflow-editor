@@ -212,6 +212,9 @@ export function WorkflowEditor({
   const documentStateRef = useRef(state.document);
   const activeWorkflowRef = useRef(state.activeWorkflow);
   const pendingSelectionRestoreRef = useRef<Selection>(null);
+  // Populated by Canvas with a function returning a viewport-centred,
+  // non-overlapping position for toolbar/keyboard-added states (issue #20).
+  const newStatePositionRef = useRef<(() => { x: number; y: number } | null) | null>(null);
 
   useEffect(() => {
     selectionRef.current = state.selection;
@@ -386,7 +389,10 @@ export function WorkflowEditor({
   }, [state.activeWorkflow, state.document, actions]);
 
   const openAddStateModal = useCallback((position?: { x: number; y: number }) => {
-    setPendingAddState(position ? { position } : {});
+    // For toolbar/keyboard adds (no explicit position) fall back to the centre
+    // of the visible viewport so the new state lands in view (issue #20).
+    const resolved = position ?? newStatePositionRef.current?.() ?? undefined;
+    setPendingAddState(resolved ? { position: resolved } : {});
   }, []);
 
   // Build pinned nodes from workflowUi layout metadata for the active workflow.
@@ -736,6 +742,7 @@ export function WorkflowEditor({
           if (edge) dispatch({ op: "removeTransition", transitionUuid: edge.id });
         }}
         onPaneDoubleClick={handlePaneDoubleClick}
+        newStatePositionRef={newStatePositionRef}
         onNodeDragStop={!readOnly ? handleNodeDragStop : undefined}
         layoutKey={layoutKey}
         readOnly={readOnly}
