@@ -47,7 +47,7 @@ export interface OrthogonalEdge {
 }
 
 const DEFAULT_TOLERANCE = 6;
-const DEFAULT_STUB = 16;
+const DEFAULT_STUB = 48;
 
 /**
  * Compute an orthogonal (polyline) edge path between two anchor points.

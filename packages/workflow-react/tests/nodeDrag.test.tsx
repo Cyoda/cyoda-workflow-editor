@@ -672,7 +672,7 @@ describe("auto handle routing", () => {
     expect(loopEdge?.targetHandle).toBe("top-right");
 
     const loopPath = screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d");
-    expect(loopPath).toBe("M 280 236.8 L 340 236.8 L 340 160 L 235.2 160 L 235.2 220");
+    expect(loopPath).toBe("M 280 236.8 L 372 236.8 L 372 128 L 235.2 128 L 235.2 220");
   });
 
   it("updates a normal transition into a visible self-loop when retargeted to its own state", async () => {
@@ -705,7 +705,7 @@ describe("auto handle routing", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d")).toBe(
-        "M 260 116.8 L 320 116.8 L 320 40 L 215.2 40 L 215.2 100",
+        "M 260 116.8 L 352 116.8 L 352 8 L 215.2 8 L 215.2 100",
       );
     });
   });
@@ -747,7 +747,7 @@ describe("auto handle routing", () => {
       expect(loopEdge?.sourceHandle).toBe("right-top");
       expect(loopEdge?.targetHandle).toBe("top-right");
       expect(screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d")).toBe(
-        "M 280 236.8 L 340 236.8 L 340 160 L 235.2 160 L 235.2 220",
+        "M 280 236.8 L 372 236.8 L 372 128 L 235.2 128 L 235.2 220",
       );
     });
   });
