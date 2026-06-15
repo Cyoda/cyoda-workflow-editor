@@ -147,6 +147,15 @@ export {
 export type { MigrationEntry, MigrationFn } from "./migrate/index.js";
 
 export {
+  getDialect,
+  LATEST_CYODA_VERSION,
+  listDialects,
+  registerDialect,
+  SUPPORTED_CYODA_VERSIONS,
+} from "./dialect/index.js";
+export type { CyodaDialect, CyodaSchemaVersion } from "./dialect/index.js";
+
+export {
   CRITERION_DEPTH_WARNING_THRESHOLD,
   MAX_CRITERION_DEPTH,
   OPERATOR_GROUPS,

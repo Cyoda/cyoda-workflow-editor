@@ -1,3 +1,4 @@
+import type { CyodaSchemaVersion } from "../dialect/version.js";
 import type { WorkflowSession } from "./session.js";
 import type { StateCode } from "./workflow.js";
 
@@ -17,6 +18,12 @@ export interface EditorMetadata {
   ids: SyntheticIdMap;
   workflowUi: Record<string, WorkflowUiMeta>;
   lastValidJsonHash?: string;
+  /**
+   * The cyoda-go schema dialect this document was parsed from / should be
+   * serialized to by default (see `dialect/`). Editor-only — never emitted
+   * into Cyoda import/export JSON. Unset means latest.
+   */
+  cyodaVersion?: CyodaSchemaVersion;
 }
 
 export interface SyntheticIdMap {
