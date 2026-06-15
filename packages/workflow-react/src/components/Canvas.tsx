@@ -366,15 +366,20 @@ function computeAutoHandles(
       continue;
     }
 
-    // In vertical mode, edges targeting a terminal exit/enter from the sides.
+    // In vertical mode, edges targeting a terminal on the same row exit/enter
+    // from the sides. When the terminal sits in a row below its source, the
+    // normal bottom→top entry is preferred instead.
     let toTerminalSide: "left" | "right" | undefined;
     if (orientation === "vertical" && terminalIds.has(edge.targetId)) {
       const srcPos = displayPositions.get(edge.sourceId);
       const tgtPos = displayPositions.get(edge.targetId);
       if (srcPos && tgtPos) {
-        const srcCX = srcPos.x + srcPos.width / 2;
-        const tgtCX = tgtPos.x + tgtPos.width / 2;
-        toTerminalSide = tgtCX <= srcCX ? "left" : "right";
+        const sameRow = Math.abs(srcPos.y - tgtPos.y) < srcPos.height * 0.75;
+        if (sameRow) {
+          const srcCX = srcPos.x + srcPos.width / 2;
+          const tgtCX = tgtPos.x + tgtPos.width / 2;
+          toTerminalSide = tgtCX <= srcCX ? "left" : "right";
+        }
       }
     }
 

@@ -604,8 +604,11 @@ describe("auto handle routing", () => {
       rfCallbacks.latestEdges?.find((edge) => edge.id === toBusyLeft)?.targetHandle,
     ];
     expect(new Set(incomingHandles)).toEqual(new Set(["top-left", "top-right"]));
-    // end is a terminal state; since busy and end share the same x-centre, terminal routing assigns "left"
-    expect(rfCallbacks.latestEdges?.find((edge) => edge.id === toEnd)?.sourceHandle).toBe("left");
+    // end is a terminal state directly below busy; bottom→top entry is preferred
+    // over side-routing when the terminal sits in a row below its source.
+    const toEndEdge = rfCallbacks.latestEdges?.find((edge) => edge.id === toEnd);
+    expect(toEndEdge?.sourceHandle).toBe("bottom");
+    expect(toEndEdge?.targetHandle).toBe("top");
   });
 
   it("routes the reverse leg of a bidirectional pair on a different corridor", async () => {
