@@ -177,12 +177,79 @@ function toRfEdges(
     pairGroups.get(key)!.push(e.id);
   }
   const parallelOffsets = new Map<string, number>();
-  for (const group of pairGroups.values()) {
+  for (const [, group] of pairGroups.entries()) {
     if (group.length <= 1) continue;
     const n = group.length;
+    // group is already in parallelIndex order (push order = transitions order).
+    // parallelIndex=0 gets the center/leftmost source handle (same tiebreaker
+    // used in sortEndpointAssignments), so it should bend LOWER (more positive
+    // midY) to avoid path crossings with the right-handle edge.
     for (let i = 0; i < n; i++) {
-      parallelOffsets.set(group[i]!, (i - (n - 1) / 2) * PARALLEL_STEP);
+      const idx = n - 1 - i;
+      parallelOffsets.set(group[i]!, (idx - (n - 1) / 2) * PARALLEL_STEP);
     }
+  }
+
+  // Fan-out offset: when a source has edges to multiple targets on the same Y
+  // row, all edges compute the same midY bend → horizontal segments overlap.
+  // Group by unique TARGET (not by edge) so that a parallel pair of edges to
+  // the same target counts as ONE slot. Compute a fan-out offset per slot and
+  // ADD it to whatever pair-group offset the edges already have — the two
+  // adjustments are orthogonal (pair shifts lateral position, fan-out shifts
+  // bend height).
+  // Sort: left-going slots by ascending tgtX (furthest-left bends highest),
+  // then right-going slots by descending tgtX (furthest-right bends next
+  // highest). This prevents horizontal/vertical crossings between slots.
+  const fanGroups = new Map<
+    string,
+    { srcId: string; tgtId: string; tgtX: number; srcX: number; slotSize: number }[]
+  >();
+  for (const e of transitions) {
+    const tgtPos = displayPositions.get(e.targetId);
+    const srcPos = displayPositions.get(e.sourceId);
+    if (!tgtPos || !srcPos) continue;
+    const rowY = Math.round(tgtPos.y);
+    const key = `${e.sourceId}|row${rowY}`;
+    if (!fanGroups.has(key)) fanGroups.set(key, []);
+    const arr = fanGroups.get(key)!;
+    if (!arr.some((t) => t.tgtId === e.targetId)) {
+      // slotSize = how many parallel edges share this source→target pair.
+      // Used to scale the fan step so that even the innermost pair edge
+      // lands on the correct side of zero after combining with its pair offset.
+      const slotSize = pairGroups.get(`${e.sourceId}->${e.targetId}`)?.length ?? 1;
+      arr.push({
+        srcId: e.sourceId,
+        tgtId: e.targetId,
+        tgtX: tgtPos.x + tgtPos.width / 2,
+        srcX: srcPos.x + srcPos.width / 2,
+        slotSize,
+      });
+    }
+  }
+  // Build per-(source→target) fan-out offsets.
+  // fanStep scales with the largest slot so that combined offsets (pair + fan)
+  // are always on the correct side of the midY default for every edge.
+  const pairFanOffsets = new Map<string, number>();
+  for (const group of fanGroups.values()) {
+    if (group.length <= 1) continue;
+    const maxSlotSize = Math.max(...group.map((s) => s.slotSize));
+    const fanStep = maxSlotSize * PARALLEL_STEP;
+    const left  = group.filter((e) => e.tgtX <  e.srcX).sort((a, b) => a.tgtX - b.tgtX);
+    const right = group.filter((e) => e.tgtX >= e.srcX).sort((a, b) => b.tgtX - a.tgtX);
+    const sorted = [...left, ...right];
+    const n = sorted.length;
+    for (let i = 0; i < n; i++) {
+      pairFanOffsets.set(
+        `${sorted[i]!.srcId}→${sorted[i]!.tgtId}`,
+        (i - (n - 1) / 2) * fanStep,
+      );
+    }
+  }
+  // Apply fan-out offsets additively to parallelOffsets.
+  for (const e of transitions) {
+    const fanOffset = pairFanOffsets.get(`${e.sourceId}→${e.targetId}`);
+    if (fanOffset === undefined) continue;
+    parallelOffsets.set(e.id, (parallelOffsets.get(e.id) ?? 0) + fanOffset);
   }
 
   return transitions.map((e) => {
@@ -332,6 +399,7 @@ type BaseHandle = "top" | "right" | "bottom" | "left";
 
 type EndpointAssignment = {
   edgeId: string;
+  parallelIndex: number;
   role: "source" | "target";
   nodeId: string;
   oppositeId: string;
@@ -419,6 +487,7 @@ function computeAutoHandles(
     } else {
       pushAssignment(grouped, {
         edgeId: edge.id,
+        parallelIndex: edge.parallelIndex,
         role: "source",
         nodeId: edge.sourceId,
         oppositeId: edge.targetId,
@@ -430,6 +499,7 @@ function computeAutoHandles(
     } else {
       pushAssignment(grouped, {
         edgeId: edge.id,
+        parallelIndex: edge.parallelIndex,
         role: "target",
         nodeId: edge.targetId,
         oppositeId: edge.sourceId,
@@ -581,7 +651,7 @@ function sortEndpointAssignments(
       ? bPos?.x ?? 0
       : bPos?.y ?? 0;
   if (aAxis !== bAxis) return aAxis - bAxis;
-  return a.edgeId.localeCompare(b.edgeId);
+  return a.parallelIndex - b.parallelIndex;
 }
 
 /**
