@@ -537,11 +537,10 @@ function anchorHandleId(
   if (toTerminalSide) {
     return role === "source" ? toTerminalSide : (toTerminalSide === "left" ? "right" : "left");
   }
-  // Vertical back-edges: source exits from the near side (toward target);
-  // target enters from its own near side (toward source) — the opposite side.
+  // Vertical back-edges: caller pre-computes the correct side for each role
+  // (source and target may differ), so just return it directly.
   if (isBackEdge) {
-    const side = backEdgeSide ?? "right";
-    return role === "source" ? side : (side === "left" ? "right" : "left");
+    return backEdgeSide ?? "right";
   }
   return role === "source" ? "bottom" : "top";
 }
@@ -603,9 +602,11 @@ function computeAutoHandles(
       }
     }
 
-    // In vertical mode, back-edges exit/enter from the side nearest to the
-    // target: source left of target → use right side; source right → left side.
-    let backEdgeSide: "left" | "right" | undefined;
+    // In vertical mode, back-edge side assignment depends on relative X:
+    //   • horizontally offset  → opposite near sides (source toward target, target toward source)
+    //   • vertically aligned (≈same X) → same side (default right) for a clean U-arc
+    let backEdgeSrcSide: "left" | "right" | undefined;
+    let backEdgeTgtSide: "left" | "right" | undefined;
     const back = isBackEdge(edge, displayPositions, orientation);
     if (back && orientation === "vertical") {
       const srcPos = displayPositions.get(edge.sourceId);
@@ -613,7 +614,17 @@ function computeAutoHandles(
       if (srcPos && tgtPos) {
         const srcCX = srcPos.x + srcPos.width / 2;
         const tgtCX = tgtPos.x + tgtPos.width / 2;
-        backEdgeSide = srcCX < tgtCX ? "right" : "left";
+        const xDiff = srcCX - tgtCX;
+        if (Math.abs(xDiff) < 10) {
+          // Nodes are vertically aligned — U-arc on the right side.
+          backEdgeSrcSide = "right";
+          backEdgeTgtSide = "right";
+        } else {
+          // Source exits from the near side (toward target);
+          // target enters from its own near side (toward source).
+          backEdgeSrcSide = xDiff > 0 ? "left" : "right";
+          backEdgeTgtSide = xDiff > 0 ? "right" : "left";
+        }
       }
     }
 
@@ -623,7 +634,7 @@ function computeAutoHandles(
       orientation,
       back,
       toTerminalSide,
-      backEdgeSide,
+      backEdgeSrcSide,
     ) as BaseHandle;
     const targetSide = anchorHandleId(
       edge.targetAnchor,
@@ -631,7 +642,7 @@ function computeAutoHandles(
       orientation,
       back,
       toTerminalSide,
-      backEdgeSide,
+      backEdgeTgtSide,
     ) as BaseHandle;
 
     if (edge.sourceAnchor) {
@@ -982,9 +993,12 @@ function isBackEdge(
   const source = displayPositions.get(edge.sourceId);
   const target = displayPositions.get(edge.targetId);
   if (!source || !target) return false;
-  return orientation === "horizontal"
-    ? source.x > target.x
-    : source.y > target.y;
+  if (orientation === "horizontal") return source.x > target.x;
+  if (source.y !== target.y) return source.y > target.y;
+  // Same-row edges going leftward are treated as back-edges so they get
+  // side handles (Left→Right) instead of Bottom→Top — which would produce
+  // a staircase detour below both nodes.
+  return source.x > target.x;
 }
 
 function groupIssuesByNode(
