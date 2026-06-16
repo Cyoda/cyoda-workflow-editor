@@ -36,10 +36,12 @@ const baseWorkflow = {
 };
 
 describe("dialect registry", () => {
-  test("the 0.7 dialect ships and is the latest", () => {
-    expect(LATEST_CYODA_VERSION).toBe("0.7");
+  test("both 0.7 and 0.8 ship; 0.8 is the latest", () => {
+    expect(LATEST_CYODA_VERSION).toBe("0.8");
     expect(listDialects()).toContain("0.7");
+    expect(listDialects()).toContain("0.8");
     expect(getDialect("0.7").version).toBe("0.7");
+    expect(getDialect("0.8").version).toBe("0.8");
   });
 
   test("an unknown version throws a clear, actionable error", () => {
@@ -47,21 +49,30 @@ describe("dialect registry", () => {
   });
 });
 
-describe("default dialect path is unchanged (0.7)", () => {
-  test("parse records the latest version and serialize is identical with/without explicit 0.7", () => {
+describe("default dialect path records the latest version (0.8)", () => {
+  test("parse records 0.8 and serialize is identical with/without explicit 0.8", () => {
     const json = importJson(baseWorkflow);
 
     const def = parseImportPayload(json);
     expect(def.ok).toBe(true);
-    expect(def.document?.meta.cyodaVersion).toBe("0.7");
+    expect(def.document?.meta.cyodaVersion).toBe("0.8");
 
-    const explicit = parseImportPayload(json, undefined, { sourceVersion: "0.7" });
-    expect(explicit.document?.meta.cyodaVersion).toBe("0.7");
+    const explicit = parseImportPayload(json, undefined, { sourceVersion: "0.8" });
+    expect(explicit.document?.meta.cyodaVersion).toBe("0.8");
 
-    // Default serialize == explicit-0.7 serialize == latest.
+    // Default serialize == explicit-0.8 serialize.
     const a = serializeImportPayload(def.document!);
-    const b = serializeImportPayload(explicit.document!, { targetVersion: "0.7" });
+    const b = serializeImportPayload(explicit.document!, { targetVersion: "0.8" });
     expect(a).toBe(b);
+  });
+
+  test("a schedule-less workflow serializes identically under 0.7 and 0.8", () => {
+    const parsed = parseImportPayload(importJson(baseWorkflow), undefined, {
+      sourceVersion: "0.7",
+    });
+    const wire07 = serializeImportPayload(parsed.document!, { targetVersion: "0.7" });
+    const wire08 = serializeImportPayload(parsed.document!, { targetVersion: "0.8" });
+    expect(wire07).toBe(wire08);
   });
 });
 

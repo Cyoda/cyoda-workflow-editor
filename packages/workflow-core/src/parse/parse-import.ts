@@ -24,6 +24,12 @@ export interface ParseResult<T> {
   value?: T;
   document?: WorkflowEditorDocument;
   issues: ValidationIssue[];
+  /**
+   * Non-fatal notes from the dialect's `toCanonical` pass — e.g. a v0.7
+   * `scheduled` processor dropped during normalisation. Additive: callers that
+   * do not read it are unaffected. Omitted when there are no warnings.
+   */
+  warnings?: string[];
 }
 
 function parseJsonSafe(json: string): { ok: true; value: unknown } | { ok: false; err: string } {
@@ -83,8 +89,11 @@ export function parseImportPayload(
   }
 
   let canonical: unknown;
+  let warnings: string[] = [];
   try {
-    canonical = getDialect(sourceVersion).toCanonical(parsed.value);
+    const result = getDialect(sourceVersion).toCanonical(parsed.value);
+    canonical = result.value;
+    warnings = result.warnings;
   } catch (e) {
     return {
       ok: false,
@@ -100,7 +109,11 @@ export function parseImportPayload(
 
   const schemaResult = ImportPayloadSchema.safeParse(canonical);
   if (!schemaResult.success) {
-    return { ok: false, issues: zodErrorToIssues(schemaResult.error) };
+    return {
+      ok: false,
+      issues: zodErrorToIssues(schemaResult.error),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
   }
 
   const normalizedWorkflows = schemaResult.data.workflows.map(normalizeWorkflowInput);
@@ -122,5 +135,6 @@ export function parseImportPayload(
     value: { importMode: session.importMode, workflows: session.workflows },
     document,
     issues,
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }

@@ -5,6 +5,7 @@ import {
 } from "../criteria/operators.js";
 import { validateJsonPathSubset } from "../criteria/jsonPathSubset.js";
 import { idFor as identityIdFor } from "../identity/id-for.js";
+import { NAME_MAX_LENGTH } from "../schema/name.js";
 import type { Criterion } from "../types/criterion.js";
 import { OPERATOR_TYPES, type OperatorType } from "../types/operator.js";
 import type { WorkflowEditorDocument } from "../types/editor.js";
@@ -131,6 +132,7 @@ function validateWorkflow(
       message: `Workflow name "${wf.name}" is invalid.`,
     });
   }
+  issues.push(...nameLengthIssues(wf.name, `Workflow name "${wf.name}"`));
 
   for (const [stateCode, state] of Object.entries(wf.states)) {
     if (!isValidName(stateCode)) {
@@ -140,6 +142,7 @@ function validateWorkflow(
         message: `State code "${stateCode}" is invalid.`,
       });
     }
+    issues.push(...nameLengthIssues(stateCode, `State code "${stateCode}"`));
 
     // duplicate transition names within a state
     const transitionSeen = new Map<string, number>();
@@ -152,6 +155,7 @@ function validateWorkflow(
           message: `Transition name "${t.name}" is invalid.`,
         });
       }
+      issues.push(...nameLengthIssues(t.name, `Transition name "${t.name}"`));
       if (!(t.next in wf.states)) {
         issues.push({
           severity: "error",
@@ -172,13 +176,7 @@ function validateWorkflow(
               message: `Processor name "${p.name}" is invalid.`,
             });
           }
-          if (p.type === "scheduled" && p.config.transition.length === 0) {
-            issues.push({
-              severity: "error",
-              code: "scheduled-missing-target",
-              message: `Scheduled processor "${p.name}" has empty target transition.`,
-            });
-          }
+          issues.push(...nameLengthIssues(p.name, `Processor name "${p.name}"`));
           if (
             p.type === "externalized" &&
             p.startNewTxOnDispatch === true &&
@@ -228,22 +226,6 @@ function validateWorkflow(
           code: "disabled-transition-on-active-workflow",
           message: `Transition "${t.name}" is disabled in active workflow "${wf.name}".`,
         });
-      }
-
-      // scheduled-target-unresolved
-      if (t.processors) {
-        for (const p of t.processors) {
-          if (p.type === "scheduled") {
-            const names = collectTransitionNames(wf);
-            if (!names.has(p.config.transition)) {
-              issues.push({
-                severity: "warning",
-                code: "scheduled-target-unresolved",
-                message: `Scheduled processor "${p.name}" targets unknown transition "${p.config.transition}" in workflow.`,
-              });
-            }
-          }
-        }
       }
     }
     for (const [name, count] of transitionSeen) {
@@ -580,12 +562,21 @@ function reachableAutoStates(wf: Workflow): Set<string> {
   return visited;
 }
 
-function collectTransitionNames(wf: Workflow): Set<string> {
-  const out = new Set<string>();
-  for (const state of Object.values(wf.states)) {
-    for (const t of state.transitions) out.add(t.name);
-  }
-  return out;
+/**
+ * cyoda-go v0.8.0 caps every name at {@link NAME_MAX_LENGTH} characters and
+ * rejects an over-long name with a 400. Mirror that as a blocking issue so the
+ * editor stops a save before it reaches the server.
+ */
+function nameLengthIssues(name: string, label: string): ValidationIssue[] {
+  if (name.length <= NAME_MAX_LENGTH) return [];
+  return [
+    {
+      severity: "error",
+      code: "name-too-long",
+      message: `${label} exceeds the ${NAME_MAX_LENGTH}-character limit (${name.length}).`,
+      detail: { length: name.length, max: NAME_MAX_LENGTH },
+    },
+  ];
 }
 
 type CriterionLoc =

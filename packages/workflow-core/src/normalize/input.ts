@@ -104,12 +104,6 @@ export function normalizeCriterion(criterion: Criterion, depth = 0): Criterion {
 }
 
 export function normalizeProcessor(p: Processor): Processor {
-  if (p.type === "externalized") {
-    return { ...p, name: p.name.trim() };
-  }
-  return {
-    ...p,
-    name: p.name.trim(),
-    config: { ...p.config, transition: p.config.transition.trim() },
-  };
+  // `externalized` is the only processor type since the v0.8 major bump.
+  return { ...p, name: p.name.trim() };
 }

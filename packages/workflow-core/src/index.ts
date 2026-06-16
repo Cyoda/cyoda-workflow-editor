@@ -34,7 +34,6 @@ export type {
   Processor,
   ProcessorPointer,
   SaveStatus,
-  ScheduledProcessor,
   Severity,
   SimpleCriterion,
   State,
@@ -44,6 +43,7 @@ export type {
   Transition,
   TransitionName,
   TransitionPointer,
+  TransitionSchedule,
   CriterionPointer,
   ValidationIssue,
   Workflow,
@@ -75,10 +75,10 @@ export {
   NameSchema,
   OperatorEnum,
   ProcessorSchema,
-  ScheduledProcessorSchema,
   SimpleCriterionSchema,
   StateSchema,
   TransitionSchema,
+  TransitionScheduleSchema,
   WorkflowSchema,
 } from "./schema/index.js";
 
@@ -153,7 +153,7 @@ export {
   registerDialect,
   SUPPORTED_CYODA_VERSIONS,
 } from "./dialect/index.js";
-export type { CyodaDialect, CyodaSchemaVersion } from "./dialect/index.js";
+export type { CyodaDialect, CyodaSchemaVersion, ToCanonicalResult } from "./dialect/index.js";
 
 export {
   CRITERION_DEPTH_WARNING_THRESHOLD,

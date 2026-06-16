@@ -13,7 +13,11 @@ export {
   ExecutionModeSchema,
   ExternalizedProcessorSchema,
   ProcessorSchema,
-  ScheduledProcessorSchema,
 } from "./processor.js";
-export { StateSchema, TransitionSchema, WorkflowSchema } from "./workflow.js";
+export {
+  StateSchema,
+  TransitionSchema,
+  TransitionScheduleSchema,
+  WorkflowSchema,
+} from "./workflow.js";
 export { ExportPayloadSchema, ImportPayloadSchema } from "./payload.js";

@@ -23,8 +23,11 @@ export function parseExportPayload(
   }
 
   let canonical: unknown;
+  let warnings: string[] = [];
   try {
-    canonical = getDialect(sourceVersion).toCanonical(parsed);
+    const result = getDialect(sourceVersion).toCanonical(parsed);
+    canonical = result.value;
+    warnings = result.warnings;
   } catch (e) {
     return {
       ok: false,
@@ -40,7 +43,11 @@ export function parseExportPayload(
 
   const schemaResult = ExportPayloadSchema.safeParse(canonical);
   if (!schemaResult.success) {
-    return { ok: false, issues: zodErrorToIssues(schemaResult.error) };
+    return {
+      ok: false,
+      issues: zodErrorToIssues(schemaResult.error),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
   }
 
   const normalizedWorkflows = schemaResult.data.workflows.map(normalizeWorkflowInput);
@@ -69,5 +76,6 @@ export function parseExportPayload(
     },
     document,
     issues,
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }
