@@ -247,7 +247,7 @@ describe("JsonPathInput — field-hints panel", () => {
       expect(view.queryByTestId("t-path-hints-empty")).toBeTruthy(),
     );
     expect(view.getByTestId("t-path-hints-empty").textContent).toBe(
-      defaultMessages.criterion.hints.noMatches,
+      defaultMessages.criterion.hints.noMatchesManual,
     );
   });
 });

@@ -631,6 +631,74 @@ function RuleEditorPanel({
   );
 }
 
+// Field-first picker shared by simple and array criteria. Presents the existing
+// JSONPath combobox as a "Field" picker when a hint provider is available, and as
+// a raw "Field path" input otherwise. The committed value is always the raw
+// JSONPath — readable labels are display-only (see fieldLabels.ts).
+function FieldPathField({
+  jsonPath,
+  onChange,
+  disabled,
+  autoFocus,
+  testIdPrefix,
+}: {
+  jsonPath: string;
+  onChange: (next: string) => void;
+  disabled: boolean;
+  autoFocus?: boolean;
+  testIdPrefix: string;
+}) {
+  const messages = useMessages();
+  const m = messages.criterion;
+  const { hasProvider, status, hints } = useFieldHints();
+  const pathError = jsonPathError(jsonPath, m, hasProvider);
+  const trimmed = jsonPath.trim();
+  const notListed =
+    hasProvider &&
+    status === "ready" &&
+    trimmed !== "" &&
+    validateJsonPathSubset(trimmed).ok &&
+    !hints.some((h) => h.jsonPath === trimmed);
+
+  return (
+    <label style={labelStyle}>
+      <span>{hasProvider ? m.field : m.fieldPathLabel}</span>
+      <JsonPathInput
+        value={jsonPath}
+        onChange={onChange}
+        disabled={disabled}
+        hasError={!!pathError}
+        autoFocus={autoFocus}
+        inputStyle={inputStyle}
+        testIdPrefix={testIdPrefix}
+      />
+      {pathError ? (
+        <span role="alert" style={errorStyle} data-testid={`${testIdPrefix}-path-error`}>
+          {pathError}
+        </span>
+      ) : (
+        <span style={hintStyle} data-testid={`${testIdPrefix}-field-helper`}>
+          {hasProvider ? m.fieldHelper : m.fieldPathHelper}
+        </span>
+      )}
+      {notListed && (
+        <span
+          style={warningStyle}
+          data-testid={`${testIdPrefix}-field-not-listed`}
+        >
+          {m.fieldNotListed}
+        </span>
+      )}
+      <details style={rawDisclosureStyle}>
+        <summary style={rawSummaryStyle} data-testid={`${testIdPrefix}-raw-toggle`}>
+          {m.rawJsonPathToggle}
+        </summary>
+        <span style={hintStyle}>{m.rawJsonPathHelper}</span>
+      </details>
+    </label>
+  );
+}
+
 function SimpleCriterionFields({
   criterion,
   disabled,
@@ -646,9 +714,10 @@ function SimpleCriterionFields({
   const { hints } = useFieldHints();
   const m = messages.criterion;
   const shape = shapeOf(criterion.operation);
-  const valueEditorKind = getValueEditorKind(criterion.jsonPath, hints);
+  const valueKind = getValueKind(criterion.jsonPath, hints);
+  const valueEditorKind = dateKindOf(valueKind);
   const isDateLikeValue = valueEditorKind !== "text";
-  const pathError = jsonPathError(criterion.jsonPath, m);
+  const isNumberValue = valueKind === "number";
   const range = Array.isArray(criterion.value) ? criterion.value : [];
   const low = formatScalar(range[0]);
   const high = formatScalar(range[1]);
@@ -676,23 +745,13 @@ function SimpleCriterionFields({
 
   return (
     <>
-      <label style={labelStyle}>
-        <span>{m.jsonPath}</span>
-        <JsonPathInput
-          value={criterion.jsonPath}
-          onChange={(jsonPath) => onChange({ ...criterion, jsonPath })}
-          disabled={disabled}
-          hasError={!!pathError}
-          autoFocus={autoFocus}
-          inputStyle={inputStyle}
-          testIdPrefix="criterion-simple"
-        />
-        {pathError && (
-          <span role="alert" style={errorStyle} data-testid="criterion-simple-path-error">
-            {pathError}
-          </span>
-        )}
-      </label>
+      <FieldPathField
+        jsonPath={criterion.jsonPath}
+        onChange={(jsonPath) => onChange({ ...criterion, jsonPath })}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        testIdPrefix="criterion-simple"
+      />
 
       <label style={labelStyle}>
         <span>{m.operation}</span>
@@ -742,6 +801,7 @@ function SimpleCriterionFields({
           ) : (
             <ValueEditor
               value={criterion.value}
+              kind={valueKind}
               disabled={disabled}
               testId="criterion-simple-value"
               onChange={(raw) => {
@@ -771,7 +831,7 @@ function SimpleCriterionFields({
                 {isDateLikeValue ? "From" : m.low}
               </span>
               <input
-                type={isDateLikeValue ? valueEditorKind : "text"}
+                type={isNumberValue ? "number" : isDateLikeValue ? valueEditorKind : "text"}
                 value={low}
                 disabled={disabled}
                 onChange={(e) => {
@@ -787,7 +847,7 @@ function SimpleCriterionFields({
                 {isDateLikeValue ? "To" : m.high}
               </span>
               <input
-                type={isDateLikeValue ? valueEditorKind : "text"}
+                type={isNumberValue ? "number" : isDateLikeValue ? valueEditorKind : "text"}
                 value={high}
                 disabled={disabled}
                 onChange={(e) => {
@@ -1462,26 +1522,15 @@ function ArrayCriterionFields({
   const a = messages.criterion.array;
   const g = messages.criterion.group;
   const [newItem, setNewItem] = useState("");
-  const pathError = jsonPathError(criterion.jsonPath, m);
 
   return (
     <>
-      <label style={labelStyle}>
-        <span>{m.jsonPath}</span>
-        <JsonPathInput
-          value={criterion.jsonPath}
-          onChange={(jsonPath) => onChange({ ...criterion, jsonPath })}
-          disabled={disabled}
-          hasError={!!pathError}
-          inputStyle={inputStyle}
-          testIdPrefix="criterion-array"
-        />
-        {pathError && (
-          <span role="alert" style={errorStyle} data-testid="criterion-array-path-error">
-            {pathError}
-          </span>
-        )}
-      </label>
+      <FieldPathField
+        jsonPath={criterion.jsonPath}
+        onChange={(jsonPath) => onChange({ ...criterion, jsonPath })}
+        disabled={disabled}
+        testIdPrefix="criterion-array"
+      />
 
       <label style={labelStyle}>
         <span>{m.operation}</span>
@@ -1587,23 +1636,25 @@ function ArrayCriterionFields({
 
 function ValueEditor({
   value,
+  kind,
   disabled,
   testId,
   onChange,
 }: {
   value: unknown;
+  kind?: ValueKind;
   disabled: boolean;
   testId: string;
   onChange: (value: unknown | undefined) => void;
 }) {
-  if (typeof value === "boolean") {
+  if (kind === "boolean" || typeof value === "boolean") {
     return (
       <div style={matchControlStyle} data-testid={`${testId}-boolean`}>
         <button
           type="button"
           disabled={disabled}
           onClick={() => onChange(true)}
-          style={value ? segmentedActiveStyle : segmentedStyle}
+          style={value === true ? segmentedActiveStyle : segmentedStyle}
         >
           true
         </button>
@@ -1611,7 +1662,7 @@ function ValueEditor({
           type="button"
           disabled={disabled}
           onClick={() => onChange(false)}
-          style={!value ? segmentedActiveStyle : segmentedStyle}
+          style={value === false ? segmentedActiveStyle : segmentedStyle}
         >
           false
         </button>
@@ -1619,11 +1670,12 @@ function ValueEditor({
     );
   }
 
-  if (typeof value === "number") {
+  if (kind === "number" || typeof value === "number") {
+    const numValue = typeof value === "number" && Number.isFinite(value) ? value : "";
     return (
       <input
         type="number"
-        value={Number.isFinite(value) ? value : ""}
+        value={numValue}
         disabled={disabled}
         onChange={(e) => {
           const raw = e.target.value;
@@ -1744,7 +1796,7 @@ function criterionBlockingError(criterion: Criterion): string | null {
 }
 
 function jsonPathBlockingError(jsonPath: string): string | null {
-  if (jsonPath === "") return "Path is required.";
+  if (jsonPath === "") return "Choose a field for this condition.";
   const check = validateJsonPathSubset(jsonPath);
   return check.ok ? null : `JSON path is invalid (${check.reason}).`;
 }
@@ -1759,8 +1811,16 @@ function rangeBlockingError(operation: OperatorValue, value: unknown): string | 
     : "BETWEEN requires both Low and High values.";
 }
 
-function jsonPathError(jsonPath: string, messages: ReturnType<typeof useMessages>["criterion"]): string | null {
-  if (jsonPath === "") return messages.jsonPathError.empty;
+function jsonPathError(
+  jsonPath: string,
+  messages: ReturnType<typeof useMessages>["criterion"],
+  hasProvider: boolean,
+): string | null {
+  if (jsonPath === "") {
+    return hasProvider
+      ? messages.jsonPathError.empty
+      : messages.jsonPathError.fieldPathEmpty;
+  }
   const pathCheck = validateJsonPathSubset(jsonPath);
   return pathCheck.ok ? null : messages.jsonPathError[pathCheck.reason as JsonPathRejectReason];
 }
@@ -1781,12 +1841,29 @@ function parseScalar(s: string): unknown {
   }
 }
 
-type ValueEditorKind = "text" | "date" | "datetime-local";
+type ValueKind = "text" | "date" | "datetime-local" | "number" | "boolean";
+type DateKind = "text" | "date" | "datetime-local";
 
-function getValueEditorKind(jsonPath: string, hints: FieldHint[]): ValueEditorKind {
+const NUMERIC_HINT_TYPES = new Set([
+  "number",
+  "integer",
+  "int",
+  "long",
+  "double",
+  "float",
+  "decimal",
+  "bigdecimal",
+]);
+
+// Infer the value-editor kind for a path. Explicit number/boolean field types
+// take precedence; otherwise fall back to date/datetime name+type heuristics.
+function getValueKind(jsonPath: string, hints: FieldHint[]): ValueKind {
   const path = jsonPath.trim();
   if (!path) return "text";
   const hint = hints.find((h) => h.jsonPath === path);
+  const hintType = (hint?.type ?? "").trim().toLowerCase();
+  if (hintType === "boolean" || hintType === "bool") return "boolean";
+  if (NUMERIC_HINT_TYPES.has(hintType)) return "number";
   const descriptor = `${hint?.type ?? ""} ${hint?.description ?? ""} ${path}`.toLowerCase();
   const lastSegment = path.split(/[.[\]]+/).filter(Boolean).at(-1) ?? path;
   const normalizedSegment = lastSegment.toLowerCase();
@@ -1803,7 +1880,12 @@ function getValueEditorKind(jsonPath: string, hints: FieldHint[]): ValueEditorKi
   return isDate ? "date" : "text";
 }
 
-function dateFormatHint(kind: ValueEditorKind): string {
+// Narrow a ValueKind to the date-style kinds the string-backed date inputs use.
+function dateKindOf(kind: ValueKind): DateKind {
+  return kind === "date" || kind === "datetime-local" ? kind : "text";
+}
+
+function dateFormatHint(kind: DateKind): string {
   return kind === "datetime-local" ? "YYYY-MM-DDTHH:mm" : "YYYY-MM-DD";
 }
 
@@ -1944,6 +2026,8 @@ const compactDangerBtn: React.CSSProperties = { ...dangerBtn, padding: "4px 7px"
 const errorStyle: React.CSSProperties = { color: colors.danger, fontSize: 11 };
 const warningStyle: React.CSSProperties = { color: colors.warning, fontSize: 11 };
 const hintStyle: React.CSSProperties = { color: colors.textTertiary, fontSize: 11, fontStyle: "italic" };
+const rawDisclosureStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4, marginTop: 2 };
+const rawSummaryStyle: React.CSSProperties = { fontSize: 11, color: colors.textTertiary, cursor: "pointer", width: "fit-content" };
 const depthWarningStyle: React.CSSProperties = { padding: "6px 8px", background: colors.warningBg, borderWidth: 1, borderStyle: "solid", borderColor: colors.warningBorder, borderRadius: radii.sm, color: colors.warning, fontSize: 11 };
 const arrayValueStyle: React.CSSProperties = { flex: 1, fontSize: 12, padding: "4px 6px", background: colors.surfaceMuted, borderRadius: radii.sm };
 const builderStyle: React.CSSProperties = {

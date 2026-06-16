@@ -173,7 +173,9 @@ describe("GroupCriterionFields", () => {
       "Done",
     );
     expect(document.activeElement).toBe(getAllByTestId("criterion-simple-path").at(-1));
-    expect(getByTestId("criterion-group-row-error-1").textContent).toContain("Path is required");
+    expect(getByTestId("criterion-group-row-error-1").textContent).toContain(
+      "Choose a field for this condition.",
+    );
     expect(onDispatch).not.toHaveBeenCalled();
     fireEvent.change(getAllByTestId("criterion-simple-path").at(-1)!, {
       target: { value: "$.new" },
@@ -217,7 +219,9 @@ describe("GroupCriterionFields", () => {
     fireEvent.click(getByTestId("criterion-group-row-1"));
 
     expect(getByTestId("criterion-group-editor-1")).toBeTruthy();
-    expect(getByTestId("criterion-simple-path-error").textContent).toBe("Path is required.");
+    expect(getByTestId("criterion-simple-path-error").textContent).toBe(
+      defaultMessages.criterion.jsonPathError.fieldPathEmpty,
+    );
   });
 
   it("Done collapses the expanded editor while keeping draft summary changes", () => {
