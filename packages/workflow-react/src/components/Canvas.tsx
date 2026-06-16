@@ -612,6 +612,94 @@ function computeAutoHandles(
     if (!leftEdge.targetAnchor)  assignBiDir(leftEdge.id,  "target", leftEdge.targetId,  "top",    leftEdge.sourceId);
   }
 
+  // ── N≥3 parallel pair side routing ──────────────────────────────────────
+  // When 3+ parallel edges go from the same source to the same target,
+  // routing all of them via bottom→top produces overlapping Z-paths.
+  // Route the inner edges (parallelIndex 1..N-2) via side handles (left or
+  // right) to create a clear U-shaped arc that doesn't overlap the Z-paths.
+  // Side choice: the side with fewer occupied handles on source + target
+  // combined. For N=4 the two inner edges use opposite sides.
+
+  // Build a complete occupancy map from all current assignments.
+  const sideOcc = new Map<string, Set<string>>();
+  const markSide = (nodeId: string, handle: string) => {
+    const s = sideOcc.get(nodeId) ?? new Set<string>();
+    s.add(handle);
+    sideOcc.set(nodeId, s);
+  };
+  for (const edge of edges) {
+    const srcH = assignments.get(`${edge.id}:source`);
+    const tgtH = assignments.get(`${edge.id}:target`);
+    if (srcH) markSide(edge.sourceId, srcH);
+    if (tgtH) markSide(edge.isSelf ? edge.sourceId : edge.targetId, tgtH);
+  }
+
+  const countSide = (nodeId: string, side: "left" | "right"): number => {
+    const occ = sideOcc.get(nodeId) ?? new Set<string>();
+    let n = 0;
+    for (const h of occ) if (h === side || h.startsWith(`${side}-`)) n++;
+    return n;
+  };
+
+  const pickSideHandle = (nodeId: string, side: "left" | "right"): string => {
+    const candidates = side === "left"
+      ? (["left", "left-top", "left-bottom"] as const)
+      : (["right", "right-top", "right-bottom"] as const);
+    const occ = sideOcc.get(nodeId) ?? new Set<string>();
+    return candidates.find((h) => !occ.has(h)) ?? candidates[0]!;
+  };
+
+  // Group non-self edges that belong to a parallel group of size ≥ 3.
+  const trioPairs = new Map<string, TransitionEdge[]>();
+  for (const edge of edges) {
+    if (edge.isSelf || edge.parallelGroupSize < 3) continue;
+    const key = `${edge.sourceId}->${edge.targetId}`;
+    const list = trioPairs.get(key) ?? [];
+    list.push(edge);
+    trioPairs.set(key, list);
+  }
+
+  for (const [, group] of trioPairs) {
+    if (group.length < 3) continue;
+    const sorted = [...group].sort((a, b) => a.parallelIndex - b.parallelIndex);
+    // Inner edges: all except the outermost (first and last by parallelIndex).
+    const inner = sorted.slice(1, -1);
+
+    let prevSide: "left" | "right" | null = null;
+
+    for (let k = 0; k < inner.length; k++) {
+      const edge = inner[k]!;
+      if (edge.sourceAnchor || edge.targetAnchor) continue;
+
+      let side: "left" | "right";
+      if (prevSide === null) {
+        // First inner edge: pick the less occupied side.
+        const leftTotal  = countSide(edge.sourceId, "left")  + countSide(edge.targetId, "left");
+        const rightTotal = countSide(edge.sourceId, "right") + countSide(edge.targetId, "right");
+        side = leftTotal <= rightTotal ? "left" : "right";
+      } else {
+        // Subsequent inner edges alternate to the opposite side.
+        side = prevSide === "left" ? "right" : "left";
+      }
+      prevSide = side;
+
+      const srcHandle = pickSideHandle(edge.sourceId, side);
+      const tgtHandle = pickSideHandle(edge.targetId, side);
+
+      // Release the previous bottom/top handles from the occupancy map.
+      const prevSrc = assignments.get(`${edge.id}:source`);
+      const prevTgt = assignments.get(`${edge.id}:target`);
+      if (prevSrc) sideOcc.get(edge.sourceId)?.delete(prevSrc);
+      if (prevTgt) sideOcc.get(edge.targetId)?.delete(prevTgt);
+
+      // Assign side handles and mark them occupied.
+      assignments.set(`${edge.id}:source`, srcHandle);
+      assignments.set(`${edge.id}:target`, tgtHandle);
+      markSide(edge.sourceId, srcHandle);
+      markSide(edge.targetId, tgtHandle);
+    }
+  }
+
   return assignments;
 }
 
