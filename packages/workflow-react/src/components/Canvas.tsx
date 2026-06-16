@@ -31,6 +31,8 @@ import { RfStateNode, type RfStateNodeData } from "./RfStateNode.js";
 import { RfTransitionEdge, type RfEdgeData } from "./RfTransitionEdge.js";
 import { HoverContext, computeHighlightSet } from "./HoverContext.js";
 import { findNonOverlappingCenter, type Rect } from "./newStatePosition.js";
+import { orthogonalEdgePath } from "../routing/orthogonal.js";
+import { badgesFor } from "@cyoda/workflow-viewer/theme";
 import type { Selection } from "../state/types.js";
 
 const nodeTypes = { stateNode: RfStateNode };
@@ -128,6 +130,84 @@ function toRfNodes(
         style: { width: size.width, height: size.height },
       };
     });
+}
+
+// Module-level canvas context for label text measurement (created once).
+let _labelMeasureCtx: CanvasRenderingContext2D | null | undefined;
+function measureLabelText(text: string): number {
+  if (_labelMeasureCtx === undefined) {
+    try {
+      const cvs = document.createElement("canvas");
+      _labelMeasureCtx = cvs.getContext("2d");
+      if (_labelMeasureCtx) {
+        _labelMeasureCtx.font =
+          '700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif';
+      }
+    } catch {
+      _labelMeasureCtx = null;
+    }
+  }
+  if (!_labelMeasureCtx) return text.length * 6;
+  // measureText doesn't account for CSS letter-spacing (0.04em @ 9px = 0.36px/char).
+  return _labelMeasureCtx.measureText(text.toUpperCase()).width + text.length * 0.36;
+}
+
+/**
+ * Cluster overlapping labels along one axis and distribute them symmetrically
+ * around their cluster mean.
+ *
+ * "main" axis = the axis along which we separate labels (X for horizontal
+ * segments, Y for vertical segments). "cross" axis = the perpendicular axis
+ * used only to decide whether two labels are in the same band.
+ */
+function distributeLabels(
+  slots: Array<{ edgeId: string; main: number; mainSize: number; cross: number; crossSize: number }>,
+  gap: number,
+): Map<string, number> {
+  const n = slots.length;
+  if (n <= 1) return new Map();
+
+  // Union-Find with path compression.
+  const parent: number[] = [];
+  for (let i = 0; i < n; i++) parent.push(i);
+  const find = (i: number): number => {
+    let j = i;
+    while (parent[j] !== j) j = parent[j]!;
+    while (parent[i] !== j) { const nx = parent[i]!; parent[i] = j; i = nx; }
+    return j;
+  };
+
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = slots[i]!, b = slots[j]!;
+      const crossOverlap = Math.abs(a.cross - b.cross) < (a.crossSize + b.crossSize) / 2;
+      const mainNear = Math.abs(a.main - b.main) < (a.mainSize + b.mainSize) / 2 + gap;
+      if (crossOverlap && mainNear) parent[find(i)] = find(j);
+    }
+  }
+
+  const clusters = new Map<number, typeof slots>();
+  for (let i = 0; i < n; i++) {
+    const root = find(i);
+    if (!clusters.has(root)) clusters.set(root, []);
+    clusters.get(root)!.push(slots[i]!);
+  }
+
+  const offsets = new Map<string, number>();
+  for (const cluster of clusters.values()) {
+    if (cluster.length <= 1) continue;
+    cluster.sort((a, b) => a.main - b.main);
+    const total = cluster.reduce((s, c) => s + c.mainSize, 0) + gap * (cluster.length - 1);
+    const mean = cluster.reduce((s, c) => s + c.main, 0) / cluster.length;
+    let pos = mean - total / 2;
+    for (const slot of cluster) {
+      const target = pos + slot.mainSize / 2;
+      const delta = target - slot.main;
+      if (Math.abs(delta) > 0.5) offsets.set(slot.edgeId, delta);
+      pos += slot.mainSize + gap;
+    }
+  }
+  return offsets;
 }
 
 function toRfEdges(
@@ -252,6 +332,73 @@ function toRfEdges(
     parallelOffsets.set(e.id, (parallelOffsets.get(e.id) ?? 0) + fanOffset);
   }
 
+  // ── Label overlap detection ──────────────────────────────────────────────
+  // Pre-compute each edge's label position and size, then separate overlapping
+  // labels by sliding them along the segment they sit on:
+  //   • horizontal mid-segment (Bottom/Top handles) → offset in X
+  //   • vertical mid-segment   (Left/Right handles)  → offset in Y
+  const LABEL_H_BASE = 22;  // 9px font + 2×3px padding + 2×1px border
+  const LABEL_H_BADGE = 18; // extra for one badge row (badge + gap)
+  const LABEL_GAP = 4;      // minimum gap between bounding boxes
+  const LABEL_PX = 6;       // geometry.labelPill.paddingX
+
+  type LabelSlot = {
+    edgeId: string; cx: number; cy: number; w: number; h: number; isHoriz: boolean;
+  };
+  const labelSlots: LabelSlot[] = [];
+
+  for (const e of transitions) {
+    if (e.isSelf) continue;
+    const srcPos = displayPositions.get(e.sourceId);
+    const tgtPos = displayPositions.get(e.targetId);
+    if (!srcPos || !tgtPos) continue;
+    const srcHandle = autoHandles.get(`${e.id}:source`);
+    const tgtHandle = autoHandles.get(`${e.id}:target`);
+    const srcPt = pointForHandle(srcPos, srcHandle);
+    const tgtPt = pointForHandle(tgtPos, tgtHandle);
+    if (!srcPt || !tgtPt) continue;
+    const srcPosition = positionForHandle(srcHandle);
+    const { labelX, labelY } = orthogonalEdgePath({
+      sourceX: srcPt.x,
+      sourceY: srcPt.y,
+      targetX: tgtPt.x,
+      targetY: tgtPt.y,
+      sourcePosition: srcPosition,
+      targetPosition: positionForHandle(tgtHandle),
+      sourceRect: srcPos,
+      targetRect: tgtPos,
+      parallelOffset: parallelOffsets.get(e.id),
+    });
+    const textW = measureLabelText(e.summary.display);
+    const badges = badgesFor(e.summary, { manual: e.manual, disabled: e.disabled });
+    const labelH = LABEL_H_BASE + (badges.length > 0 ? LABEL_H_BADGE : 0);
+    // Bottom/Top exit → horizontal mid-segment → slide label left/right.
+    const isHoriz = srcPosition === Position.Bottom || srcPosition === Position.Top;
+    labelSlots.push({
+      edgeId: e.id,
+      cx: labelX,
+      cy: labelY,
+      w: textW + 2 * LABEL_PX + 2,
+      h: labelH,
+      isHoriz,
+    });
+  }
+
+  // Horizontal-segment labels: cluster by same Y-band, distribute in X.
+  const labelXOffsets = distributeLabels(
+    labelSlots
+      .filter((s) => s.isHoriz)
+      .map((s) => ({ edgeId: s.edgeId, main: s.cx, mainSize: s.w, cross: s.cy, crossSize: s.h })),
+    LABEL_GAP,
+  );
+  // Vertical-segment labels: cluster by same X-band, distribute in Y.
+  const labelYOffsets = distributeLabels(
+    labelSlots
+      .filter((s) => !s.isHoriz)
+      .map((s) => ({ edgeId: s.edgeId, main: s.cy, mainSize: s.h, cross: s.cx, crossSize: s.w })),
+    LABEL_GAP,
+  );
+
   return transitions.map((e) => {
       const target = stateById.get(e.targetId);
       const targetIsTerminal =
@@ -285,6 +432,8 @@ function toRfEdges(
           liveSourceRect: displayPositions.get(e.sourceId),
           liveTargetRect: displayPositions.get(e.targetId),
           parallelOffset: parallelOffsets.get(e.id),
+          labelXOffset: labelXOffsets.get(e.id),
+          labelYOffset: labelYOffsets.get(e.id),
         },
         reconnectable: true,
         interactionWidth: selected ? 28 : 18,

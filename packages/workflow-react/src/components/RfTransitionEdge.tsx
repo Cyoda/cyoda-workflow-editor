@@ -43,6 +43,9 @@ export interface RfEdgeData {
   liveTargetRect?: Rect;
   /** Lateral mid-segment offset when multiple edges share the same source/target pair. */
   parallelOffset?: number;
+  /** Pre-computed offsets applied to the label to resolve overlaps (slide along the segment). */
+  labelXOffset?: number;
+  labelYOffset?: number;
 }
 
 function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
@@ -110,7 +113,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
         <div
           style={{
             position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            transform: `translate(-50%, -50%) translate(${labelX + (data.labelXOffset ?? 0)}px, ${labelY + (data.labelYOffset ?? 0)}px)`,
             opacity: dimmed ? 0.15 : 1,
             transition: "opacity 0.15s ease",
             fontFamily: typography.fontFamily,
