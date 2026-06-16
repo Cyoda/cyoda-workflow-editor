@@ -537,9 +537,12 @@ function anchorHandleId(
   if (toTerminalSide) {
     return role === "source" ? toTerminalSide : (toTerminalSide === "left" ? "right" : "left");
   }
-  // Vertical back-edges: wrap around whichever side keeps the arc away from
-  // the main flow. Source left of target → wrap left; otherwise wrap right.
-  if (isBackEdge) return backEdgeSide ?? "right";
+  // Vertical back-edges: source exits from the near side (toward target);
+  // target enters from its own near side (toward source) — the opposite side.
+  if (isBackEdge) {
+    const side = backEdgeSide ?? "right";
+    return role === "source" ? side : (side === "left" ? "right" : "left");
+  }
   return role === "source" ? "bottom" : "top";
 }
 
@@ -600,8 +603,8 @@ function computeAutoHandles(
       }
     }
 
-    // In vertical mode, back-edges wrap around the side that keeps the arc
-    // away from the main flow: source left of target → wrap left, else right.
+    // In vertical mode, back-edges exit/enter from the side nearest to the
+    // target: source left of target → use right side; source right → left side.
     let backEdgeSide: "left" | "right" | undefined;
     const back = isBackEdge(edge, displayPositions, orientation);
     if (back && orientation === "vertical") {
@@ -610,7 +613,7 @@ function computeAutoHandles(
       if (srcPos && tgtPos) {
         const srcCX = srcPos.x + srcPos.width / 2;
         const tgtCX = tgtPos.x + tgtPos.width / 2;
-        backEdgeSide = srcCX < tgtCX ? "left" : "right";
+        backEdgeSide = srcCX < tgtCX ? "right" : "left";
       }
     }
 
