@@ -166,7 +166,14 @@ export const defaultMessages = {
     noneAutomatedWarning:
       "Automated transitions without criteria should usually be last in the transition order.",
     type: "Type",
-    jsonPath: "JSON path",
+    field: "Field",
+    fieldHelper: "Choose the entity field this condition applies to.",
+    fieldPathLabel: "Field path",
+    fieldPathHelper: "Enter a supported JSONPath, for example $.customer.status.",
+    rawJsonPathToggle: "Enter raw JSONPath",
+    rawJsonPathHelper:
+      "Use this if the field is not listed or you need a supported JSONPath expression.",
+    fieldNotListed: "This field was not found in the current entity field list.",
     operation: "Operation",
     value: "Value",
     low: "Low",
@@ -199,7 +206,9 @@ export const defaultMessages = {
     matchesPatternHelpAlways:
       "Go RE2 regex. Include ^…$ to anchor whole-string matches.",
     jsonPathError: {
-      empty: "Path is required.",
+      empty: "Choose a field for this condition.",
+      fieldPathEmpty: "Enter a field path, for example $.customer.status.",
+      invalid: "This field path is not valid for the supported Cyoda JSONPath syntax.",
       "missing-root": "Path must start with $.",
       "recursive-descent": "Recursive descent (..) is not supported.",
       "filter-expression": "Filter expressions (?(@…)) are not supported.",
@@ -252,11 +261,14 @@ export const defaultMessages = {
       addValuePlaceholder: "Add value…",
     },
     hints: {
-      loading: "Loading suggestions…",
+      loading: "Loading fields…",
       error: "Could not load field suggestions.",
       noEntity:
         "No entity context — field suggestions unavailable. Set an entity to enable autocomplete.",
       noMatches: "No matching fields.",
+      noMatchesManual:
+        "No matching fields. You can enter a supported JSONPath manually.",
+      searchPlaceholder: "Search entity fields…",
       typeLabel: "({type})",
       retry: "Retry",
     },

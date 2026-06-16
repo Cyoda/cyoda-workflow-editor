@@ -9,6 +9,7 @@ import {
 import { useMessages } from "../../i18n/context.js";
 import { colors, fonts, radii } from "../../style/tokens.js";
 import { useFieldHints } from "./FieldHintsContext.js";
+import { buildFieldLabels } from "./fieldLabels.js";
 
 export interface JsonPathInputProps {
   value: string;
@@ -51,12 +52,18 @@ export function JsonPathInput({
     if (autoFocus && !disabled) inputRef.current?.focus();
   }, [autoFocus, disabled]);
 
+  const labels = useMemo(() => buildFieldLabels(hints), [hints]);
+
   const filtered = useMemo(() => {
     if (!enabled || status !== "ready") return hints;
     const q = value.trim().toLowerCase();
     if (!q) return hints;
-    return hints.filter((h) => h.jsonPath.toLowerCase().includes(q));
-  }, [enabled, status, hints, value]);
+    return hints.filter((h) => {
+      if (h.jsonPath.toLowerCase().includes(q)) return true;
+      const label = labels.get(h.jsonPath);
+      return label ? label.primary.toLowerCase().includes(q) : false;
+    });
+  }, [enabled, status, hints, value, labels]);
 
   useEffect(() => {
     if (activeIdx > 0 && activeIdx >= filtered.length) setActiveIdx(0);
@@ -131,6 +138,7 @@ export function JsonPathInput({
           }
         }}
         style={mergedInputStyle}
+        placeholder={enabled ? m.searchPlaceholder : undefined}
         data-testid={`${testIdPrefix}-path`}
         aria-invalid={hasError ? true : undefined}
         aria-autocomplete={hasProvider ? "list" : undefined}
@@ -183,13 +191,15 @@ export function JsonPathInput({
               style={hintRowStyle}
               data-testid={`${testIdPrefix}-path-hints-empty`}
             >
-              {m.noMatches}
+              {m.noMatchesManual}
             </div>
           )}
           {hasEntity &&
             status === "ready" &&
             filtered.map((h, i) => {
               const active = i === activeIdx;
+              const label = labels.get(h.jsonPath);
+              const primary = label?.primary ?? h.jsonPath;
               return (
                 <div
                   key={h.jsonPath}
@@ -205,11 +215,12 @@ export function JsonPathInput({
                   onMouseEnter={() => setActiveIdx(i)}
                 >
                   <div style={rowMainStyle}>
-                    <span style={pathTextStyle}>{h.jsonPath}</span>
+                    <span style={primaryTextStyle}>{primary}</span>
                     <span style={typeTextStyle}>
                       {m.typeLabel.replace("{type}", h.type)}
                     </span>
                   </div>
+                  <div style={pathTextStyle}>{h.jsonPath}</div>
                   {h.description && (
                     <div style={descTextStyle}>{h.description}</div>
                   )}
@@ -258,9 +269,16 @@ const rowMainStyle: CSSProperties = {
   gap: 8,
 };
 
-const pathTextStyle: CSSProperties = {
-  fontFamily: fonts.mono,
+const primaryTextStyle: CSSProperties = {
   color: colors.textPrimary,
+  fontWeight: 500,
+};
+
+const pathTextStyle: CSSProperties = {
+  marginTop: 1,
+  fontFamily: fonts.mono,
+  fontSize: 11,
+  color: colors.textTertiary,
 };
 
 const typeTextStyle: CSSProperties = {

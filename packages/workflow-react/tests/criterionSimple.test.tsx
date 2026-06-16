@@ -392,4 +392,88 @@ describe("SimpleCriterionFields", () => {
       value: "high",
     });
   });
+
+  it("number-typed field renders a numeric input and dispatches a number value", async () => {
+    const hints: FieldHint[] = [{ jsonPath: "$.qty", type: "number" }];
+    const provider: EntityFieldHintProvider = {
+      listFieldPaths: vi.fn(async () => hints),
+    };
+    const { getByTestId, onDispatch } = renderWithCriterion(undefined, {
+      hintProvider: provider,
+      entity: { entityName: "Order", modelVersion: 1 },
+    });
+    fireEvent.change(getByTestId("criterion-simple-path"), {
+      target: { value: "$.qty" },
+    });
+    await waitFor(() =>
+      expect((getByTestId("criterion-simple-value") as HTMLInputElement).type).toBe(
+        "number",
+      ),
+    );
+    fireEvent.change(getByTestId("criterion-simple-value"), {
+      target: { value: "42" },
+    });
+    fireEvent.click(getByTestId("criterion-modal-apply"));
+    const setCrit = onDispatch.mock.calls
+      .map((c) => c[0])
+      .find((p) => p.op === "setCriterion");
+    expect(setCrit && setCrit.op === "setCriterion" ? setCrit.criterion : null).toEqual({
+      type: "simple",
+      jsonPath: "$.qty",
+      operation: "EQUALS",
+      value: 42,
+    });
+  });
+
+  it("boolean-typed field renders a true/false control and dispatches a boolean value", async () => {
+    const hints: FieldHint[] = [{ jsonPath: "$.active", type: "boolean" }];
+    const provider: EntityFieldHintProvider = {
+      listFieldPaths: vi.fn(async () => hints),
+    };
+    const { getByTestId, onDispatch } = renderWithCriterion(undefined, {
+      hintProvider: provider,
+      entity: { entityName: "Order", modelVersion: 1 },
+    });
+    fireEvent.change(getByTestId("criterion-simple-path"), {
+      target: { value: "$.active" },
+    });
+    await waitFor(() =>
+      expect(getByTestId("criterion-simple-value-boolean")).toBeTruthy(),
+    );
+    const trueButton = getByTestId("criterion-simple-value-boolean").querySelectorAll(
+      "button",
+    )[0]!;
+    fireEvent.click(trueButton);
+    fireEvent.click(getByTestId("criterion-modal-apply"));
+    const setCrit = onDispatch.mock.calls
+      .map((c) => c[0])
+      .find((p) => p.op === "setCriterion");
+    expect(setCrit && setCrit.op === "setCriterion" ? setCrit.criterion : null).toEqual({
+      type: "simple",
+      jsonPath: "$.active",
+      operation: "EQUALS",
+      value: true,
+    });
+  });
+
+  it("valid path absent from the hint list shows a non-blocking 'not listed' warning", async () => {
+    const hints: FieldHint[] = [{ jsonPath: "$.qty", type: "number" }];
+    const provider: EntityFieldHintProvider = {
+      listFieldPaths: vi.fn(async () => hints),
+    };
+    const { getByTestId, queryByTestId } = renderWithCriterion(undefined, {
+      hintProvider: provider,
+      entity: { entityName: "Order", modelVersion: 1 },
+    });
+    fireEvent.change(getByTestId("criterion-simple-path"), {
+      target: { value: "$.unknown" },
+    });
+    await waitFor(() =>
+      expect(getByTestId("criterion-simple-field-not-listed").textContent).toBe(
+        defaultMessages.criterion.fieldNotListed,
+      ),
+    );
+    // Informational only — a valid path must not raise a blocking error.
+    expect(queryByTestId("criterion-simple-path-error")).toBeNull();
+  });
 });
