@@ -34,6 +34,11 @@ export interface OrthogonalEdgeInput {
    * Positive shifts the mid-segment right (vertical paths) or down (horizontal paths).
    */
   parallelOffset?: number;
+  /**
+   * Y-offset applied as a small kink at the source before the first horizontal segment.
+   * Used to separate edges that exit from nodes at the same Y in opposite directions.
+   */
+  stubYOffset?: number;
 }
 
 export interface OrthogonalEdge {
@@ -76,6 +81,7 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
     alignmentTolerance = DEFAULT_TOLERANCE,
     stubLength = DEFAULT_STUB,
     parallelOffset = 0,
+    stubYOffset = 0,
   } = input;
 
   if (routePoints && routePoints.length >= 2) {
@@ -202,16 +208,23 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
       ];
     } else {
       midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
-      path = [
-        { x: sx, y: sy },
-        { x: midX, y: sStub.y },
-        { x: midX, y: tStub.y },
-        // Route through the target stub so the last segment stays orthogonal
-        // when source and target normals are on different axes (e.g. right→top).
-        // simplify() collapses this to the original 4-point path when co-linear.
-        { x: tStub.x, y: tStub.y },
-        { x: tx, y: ty },
-      ];
+      const stubY = sStub.y + stubYOffset;
+      path = stubYOffset !== 0
+        ? [
+            { x: sx, y: sy },
+            { x: sx, y: stubY },         // short vertical kink at source
+            { x: midX, y: stubY },        // horizontal at staggered Y
+            { x: midX, y: tStub.y },
+            { x: tStub.x, y: tStub.y },
+            { x: tx, y: ty },
+          ]
+        : [
+            { x: sx, y: sy },
+            { x: midX, y: sStub.y },
+            { x: midX, y: tStub.y },
+            { x: tStub.x, y: tStub.y },
+            { x: tx, y: ty },
+          ];
     }
   }
 
