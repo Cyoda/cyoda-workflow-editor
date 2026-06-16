@@ -531,6 +531,37 @@ function toRfEdges(
     LABEL_GAP,
   );
 
+  // ── Cross-axis label collision ───────────────────────────────────────────
+  // The two passes above only handle same-axis pairs. Here we shift
+  // horizontal labels in X to clear any overlapping vertical label column.
+  // Up to 3 passes to handle cascading effects.
+  {
+    const horizList = labelSlots.filter((s) => s.isHoriz);
+    const vertList  = labelSlots.filter((s) => !s.isHoriz);
+    for (let pass = 0; pass < 3; pass++) {
+      let anyChanged = false;
+      for (const h of horizList) {
+        let hx = h.cx + (labelXOffsets.get(h.edgeId) ?? 0);
+        const hyLo = h.cy - h.h / 2;
+        const hyHi = h.cy + h.h / 2;
+        for (const v of vertList) {
+          const vy = v.cy + (labelYOffsets.get(v.edgeId) ?? 0);
+          if (hyHi <= vy - v.h / 2 || hyLo >= vy + v.h / 2) continue; // no Y overlap
+          const vxLo = v.cx - v.w / 2;
+          const vxHi = v.cx + v.w / 2;
+          if (hx + h.w / 2 <= vxLo || hx - h.w / 2 >= vxHi) continue; // no X overlap
+          // Conflict — push h past v's X column.
+          hx = hx < v.cx
+            ? vxLo - h.w / 2 - LABEL_GAP
+            : vxHi + h.w / 2 + LABEL_GAP;
+          anyChanged = true;
+        }
+        labelXOffsets.set(h.edgeId, hx - h.cx);
+      }
+      if (!anyChanged) break;
+    }
+  }
+
   return transitions.map((e) => {
       const target = stateById.get(e.targetId);
       const targetIsTerminal =
