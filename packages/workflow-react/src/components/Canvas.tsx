@@ -332,6 +332,67 @@ function toRfEdges(
     parallelOffsets.set(e.id, (parallelOffsets.get(e.id) ?? 0) + fanOffset);
   }
 
+  // ── Stub conflict: handle reassignment ──────────────────────────────────
+  // When two edges from different source nodes at the same Y exit in opposite
+  // horizontal directions and their first stubs overlap in X, reassign one to
+  // the -top sub-handle and the other to the -bottom sub-handle so they
+  // naturally start at different Y positions without any path kink.
+  const ROUTE_STUB = 48; // keep in sync with DEFAULT_STUB in orthogonal.ts
+  {
+    type SI = { edgeId: string; srcNodeId: string; srcHandle: string; srcX: number; srcY: number; midX: number };
+    const stubInfos: SI[] = [];
+    for (const e of transitions) {
+      if (e.isSelf) continue;
+      const srcPos = displayPositions.get(e.sourceId);
+      const tgtPos = displayPositions.get(e.targetId);
+      if (!srcPos || !tgtPos) continue;
+      const srcHandle = autoHandles.get(`${e.id}:source`);
+      const tgtHandle = autoHandles.get(`${e.id}:target`);
+      // Only process center handles — sub-handles are already separated by splitHandleFor.
+      if (srcHandle !== "right" && srcHandle !== "left") continue;
+      const srcPt = pointForHandle(srcPos, srcHandle);
+      const tgtPt = pointForHandle(tgtPos, tgtHandle);
+      if (!srcPt || !tgtPt) continue;
+      const srcP = positionForHandle(srcHandle);
+      const tgtP = positionForHandle(tgtHandle);
+      const snx = srcP === Position.Right ? 1 : -1;
+      const tnx = tgtP === Position.Right ? 1 : tgtP === Position.Left ? -1 : 0;
+      const sStubX = srcPt.x + snx * ROUTE_STUB;
+      const tStubX = tgtPt.x + tnx * ROUTE_STUB;
+      let midX = (sStubX + tStubX) / 2;
+      if (snx > 0) midX = Math.max(midX, sStubX);
+      else midX = Math.min(midX, sStubX);
+      if (tnx > 0) midX = Math.max(midX, tStubX);
+      else midX = Math.min(midX, tStubX);
+      stubInfos.push({ edgeId: e.id, srcNodeId: e.sourceId, srcHandle, srcX: srcPt.x, srcY: srcPt.y, midX });
+    }
+    const reassigned = new Set<string>();
+    for (let i = 0; i < stubInfos.length; i++) {
+      for (let j = i + 1; j < stubInfos.length; j++) {
+        const a = stubInfos[i]!, b = stubInfos[j]!;
+        if (a.srcNodeId === b.srcNodeId) continue; // same node: splitHandleFor already handles this
+        if (Math.abs(a.srcY - b.srcY) > 2) continue;
+        const aLo = Math.min(a.srcX, a.midX), aHi = Math.max(a.srcX, a.midX);
+        const bLo = Math.min(b.srcX, b.midX), bHi = Math.max(b.srcX, b.midX);
+        if (Math.min(aHi, bHi) - Math.max(aLo, bLo) <= 0) continue;
+        if (!reassigned.has(a.edgeId) && !reassigned.has(b.edgeId)) {
+          autoHandles.set(`${a.edgeId}:source`, `${a.srcHandle}-top`);
+          autoHandles.set(`${b.edgeId}:source`, `${b.srcHandle}-bottom`);
+          reassigned.add(a.edgeId);
+          reassigned.add(b.edgeId);
+        } else if (!reassigned.has(b.edgeId)) {
+          const aNew = autoHandles.get(`${a.edgeId}:source`)!;
+          autoHandles.set(`${b.edgeId}:source`, `${b.srcHandle}-${aNew.endsWith('-top') ? 'bottom' : 'top'}`);
+          reassigned.add(b.edgeId);
+        } else if (!reassigned.has(a.edgeId)) {
+          const bNew = autoHandles.get(`${b.edgeId}:source`)!;
+          autoHandles.set(`${a.edgeId}:source`, `${a.srcHandle}-${bNew.endsWith('-top') ? 'bottom' : 'top'}`);
+          reassigned.add(a.edgeId);
+        }
+      }
+    }
+  }
+
   // ── Corridor spread ──────────────────────────────────────────────────────
   // Detect edges from different source/target pairs that happen to route
   // through the same segment corridor, then spread them apart by adding a
@@ -339,7 +400,6 @@ function toRfEdges(
   // to distinct lanes before the final path is computed.
   const CORRIDOR_GAP = 20;  // minimum px between mid-segment centre-lines
   const CROSS_TOLERANCE = 24; // treat segments within 24px as touching (catches adjacent, non-overlapping ranges)
-  const ROUTE_STUB = 48;    // keep in sync with DEFAULT_STUB in orthogonal.ts
   {
     type CS = { edgeId: string; main: number; mainSize: number; cross: number; crossSize: number };
     const horizCS: CS[] = [];
@@ -401,60 +461,6 @@ function toRfEdges(
     }
     for (const [id, delta] of distributeLabels(vertCS, CORRIDOR_GAP)) {
       parallelOffsets.set(id, (parallelOffsets.get(id) ?? 0) + delta);
-    }
-  }
-
-  // ── Source stub Y stagger ────────────────────────────────────────────────
-  // When two Left/Right-exit edges start from nodes at the same Y and their
-  // first horizontal stubs overlap in X, add a small Y kink at the source.
-  const STUB_STAGGER = 12;
-  const stubYOffsets = new Map<string, number>();
-  {
-    type SI = { edgeId: string; srcX: number; srcY: number; midX: number };
-    const stubInfos: SI[] = [];
-    for (const e of transitions) {
-      if (e.isSelf) continue;
-      const srcPos = displayPositions.get(e.sourceId);
-      const tgtPos = displayPositions.get(e.targetId);
-      if (!srcPos || !tgtPos) continue;
-      const srcHandle = autoHandles.get(`${e.id}:source`);
-      const tgtHandle = autoHandles.get(`${e.id}:target`);
-      const srcPt = pointForHandle(srcPos, srcHandle);
-      const tgtPt = pointForHandle(tgtPos, tgtHandle);
-      if (!srcPt || !tgtPt) continue;
-      const srcP = positionForHandle(srcHandle);
-      const tgtP = positionForHandle(tgtHandle);
-      const snx = srcP === Position.Right ? 1 : srcP === Position.Left ? -1 : 0;
-      const tnx = tgtP === Position.Right ? 1 : tgtP === Position.Left ? -1 : 0;
-      if (snx === 0) continue;
-      const sStubX = srcPt.x + snx * ROUTE_STUB;
-      const tStubX = tgtPt.x + tnx * ROUTE_STUB;
-      const pOff = parallelOffsets.get(e.id) ?? 0;
-      let midX = (sStubX + tStubX) / 2 + pOff;
-      if (snx > 0) midX = Math.max(midX, sStubX);
-      else midX = Math.min(midX, sStubX);
-      if (tnx > 0) midX = Math.max(midX, tStubX);
-      else midX = Math.min(midX, tStubX);
-      stubInfos.push({ edgeId: e.id, srcX: srcPt.x, srcY: srcPt.y, midX });
-    }
-    for (let i = 0; i < stubInfos.length; i++) {
-      for (let j = i + 1; j < stubInfos.length; j++) {
-        const a = stubInfos[i]!, b = stubInfos[j]!;
-        if (Math.abs(a.srcY - b.srcY) > 2) continue;
-        const aLo = Math.min(a.srcX, a.midX), aHi = Math.max(a.srcX, a.midX);
-        const bLo = Math.min(b.srcX, b.midX), bHi = Math.max(b.srcX, b.midX);
-        if (Math.min(aHi, bHi) - Math.max(aLo, bLo) <= 0) continue;
-        if (!stubYOffsets.has(a.edgeId) && !stubYOffsets.has(b.edgeId)) {
-          stubYOffsets.set(a.edgeId, -STUB_STAGGER);
-          stubYOffsets.set(b.edgeId, STUB_STAGGER);
-        } else if (!stubYOffsets.has(b.edgeId)) {
-          const s = stubYOffsets.get(a.edgeId)!;
-          stubYOffsets.set(b.edgeId, s > 0 ? -STUB_STAGGER : STUB_STAGGER);
-        } else if (!stubYOffsets.has(a.edgeId)) {
-          const s = stubYOffsets.get(b.edgeId)!;
-          stubYOffsets.set(a.edgeId, s > 0 ? -STUB_STAGGER : STUB_STAGGER);
-        }
-      }
     }
   }
 
@@ -558,7 +564,6 @@ function toRfEdges(
           liveSourceRect: displayPositions.get(e.sourceId),
           liveTargetRect: displayPositions.get(e.targetId),
           parallelOffset: parallelOffsets.get(e.id),
-          stubYOffset: stubYOffsets.get(e.id),
           labelXOffset: labelXOffsets.get(e.id),
           labelYOffset: labelYOffsets.get(e.id),
         },

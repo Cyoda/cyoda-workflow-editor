@@ -43,8 +43,6 @@ export interface RfEdgeData {
   liveTargetRect?: Rect;
   /** Lateral mid-segment offset when multiple edges share the same source/target pair. */
   parallelOffset?: number;
-  /** Y-kink at the source stub to separate overlapping first horizontal segments. */
-  stubYOffset?: number;
   /** Pre-computed offsets applied to the label to resolve overlaps (slide along the segment). */
   labelXOffset?: number;
   labelYOffset?: number;
@@ -65,7 +63,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
   if (!data) return null;
   const { highlightSet } = useContext(HoverContext);
   const dimmed = highlightSet !== null && !highlightSet.has(id);
-  const { edge, targetIsTerminal, obstacles, parallelOffset, stubYOffset } = data;
+  const { edge, targetIsTerminal, obstacles, parallelOffset } = data;
   const resolvedSourceX = data.liveSource?.x ?? sourceX;
   const resolvedSourceY = data.liveSource?.y ?? sourceY;
   const resolvedTargetX = data.liveTarget?.x ?? targetX;
@@ -82,7 +80,6 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     targetRect: data.liveTargetRect,
     obstacles,
     parallelOffset,
-    stubYOffset,
   });
 
   const color = laneColor(edge, { targetIsTerminal });
