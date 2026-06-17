@@ -966,18 +966,9 @@ function computeAutoHandles(
     const srcPos = displayPositions.get(edge.sourceId);
     const tgtPos = displayPositions.get(edge.targetId);
     if (!srcPos || !tgtPos) continue;
-    if (Math.abs(srcPos.y - tgtPos.y) >= srcPos.height * 0.75) continue;
-    // Same-level bidirectional pair detected.
-    const srcCX = srcPos.x + srcPos.width / 2;
-    const tgtCX = tgtPos.x + tgtPos.width / 2;
-    // edge goes right → bottom arc; reverse goes left → top arc
-    const [rightEdge, leftEdge] = srcCX <= tgtCX ? [edge, reverse] : [reverse, edge];
-
-    // Pick the sub-handle on the given side that's closest to the opposite
-    // node. Before searching, release the endpoint's current group-phase
-    // assignment from occ so it doesn't block the search — this lets the
-    // bidirectional pair "swap" sides cleanly (e.g. rightEdge.target moves
-    // from "top" → "bottom-left", freeing "top" for leftEdge.source).
+    // Helper: pick a free sub-handle on a top/bottom side, preferring the one
+    // closest to the opposite node in X. Releases the current group-phase
+    // assignment so the pair can "swap" sides cleanly.
     const assignBiDir = (
       edgeId: string,
       role: "source" | "target",
@@ -986,11 +977,8 @@ function computeAutoHandles(
       oppositeNodeId: string,
     ) => {
       const occ = explicitByNode.get(nodeId) ?? new Set<string>();
-
-      // Release the current (group-phase) assignment so it doesn't block search.
       const currentHandle = assignments.get(`${edgeId}:${role}`);
       if (currentHandle) occ.delete(currentHandle);
-
       const nodePos = displayPositions.get(nodeId);
       const oppPos = displayPositions.get(oppositeNodeId);
       const nodeCX = nodePos ? nodePos.x + nodePos.width / 2 : 0;
@@ -999,20 +987,64 @@ function computeAutoHandles(
       const farther = oppCX < nodeCX ? `${side}-right` : `${side}-left`;
       const candidates = [closer, farther, side] as const;
       const h = candidates.find((c) => !occ.has(c));
-      if (!h) {
-        // Still no free slot — restore current assignment and leave as-is.
-        if (currentHandle) occ.add(currentHandle);
-        return;
-      }
+      if (!h) { if (currentHandle) occ.add(currentHandle); return; }
       occ.add(h);
       explicitByNode.set(nodeId, occ);
       assignments.set(`${edgeId}:${role}`, h);
     };
 
-    if (!rightEdge.sourceAnchor) assignBiDir(rightEdge.id, "source", rightEdge.sourceId, "bottom", rightEdge.targetId);
-    if (!rightEdge.targetAnchor) assignBiDir(rightEdge.id, "target", rightEdge.targetId, "bottom", rightEdge.sourceId);
-    if (!leftEdge.sourceAnchor)  assignBiDir(leftEdge.id,  "source", leftEdge.sourceId,  "top",    leftEdge.targetId);
-    if (!leftEdge.targetAnchor)  assignBiDir(leftEdge.id,  "target", leftEdge.targetId,  "top",    leftEdge.sourceId);
+    // Helper: pick a free sub-handle on a left/right side, preferring the one
+    // closest to the opposite node in Y.
+    const assignBiDirSide = (
+      edgeId: string,
+      role: "source" | "target",
+      nodeId: string,
+      side: "left" | "right",
+      oppositeNodeId: string,
+    ) => {
+      const occ = explicitByNode.get(nodeId) ?? new Set<string>();
+      const currentHandle = assignments.get(`${edgeId}:${role}`);
+      if (currentHandle) occ.delete(currentHandle);
+      const nodePos = displayPositions.get(nodeId);
+      const oppPos = displayPositions.get(oppositeNodeId);
+      const nodeCY = nodePos ? nodePos.y + nodePos.height / 2 : 0;
+      const oppCY  = oppPos  ? oppPos.y  + oppPos.height / 2  : nodeCY;
+      const closer  = oppCY < nodeCY ? `${side}-top`    : `${side}-bottom`;
+      const farther = oppCY < nodeCY ? `${side}-bottom` : `${side}-top`;
+      const candidates = [closer, farther, side] as const;
+      const h = candidates.find((c) => !occ.has(c));
+      if (!h) { if (currentHandle) occ.add(currentHandle); return; }
+      occ.add(h);
+      explicitByNode.set(nodeId, occ);
+      assignments.set(`${edgeId}:${role}`, h);
+    };
+
+    if (Math.abs(srcPos.y - tgtPos.y) < srcPos.height * 0.75) {
+      // Same-level bidirectional pair: route via top/bottom arcs to avoid an X.
+      const srcCX = srcPos.x + srcPos.width / 2;
+      const tgtCX = tgtPos.x + tgtPos.width / 2;
+      // edge goes right → bottom arc; reverse goes left → top arc
+      const [rightEdge, leftEdge] = srcCX <= tgtCX ? [edge, reverse] : [reverse, edge];
+      if (!rightEdge.sourceAnchor) assignBiDir(rightEdge.id, "source", rightEdge.sourceId, "bottom", rightEdge.targetId);
+      if (!rightEdge.targetAnchor) assignBiDir(rightEdge.id, "target", rightEdge.targetId, "bottom", rightEdge.sourceId);
+      if (!leftEdge.sourceAnchor)  assignBiDir(leftEdge.id,  "source", leftEdge.sourceId,  "top",    leftEdge.targetId);
+      if (!leftEdge.targetAnchor)  assignBiDir(leftEdge.id,  "target", leftEdge.targetId,  "top",    leftEdge.sourceId);
+    } else {
+      // Different-Y bidirectional pair: route the back-edge outward so it
+      // arcs around the outside of the diagram rather than crossing the
+      // forward edge's path through the centre (the ∞ / figure-eight shape).
+      // The forward edge keeps its normal bottom→top routing; the back-edge
+      // exits and enters from the same outward side of both nodes.
+      const backEdge = srcPos.y > tgtPos.y ? edge : reverse;
+      const backSrcPos = displayPositions.get(backEdge.sourceId);
+      const backTgtPos = displayPositions.get(backEdge.targetId);
+      if (!backSrcPos || !backTgtPos) continue;
+      const xDiff = (backSrcPos.x + backSrcPos.width / 2) - (backTgtPos.x + backTgtPos.width / 2);
+      if (Math.abs(xDiff) < 10) continue; // vertically aligned — existing back-edge logic handles this
+      const outwardSide: "left" | "right" = xDiff < 0 ? "left" : "right";
+      if (!backEdge.sourceAnchor) assignBiDirSide(backEdge.id, "source", backEdge.sourceId, outwardSide, backEdge.targetId);
+      if (!backEdge.targetAnchor) assignBiDirSide(backEdge.id, "target", backEdge.targetId, outwardSide, backEdge.sourceId);
+    }
   }
 
   // ── N≥3 parallel pair side routing ──────────────────────────────────────
