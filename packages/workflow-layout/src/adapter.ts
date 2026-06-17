@@ -348,15 +348,7 @@ function placeTreeNodes(
   const selfDepth = orientation === "vertical" ? node.height : node.width;
   const childCursor0 = centerSpan - totalChildrenSpan / 2;
 
-  // For N=2: center the node between the two children (equidistant), rather than
-  // over the combined subtree span. This prevents a leaf sibling from ending up
-  // very far away when the other sibling has a large subtree.
-  let nodeCenterSpan = centerSpan;
-  if (node.children.length === 2) {
-    const firstChildCenter = childCursor0 + childSpans[0]! / 2;
-    const lastChildCenter = childCursor0 + totalChildrenSpan - childSpans[1]! / 2;
-    nodeCenterSpan = (firstChildCenter + lastChildCenter) / 2;
-  }
+  const nodeCenterSpan = centerSpan;
 
   if (orientation === "vertical") {
     positions.set(nodeId, { x: nodeCenterSpan - node.width / 2, y: depthOffset });
