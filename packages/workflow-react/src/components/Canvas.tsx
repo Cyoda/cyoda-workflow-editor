@@ -1724,7 +1724,7 @@ function CanvasInner({
           onNodesChange={readOnly ? undefined : handleNodesChange}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
-          onPaneClick={() => onSelectionChange(null)}
+          onPaneClick={() => onSelectionChange(activeWorkflow ? { kind: "workflow", workflow: activeWorkflow } : null)}
           onConnect={readOnly ? undefined : onConnect}
           onReconnect={readOnly ? undefined : onReconnect}
           onNodesDelete={readOnly ? undefined : onNodesDelete}

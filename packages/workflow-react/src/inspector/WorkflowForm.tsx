@@ -42,6 +42,7 @@ export function WorkflowForm({
         value={workflow.desc ?? ""}
         entityKey={workflow.name}
         disabled={disabled}
+        multiline
         onCommit={(next) =>
           onDispatch({
             op: "updateWorkflowMeta",

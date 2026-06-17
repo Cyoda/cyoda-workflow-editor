@@ -16,6 +16,7 @@ export function TextField({
   placeholder,
   testId,
   entityKey,
+  multiline,
 }: {
   label: string;
   value: string;
@@ -30,6 +31,7 @@ export function TextField({
    * current value doesn't inherit a stale, uncommitted draft.
    */
   entityKey?: string;
+  multiline?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const syncKey = entityKey ?? value;
@@ -42,21 +44,36 @@ export function TextField({
   return (
     <label style={rowStyle}>
       <span style={labelStyle}>{label}</span>
-      <input
-        type="text"
-        value={draft}
-        disabled={disabled}
-        placeholder={placeholder}
-        data-testid={testId}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={(e: ChangeEvent<HTMLInputElement>) => {
-          if (draft !== value) onCommit(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        }}
-        style={inputStyle}
-      />
+      {multiline ? (
+        <textarea
+          value={draft}
+          disabled={disabled}
+          placeholder={placeholder}
+          data-testid={testId}
+          rows={3}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e: ChangeEvent<HTMLTextAreaElement>) => {
+            if (draft !== value) onCommit(e.target.value);
+          }}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+        />
+      ) : (
+        <input
+          type="text"
+          value={draft}
+          disabled={disabled}
+          placeholder={placeholder}
+          data-testid={testId}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e: ChangeEvent<HTMLInputElement>) => {
+            if (draft !== value) onCommit(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          style={inputStyle}
+        />
+      )}
     </label>
   );
 }
