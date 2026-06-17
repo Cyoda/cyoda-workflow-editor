@@ -4,18 +4,33 @@ import type { Workflow } from "../types/workflow.js";
 import type { CyodaDialect, ToCanonicalResult } from "./dialect.js";
 
 /**
- * The cyoda-go 0.7.x dialect.
+ * The cyoda-go 0.7.x dialect — the editor's baseline.
  *
- * `toCanonical` runs the historical operator-alias normalisation + canonical-
- * default coercion, then drops any `{type:"scheduled"}` processors. Scheduled
- * processors were an unsupported v0.7 platform hack; they no longer exist in the
- * canonical model (see the v0.8 major bump). Each dropped processor is reported
- * as a warning so the host can tell the user.
+ * Covers: cyoda-go 0.7.0–0.7.x (lowercase `externalized`/`scheduled` processor
+ * types, `operation` criterion key). The bundled 0.6.1 markdown is
+ * self-contradictory and is **not** a supported target; see
+ * `ai/cyoda-schema-versions.md`.
  *
- * `workflowsToWire` emits the historical `outputWorkflow` shape. It never emits
- * a `scheduled` processor (the canonical model has none) nor `transitions[].schedule`
- * (the field does not exist in the v0.7 wire format); an explicit safety-net
- * filter strips any non-`externalized` processor that somehow reaches it.
+ * As the baseline there is no previous dialect to diff against. Key behaviours:
+ *
+ * - `toCanonical` runs the historical operator-alias normalisation + canonical-
+ *   default coercion, then drops any `{type:"scheduled"}` processors. Scheduled
+ *   processors were an unsupported v0.7 platform hack; they no longer exist in
+ *   the canonical model (removed in the v0.8 major bump). Each dropped processor
+ *   is reported as a `dropped-scheduled-processor:<name>` warning so the host can
+ *   tell the user.
+ * - `workflowsToWire` emits the historical `outputWorkflow` shape. It never emits
+ *   a `scheduled` processor (the canonical model has none) nor
+ *   `transitions[].schedule` (the field does not exist in the v0.7 wire format);
+ *   an explicit safety-net filter strips any non-`externalized` processor that
+ *   somehow reaches it.
+ *
+ * Known limitations:
+ * - Dropping scheduled processors is **lossy** — a legacy 0.7 file that used the
+ *   hack loses them on import (intentional; nobody used them in production).
+ * - Saving a v0.8-edited workflow back through this dialect silently omits
+ *   `transitions[].schedule` (the field has no v0.7 wire representation). The
+ *   host should warn when a v0.7 project contains a transition with `schedule`.
  */
 export const cyoda07Dialect: CyodaDialect = {
   version: "0.7",

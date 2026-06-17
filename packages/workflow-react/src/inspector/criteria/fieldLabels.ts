@@ -11,7 +11,7 @@ function segments(jsonPath: string): string[] {
   if (path === "" || path === "$") return [];
   const out: string[] = [];
   // Strip leading `$`; tolerate a missing root for robustness.
-  let rest = path.startsWith("$") ? path.slice(1) : path;
+  const rest = path.startsWith("$") ? path.slice(1) : path;
   // Walk `.name` and `[index]` tokens, attaching indices to the current segment.
   let i = 0;
   let current = "";

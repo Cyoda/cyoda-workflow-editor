@@ -54,24 +54,62 @@ endpoint, and the in-document `version` tag is informational.
 > with the 0.7.1 binary is self-contradictory. Always confirm against a runnable
 > binary.
 
-1. **Acquire the authoritative schema.** Run that cyoda-go version. Capture
-   `cyoda help openapi yaml` and `cyoda help workflows`, then do a **live
-   import/export round-trip**: create a model, import a representative workflow,
-   `GET …/workflow/export`, and record the exact wire shape (processor `type`
-   casing, criterion operator key, optional-field omission, etc.).
-2. **Implement the dialect.** Add `src/dialect/cyoda-<v>.ts` exporting a
-   `CyodaDialect`. Implement only the **deltas** vs canonical in `toCanonical`
-   (wire → canonical) and `workflowsToWire` (canonical → wire); reuse the 0.7
-   helpers where the shape matches.
-3. **Per-version validation (if needed).** If the engine's rules differ (e.g. a
-   different operator catalogue), branch the relevant checks in
-   `src/validate/semantic.ts` on the dialect version. With a single dialect today
-   there is nothing to branch.
-4. **Register it.** `registerDialect` in `src/dialect/index.ts` and add the
-   version to `SUPPORTED_CYODA_VERSIONS` (and `LATEST_CYODA_VERSION` if newer).
-5. **Test it.** Add golden round-trip fixtures built from a **real export** of
-   that binary, plus a parse→serialize byte-identity test under
-   `tests/dialect/` or `tests/golden/`.
+1. **Acquire the authoritative schema from a runnable binary.** Run the new
+   cyoda-go version and round-trip a **representative** workflow through it:
+   capture `cyoda help openapi yaml` and `cyoda help workflows`, then create a
+   model, import the workflow, `GET …/workflow/export`, and record the exact wire
+   shape (processor `type` casing, criterion operator key, optional-field
+   omission, schedule shape, etc.). Never rely on the bundled docs alone — they
+   can be self-contradictory.
+
+2. **Diff the generated DTOs.** Diff the new version's generated DTOs
+   (`api/generated.go` or the equivalent OpenAPI-generated types) against the
+   previous version to produce a **complete field-level change list**. This is
+   the authoritative input to the dialect; the prose docs are not.
+
+3. **Classify each change by direction.** For every field-level change, decide
+   which seam it belongs to:
+   - **`toCanonical` direction** — the new wire format → canonical (e.g. a
+     renamed/aliased key, a casing change, a dropped legacy field).
+   - **`workflowsToWire` direction** — canonical → the new wire output (e.g. a
+     new emitted field, a stricter allowlist, an omitted field).
+   - **Canonical model / Zod schema change** — a field the canonical model does
+     not yet represent at all (a new transition/processor field, a removed type).
+
+4. **If the canonical model changes → major bump + coordinated updates.**
+   Changing the canonical model (`src/schema/*`, `src/types/*`) is a **major**
+   `@cyoda/workflow-core` bump. It requires coordinated updates in the
+   downstream packages that consume the model:
+   `workflow-react`, `workflow-graph`, `workflow-layout`, `workflow-monaco`,
+   `workflow-viewer`, and the `cyoda-dev-console` host app. Do not land the core
+   change without scheduling those follow-ups.
+
+5. **If the canonical model is unchanged → new dialect, minor/patch bump.**
+   Write a new dialect in `packages/workflow-core/src/dialect/cyoda-<v>.ts`
+   exporting a `CyodaDialect`. Implement only the **deltas** in `toCanonical`
+   (wire → canonical) and `workflowsToWire` (canonical → wire); reuse the 0.7/0.8
+   helpers (`normalizeOperatorAlias`, `coerceCanonicalDefaults`, `outputWorkflow`,
+   the 0.8 allowlist) where the shape matches. Register it with `registerDialect`
+   in `src/dialect/index.ts`, and add it to `SUPPORTED_CYODA_VERSIONS`. Update
+   `LATEST_CYODA_VERSION` only if this version is the new default. A new dialect
+   with no canonical change is a **minor** (new default) or **patch** bump.
+   - **Per-version validation (if needed).** If the engine's rules differ (e.g. a
+     different operator catalogue), branch the relevant checks in
+     `src/validate/semantic.ts` on the dialect version.
+
+6. **Update `SUPPORTED_CYODA_VERSIONS` and `LATEST_CYODA_VERSION`** in
+   `src/dialect/version.ts` (re-exported through `dialect/index.ts`). Add a
+   golden round-trip fixture built from a **real export** of the new binary plus
+   a parse→serialize byte-identity test under `tests/dialect/` or `tests/golden/`.
+
+7. **Update this file (`ai/cyoda-schema-versions.md`)** with a new version
+   section listing every wire-format change, **before merging**.
+
+8. **Update `cyoda-dev-console`'s `workflow-project-model`.** Add the new version
+   to the `cyodaGoVersion` union and set it as the default for new projects (once
+   the corresponding cyoda-go version has actually released). All
+   `parseImportPayload` call sites in the host must agree on the version, or the
+   file tree and editor will disagree on validity.
 
 ## v0.8.0 (dialect `"0.8"`)
 
@@ -108,6 +146,12 @@ It composes the 0.7 operator-alias/defaults pass and adds the deltas below.
   `active` to `true` on import; v0.8.0 preserves the value sent. The editor
   already round-trips `active`, so the emitted value is authoritative.
 
+- **Empty `workflows` rejected in `REPLACE` / `ACTIVATE`.** An import payload
+  with `workflows: []` is rejected (400) in `REPLACE` and `ACTIVATE` modes — an
+  empty replace/activate is treated as a mistake rather than a no-op. (`MERGE`
+  with an empty array remains a no-op.) The editor's `ImportPayloadSchema`
+  already requires `workflows.min(1)`, so the editor never emits an empty array.
+
 - **Name length cap: 256 characters.** Workflow, state, transition, and
   processor names must be ≤ 256 chars (`NAME_MAX_LENGTH`). Enforced in
   `NameSchema` and mirrored as a `name-too-long` semantic error so the editor
@@ -115,6 +159,13 @@ It composes the 0.7 operator-alias/defaults pass and adds the deltas below.
   constraints v0.8.0 enforces (`initialState` exists, each `next` is a valid
   state, no duplicate transition names per state, no duplicate workflow names)
   were already surfaced by the semantic validator.
+
+- **`type: "internalized"` reserved.** v0.8.0 reserves an `internalized`
+  processor type for future use but **rejects it at dispatch today** (firing a
+  transition that carries one returns an error). The editor does **not** model
+  or emit `internalized`; the canonical `ProcessorSchema` remains
+  `externalized`-only. Listed here so a future dialect author knows the literal
+  is taken and must not be repurposed.
 
 `ParseResult` gained an optional `warnings: string[]` field (additive; existing
 call sites are unaffected) carrying the dialect's `toCanonical` notes.

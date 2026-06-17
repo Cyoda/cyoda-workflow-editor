@@ -5,18 +5,35 @@ import { coerceCanonicalDefaults, isObj } from "./cyoda-0_7.js";
 import type { CyodaDialect, ToCanonicalResult } from "./dialect.js";
 
 /**
- * The cyoda-go 0.8.0 dialect.
+ * The cyoda-go 0.8.0 dialect — the current default (`LATEST_CYODA_VERSION`).
  *
- * `toCanonical` composes the same operator-alias + canonical-default pass as 0.7
- * and passes `transitions[].schedule` straight through to the canonical model
- * (it is already the right shape). There is no `scheduled` processor handling —
- * that type does not exist in the 0.8 wire format.
+ * Covers: cyoda-go 0.8.0. (Not yet released as of 2026-06; see the status note
+ * in `ai/cyoda-schema-versions.md`.)
  *
- * `workflowsToWire` emits `externalized` processors and `transitions[].schedule`
- * when present, then runs every node through a strict field allowlist. v0.8.0's
- * import handler uses `DisallowUnknownFields`, so any stray key (editor metadata
- * or a future canonical field) would be rejected with a 400; the allowlist makes
- * the output provably clean.
+ * Deltas from the 0.7 dialect:
+ * - **`scheduled` processor removed.** The type no longer exists in the wire
+ *   format or the canonical model, so — unlike 0.7 — there is nothing to drop in
+ *   `toCanonical` and no warning is ever produced.
+ * - **`transitions[].schedule` passed through and emitted.** `toCanonical` lets
+ *   it flow straight to the canonical model (already the right shape);
+ *   `workflowsToWire` emits it when present. 0.7 omitted it entirely.
+ * - **Strict output allowlist.** v0.8.0's import handler uses
+ *   `DisallowUnknownFields`, so any stray key (editor metadata or a future
+ *   canonical field) is rejected with a 400. `workflowsToWire` runs every node
+ *   through a per-level field allowlist (`V0_8_WIRE_FIELDS`) so the output is
+ *   provably clean. 0.7 relied only on `outputWorkflow`'s by-construction shape.
+ *
+ * Server-side v0.8.0 constraints mirrored elsewhere (not in this file): `active`
+ * preserved on import, names ≤ 256 chars, empty `workflows` rejected in
+ * REPLACE/ACTIVATE. See `src/schema/name.ts` and `src/validate/semantic.ts`.
+ *
+ * Known limitations / deferred:
+ * - `transitions[].schedule` is a **schema/SPI placeholder** — configurable and
+ *   importable, but the cyoda-go runtime does not yet execute scheduled
+ *   transitions (firing one returns 400).
+ * - The `internalized` processor type is **reserved** by v0.8.0 but rejected at
+ *   dispatch today; it is deliberately **not** modelled here. A future dialect
+ *   author must not repurpose the literal.
  */
 export const cyoda08Dialect: CyodaDialect = {
   version: "0.8",
