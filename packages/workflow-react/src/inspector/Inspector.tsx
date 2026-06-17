@@ -154,10 +154,11 @@ export function Inspector({
           <>
             {!resolved && <EmptyState message={messages.inspector.empty} />}
             {resolved?.kind === "workflow" && (
-              <WorkflowForm workflow={resolved.workflow} disabled={readOnly} onDispatch={onDispatch} />
+              <WorkflowForm key={resolved.workflow.name} workflow={resolved.workflow} disabled={readOnly} onDispatch={onDispatch} />
             )}
             {resolved?.kind === "state" && (
               <StateForm
+                key={`${resolved.workflow.name}:${resolved.stateCode}`}
                 workflow={resolved.workflow}
                 stateCode={resolved.stateCode}
                 state={resolved.state}
@@ -171,6 +172,7 @@ export function Inspector({
             )}
             {resolved?.kind === "transition" && (
               <TransitionForm
+                key={resolved.transitionUuid}
                 workflow={resolved.workflow}
                 stateCode={resolved.stateCode}
                 transition={resolved.transition}
@@ -190,6 +192,7 @@ export function Inspector({
             )}
             {resolved?.kind === "processor" && (
               <ProcessorForm
+                key={resolved.processorUuid}
                 processor={resolved.processor}
                 processorUuid={resolved.processorUuid}
                 processorIndex={resolved.processorIndex}
