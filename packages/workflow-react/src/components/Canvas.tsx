@@ -393,6 +393,66 @@ function toRfEdges(
     }
   }
 
+  // ── Obstacle-clearing handle adjustment ─────────────────────────────────
+  // When a Left/Right-exit edge's horizontal stub passes through a non-endpoint
+  // node, try the -top and -bottom sub-handles and pick the first that clears
+  // the obstacle — no kink needed, the exit Y simply shifts up or down.
+  {
+    for (const e of transitions) {
+      if (e.isSelf) continue;
+      const srcPos = displayPositions.get(e.sourceId);
+      const tgtPos = displayPositions.get(e.targetId);
+      if (!srcPos || !tgtPos) continue;
+      const currentHandle = autoHandles.get(`${e.id}:source`);
+      if (!currentHandle) continue;
+      const baseSide = currentHandle.startsWith("right") ? "right"
+                     : currentHandle.startsWith("left")  ? "left"
+                     : null;
+      if (!baseSide) continue;
+
+      const edgeObstacles = allObstacles.filter(
+        (o) => o.id !== e.sourceId && o.id !== e.targetId,
+      );
+      if (edgeObstacles.length === 0) continue;
+
+      const tgtHandle = autoHandles.get(`${e.id}:target`);
+      const srcPt = pointForHandle(srcPos, currentHandle);
+      const tgtPt = pointForHandle(tgtPos, tgtHandle);
+      if (!srcPt || !tgtPt) continue;
+
+      const srcP = positionForHandle(currentHandle);
+      const tgtP = positionForHandle(tgtHandle);
+      const snx = srcP === Position.Right ? 1 : -1;
+      const tnx = tgtP === Position.Right ? 1 : tgtP === Position.Left ? -1 : 0;
+      const sStubX = srcPt.x + snx * ROUTE_STUB;
+      const tStubX = tgtPt.x + tnx * ROUTE_STUB;
+      let midX = (sStubX + tStubX) / 2;
+      if (snx > 0) midX = Math.max(midX, sStubX);
+      else midX = Math.min(midX, sStubX);
+      if (tnx > 0) midX = Math.max(midX, tStubX);
+      else midX = Math.min(midX, tStubX);
+
+      if (!stubHitsObstacle(srcPt.x, midX, srcPt.y, edgeObstacles)) continue;
+
+      // Current stub is blocked — try same-side sub-handles first, then
+      // bottom/top as fallback (their vertical stubs naturally avoid horizontal obstacles).
+      const candidates = [
+        `${baseSide}-top`, `${baseSide}-bottom`, baseSide,
+        "bottom", "top",
+      ] as const;
+      for (const h of candidates) {
+        if (h === currentHandle) continue;
+        const pt = pointForHandle(srcPos, h);
+        if (!pt) continue;
+        // bottom/top exits have vertical stubs — skip the horizontal obstacle check.
+        const isVerticalExit = h === "bottom" || h === "top";
+        if (!isVerticalExit && stubHitsObstacle(pt.x, midX, pt.y, edgeObstacles)) continue;
+        autoHandles.set(`${e.id}:source`, h);
+        break;
+      }
+    }
+  }
+
   // ── Corridor spread ──────────────────────────────────────────────────────
   // Detect edges from different source/target pairs that happen to route
   // through the same segment corridor, then spread them apart by adding a
@@ -603,6 +663,23 @@ function toRfEdges(
         selected,
       };
     });
+}
+
+function stubHitsObstacle(
+  x1: number,
+  x2: number,
+  y: number,
+  obstacles: { x: number; y: number; width: number; height: number }[],
+  pad = 8,
+): boolean {
+  const loX = Math.min(x1, x2);
+  const hiX = Math.max(x1, x2);
+  for (const o of obstacles) {
+    if (hiX <= o.x - pad || loX >= o.x + o.width + pad) continue;
+    if (y <= o.y - pad || y >= o.y + o.height + pad) continue;
+    return true;
+  }
+  return false;
 }
 
 function samePosition(
