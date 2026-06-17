@@ -868,22 +868,24 @@ function computeAutoHandles(
       }
     }
 
-    const sourceSide = anchorHandleId(
-      edge.sourceAnchor,
-      "source",
-      orientation,
-      back,
-      toTerminalSide,
-      backEdgeSrcSide,
-    ) as BaseHandle;
-    const targetSide = anchorHandleId(
-      edge.targetAnchor,
-      "target",
-      orientation,
-      back,
-      toTerminalSide,
-      backEdgeTgtSide,
-    ) as BaseHandle;
+    // Same-level forward edges: arc below (right-going) or above (left-going)
+    // so the label is placed outside the node bodies rather than through them.
+    let sameLevelSide: BaseHandle | undefined;
+    if (orientation === "vertical" && !back && !toTerminalSide) {
+      const sp = displayPositions.get(edge.sourceId);
+      const tp = displayPositions.get(edge.targetId);
+      if (sp && tp && Math.abs(sp.y - tp.y) < sp.height * 0.75) {
+        const sCX = sp.x + sp.width / 2, tCX = tp.x + tp.width / 2;
+        if (Math.abs(sCX - tCX) > 10) sameLevelSide = sCX < tCX ? "bottom" : "top";
+      }
+    }
+
+    const sourceSide = (sameLevelSide && !edge.sourceAnchor)
+      ? sameLevelSide
+      : anchorHandleId(edge.sourceAnchor, "source", orientation, back, toTerminalSide, backEdgeSrcSide) as BaseHandle;
+    const targetSide = (sameLevelSide && !edge.targetAnchor)
+      ? sameLevelSide
+      : anchorHandleId(edge.targetAnchor, "target", orientation, back, toTerminalSide, backEdgeTgtSide) as BaseHandle;
 
     if (edge.sourceAnchor) {
       assignments.set(`${edge.id}:source`, edge.sourceAnchor);

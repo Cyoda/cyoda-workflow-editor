@@ -415,8 +415,25 @@ function computeHandles(
       }
     }
 
-    const sourceSide = anchorHandleId(e.sourceAnchor, "source", orientation, back, toTerminalSide, backEdgeSrcSide) as Anchor;
-    const targetSide = anchorHandleId(e.targetAnchor, "target", orientation, back, toTerminalSide, backEdgeTgtSide) as Anchor;
+    // Same-level forward edges (source and target at the same Y): route via
+    // arc below (right-going) or arc above (left-going) so the label is
+    // placed outside the node bodies rather than through them.
+    let sameLevelSide: Anchor | undefined;
+    if (orientation === "vertical" && !back && !toTerminalSide) {
+      const sp = positions.get(e.sourceId);
+      const tp = positions.get(e.targetId);
+      if (sp && tp && Math.abs(sp.y - tp.y) < sp.height * 0.75) {
+        const sCX = sp.x + sp.width / 2, tCX = tp.x + tp.width / 2;
+        if (Math.abs(sCX - tCX) > 10) sameLevelSide = sCX < tCX ? "bottom" : "top";
+      }
+    }
+
+    const sourceSide = (sameLevelSide && !e.sourceAnchor)
+      ? sameLevelSide
+      : anchorHandleId(e.sourceAnchor, "source", orientation, back, toTerminalSide, backEdgeSrcSide) as Anchor;
+    const targetSide = (sameLevelSide && !e.targetAnchor)
+      ? sameLevelSide
+      : anchorHandleId(e.targetAnchor, "target", orientation, back, toTerminalSide, backEdgeTgtSide) as Anchor;
 
     if (e.sourceAnchor) {
       assignments.set(`${e.id}:source`, e.sourceAnchor);
