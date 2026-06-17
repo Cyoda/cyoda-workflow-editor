@@ -993,32 +993,6 @@ function computeAutoHandles(
       assignments.set(`${edgeId}:${role}`, h);
     };
 
-    // Helper: pick a free sub-handle on a left/right side, preferring the one
-    // closest to the opposite node in Y.
-    const assignBiDirSide = (
-      edgeId: string,
-      role: "source" | "target",
-      nodeId: string,
-      side: "left" | "right",
-      oppositeNodeId: string,
-    ) => {
-      const occ = explicitByNode.get(nodeId) ?? new Set<string>();
-      const currentHandle = assignments.get(`${edgeId}:${role}`);
-      if (currentHandle) occ.delete(currentHandle);
-      const nodePos = displayPositions.get(nodeId);
-      const oppPos = displayPositions.get(oppositeNodeId);
-      const nodeCY = nodePos ? nodePos.y + nodePos.height / 2 : 0;
-      const oppCY  = oppPos  ? oppPos.y  + oppPos.height / 2  : nodeCY;
-      const closer  = oppCY < nodeCY ? `${side}-top`    : `${side}-bottom`;
-      const farther = oppCY < nodeCY ? `${side}-bottom` : `${side}-top`;
-      const candidates = [closer, farther, side] as const;
-      const h = candidates.find((c) => !occ.has(c));
-      if (!h) { if (currentHandle) occ.add(currentHandle); return; }
-      occ.add(h);
-      explicitByNode.set(nodeId, occ);
-      assignments.set(`${edgeId}:${role}`, h);
-    };
-
     if (Math.abs(srcPos.y - tgtPos.y) < srcPos.height * 0.75) {
       // Same-level bidirectional pair: route via top/bottom arcs to avoid an X.
       const srcCX = srcPos.x + srcPos.width / 2;
@@ -1035,6 +1009,9 @@ function computeAutoHandles(
       // forward edge's path through the centre (the ∞ / figure-eight shape).
       // The forward edge keeps its normal bottom→top routing; the back-edge
       // exits and enters from the same outward side of both nodes.
+      //
+      // Critically: source and target receive the SAME sub-handle so that
+      // multiple parallel back-edges fan out in parallel rather than crossing.
       const backEdge = srcPos.y > tgtPos.y ? edge : reverse;
       const backSrcPos = displayPositions.get(backEdge.sourceId);
       const backTgtPos = displayPositions.get(backEdge.targetId);
@@ -1042,8 +1019,35 @@ function computeAutoHandles(
       const xDiff = (backSrcPos.x + backSrcPos.width / 2) - (backTgtPos.x + backTgtPos.width / 2);
       if (Math.abs(xDiff) < 10) continue; // vertically aligned — existing back-edge logic handles this
       const outwardSide: "left" | "right" = xDiff < 0 ? "left" : "right";
-      if (!backEdge.sourceAnchor) assignBiDirSide(backEdge.id, "source", backEdge.sourceId, outwardSide, backEdge.targetId);
-      if (!backEdge.targetAnchor) assignBiDirSide(backEdge.id, "target", backEdge.targetId, outwardSide, backEdge.sourceId);
+
+      // Release existing group-phase assignments on both nodes before picking.
+      const srcOcc = explicitByNode.get(backEdge.sourceId) ?? new Set<string>();
+      const tgtOcc = explicitByNode.get(backEdge.targetId) ?? new Set<string>();
+      const curSrc = assignments.get(`${backEdge.id}:source`);
+      const curTgt = assignments.get(`${backEdge.id}:target`);
+      if (!backEdge.sourceAnchor && curSrc) srcOcc.delete(curSrc);
+      if (!backEdge.targetAnchor && curTgt) tgtOcc.delete(curTgt);
+
+      // Pick the first sub-handle free on BOTH endpoints — this keeps the
+      // source and target on the same "slot" so paths are parallel, not X.
+      const sharedCandidates = [`${outwardSide}-top`, `${outwardSide}-bottom`, outwardSide] as const;
+      const shared = sharedCandidates.find(h => !srcOcc.has(h) && !tgtOcc.has(h));
+      if (!shared) {
+        // No shared slot available; restore and leave current assignment.
+        if (!backEdge.sourceAnchor && curSrc) srcOcc.add(curSrc);
+        if (!backEdge.targetAnchor && curTgt) tgtOcc.add(curTgt);
+        continue;
+      }
+      if (!backEdge.sourceAnchor) {
+        srcOcc.add(shared);
+        explicitByNode.set(backEdge.sourceId, srcOcc);
+        assignments.set(`${backEdge.id}:source`, shared);
+      }
+      if (!backEdge.targetAnchor) {
+        tgtOcc.add(shared);
+        explicitByNode.set(backEdge.targetId, tgtOcc);
+        assignments.set(`${backEdge.id}:target`, shared);
+      }
     }
   }
 
