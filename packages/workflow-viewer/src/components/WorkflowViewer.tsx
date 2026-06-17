@@ -16,6 +16,7 @@ import { StateNodeView } from "./StateNode.js";
 import { EdgePath, computeEdgeGeometry } from "./EdgePath.js";
 import { EdgeLabel } from "./EdgeLabel.js";
 import { workflowPalette } from "../theme/tokens.js";
+import { routeEdges } from "@cyoda/workflow-layout";
 
 export interface WorkflowViewerProps {
   graph?: GraphDocument;
@@ -137,11 +138,29 @@ export function WorkflowViewer({
     [visibleGraph.edges],
   );
 
+  // Terminal node IDs — needed by the shared router for terminal-side handles.
+  const terminalIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of visibleGraph.nodes) {
+      if (n.kind === "state" && (n.role === "terminal" || n.role === "initial-terminal")) {
+        ids.add(n.id);
+      }
+    }
+    return ids;
+  }, [visibleGraph.nodes]);
+
+  // Compute edge paths using the same orthogonal router as the editor canvas.
+  // Falls back to ELK pre-computed routes when available, otherwise runs the
+  // shared router so edge paths are identical to the editor.
+  const computedEdgePaths = useMemo(() => {
+    if (effectiveLayout.edges && effectiveLayout.edges.size > 0) return null;
+    return routeEdges(transitionEdges, effectiveLayout.positions, "vertical", terminalIds);
+  }, [effectiveLayout, transitionEdges, terminalIds]);
 
   // Pre-compute fallback label positions with collision avoidance.
-  // Only used when effectiveLayout has no edge routes (the ELK path provides its own label coords).
+  // Only used when neither ELK routes nor our router produced label coords.
   const fallbackLabelPositions = useMemo(() => {
-    if (effectiveLayout.edges && effectiveLayout.edges.size > 0) return null;
+    if (computedEdgePaths || (effectiveLayout.edges && effectiveLayout.edges.size > 0)) return null;
     const CHAR_W = 6.5;
     const PILL_H = 24;
     const items = transitionEdges.flatMap((edge) => {
@@ -153,7 +172,7 @@ export function WorkflowViewer({
       return [{ id: edge.id, midX, midY, pillW, pillH: PILL_H }];
     });
     return nudgeLabels(items);
-  }, [effectiveLayout, transitionEdges]);
+  }, [computedEdgePaths, effectiveLayout, transitionEdges]);
 
   const focusId = hovered ?? selection;
   const highlightSet = useMemo(() => {
@@ -230,7 +249,9 @@ export function WorkflowViewer({
           const target = effectiveLayout.positions.get(edge.targetId);
           if (!source || !target) return null;
           const targetNode = stateById.get(edge.targetId);
-          const route = effectiveLayout.edges?.get(edge.id);
+          const elkRoute = effectiveLayout.edges?.get(edge.id);
+          const routerPath = computedEdgePaths?.get(edge.id);
+          const route = elkRoute;
           const isEdgeSelected = selection === edge.id;
           const isHighlighted = highlightSet?.has(edge.id) ?? false;
           const isDimmed = anythingFocused && !isHighlighted;
@@ -241,6 +262,7 @@ export function WorkflowViewer({
               source={source}
               target={target}
               route={route}
+              overridePath={routerPath?.d}
               targetIsTerminal={
                 targetNode?.role === "terminal" ||
                 targetNode?.role === "initial-terminal"
@@ -260,12 +282,14 @@ export function WorkflowViewer({
           const source = effectiveLayout.positions.get(edge.sourceId);
           const target = effectiveLayout.positions.get(edge.targetId);
           if (!source || !target) return null;
-          const route = effectiveLayout.edges?.get(edge.id);
-          // ELK path: use pre-placed label coords from the route.
-          // Fallback path: use nudge-adjusted positions (collision-free).
-          const labelPos = route
-            ? { midX: route.labelX, midY: route.labelY }
-            : (fallbackLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target));
+          const elkRoute = effectiveLayout.edges?.get(edge.id);
+          const routerPath = computedEdgePaths?.get(edge.id);
+          // Priority: ELK route → shared router → nudged fallback → simple geometry.
+          const labelPos = elkRoute
+            ? { midX: elkRoute.labelX, midY: elkRoute.labelY }
+            : routerPath
+              ? { midX: routerPath.labelX, midY: routerPath.labelY }
+              : (fallbackLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target));
           const isHighlighted = highlightSet?.has(edge.id) ?? false;
           const isDimmed = anythingFocused && !isHighlighted;
           return (
@@ -274,8 +298,8 @@ export function WorkflowViewer({
               edge={edge}
               x={labelPos.midX}
               y={labelPos.midY}
-              width={route?.labelWidth}
-              height={route?.labelHeight}
+              width={elkRoute?.labelWidth}
+              height={elkRoute?.labelHeight}
               dimmed={isDimmed}
             />
           );

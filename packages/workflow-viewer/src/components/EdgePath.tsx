@@ -9,6 +9,8 @@ interface Props {
   target: NodePosition;
   /** Pre-computed polyline from the layout engine (ELK). Overrides center-to-center heuristic. */
   route?: EdgeRoute;
+  /** SVG path `d` string from the shared orthogonal router — takes priority over computeEdgeGeometry. */
+  overridePath?: string;
   targetIsTerminal: boolean;
   highlighted: boolean;
   dimmed: boolean;
@@ -126,6 +128,7 @@ export function EdgePath({
   source,
   target,
   route,
+  overridePath,
   targetIsTerminal,
   highlighted,
   dimmed,
@@ -137,9 +140,10 @@ export function EdgePath({
   const color = laneColor(edge, { targetIsTerminal });
   const dash = laneDashArray(edge);
   const d =
-    route && route.points.length >= 2
+    overridePath ??
+    (route && route.points.length >= 2
       ? polylineToPath(route.points)
-      : computeEdgeGeometry(edge, source, target).d;
+      : computeEdgeGeometry(edge, source, target).d);
 
   const strokeWidth =
     selected || highlighted
