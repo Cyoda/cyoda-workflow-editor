@@ -87,7 +87,14 @@ export function coerceCanonicalDefaults(value: unknown): unknown {
               processors: tx["processors"].map((p) => {
                 if (!isObj(p)) return p;
                 const proc = p as Record<string, unknown>;
-                if (typeof proc["type"] === "string") return p;
+                if (typeof proc["type"] === "string") {
+                  // Normalise legacy uppercase variants (e.g. "EXTERNAL") → "externalized".
+                  const lower = (proc["type"] as string).toLowerCase();
+                  if (lower === "externalized" || lower === "external") {
+                    return { ...proc, type: "externalized" };
+                  }
+                  return p;
+                }
                 return { type: "externalized", ...proc };
               }),
             };
