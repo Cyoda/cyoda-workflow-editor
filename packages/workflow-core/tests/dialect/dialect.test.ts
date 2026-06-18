@@ -128,3 +128,48 @@ describe("pluggability: a host-registered dialect round-trips", () => {
     expect(proc?.type).toBe("externalized");
   });
 });
+
+describe("0.7 dialect: legacy uppercase processor type normalization", () => {
+  const workflowWithExternalType = {
+    version: "1.0",
+    name: "wf",
+    initialState: "start",
+    active: true,
+    states: {
+      start: {
+        transitions: [
+          {
+            name: "go",
+            next: "done",
+            manual: false,
+            processors: [
+              {
+                type: "EXTERNAL",
+                name: "my-proc",
+                executionMode: "SYNC",
+                config: { attachEntity: true, calculationNodesTags: "tag", responseTimeoutMs: 5000 },
+              },
+            ],
+          },
+        ],
+      },
+      done: { transitions: [] },
+    },
+  };
+
+  test("EXTERNAL (uppercase) is normalised to externalized on import via 0.7 dialect", () => {
+    const json = importJson(workflowWithExternalType);
+    const result = parseImportPayload(json, undefined, { sourceVersion: "0.7" });
+    expect(result.ok).toBe(true);
+    const proc = result.value?.workflows[0]?.states["start"]?.transitions[0]?.processors?.[0];
+    expect(proc?.type).toBe("externalized");
+  });
+
+  test("EXTERNAL (uppercase) is normalised to externalized on import via 0.8 dialect", () => {
+    const json = importJson(workflowWithExternalType);
+    const result = parseImportPayload(json, undefined, { sourceVersion: "0.8" });
+    expect(result.ok).toBe(true);
+    const proc = result.value?.workflows[0]?.states["start"]?.transitions[0]?.processors?.[0];
+    expect(proc?.type).toBe("externalized");
+  });
+});
