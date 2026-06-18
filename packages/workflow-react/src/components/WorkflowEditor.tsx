@@ -9,6 +9,10 @@ import {
   type EntityFieldHintProvider,
   type PatchTransaction,
   invertPatch,
+  LATEST_CYODA_VERSION,
+  SUPPORTED_CYODA_VERSIONS,
+  parseImportPayload,
+  serializeImportPayload,
   PatchConflictError,
   type Workflow,
   type WorkflowEditorDocument,
@@ -34,6 +38,7 @@ import { DeleteStateModal } from "../modals/DeleteStateModal.js";
 import { DragConnectModal } from "../modals/DragConnectModal.js";
 import { AddStateModal } from "../modals/AddStateModal.js";
 import { HelpModal } from "../modals/HelpModal.js";
+import { VersionSwitchModal } from "../modals/VersionSwitchModal.js";
 import { CommentNode } from "./CommentNode.js";
 import type { RfEdgeData } from "./RfTransitionEdge.js";
 import {
@@ -208,6 +213,13 @@ export function WorkflowEditor({
   const [jsonStatus, setJsonStatus] = useState<JsonEditStatus>({ status: "idle" });
   const [openIssueSeverity, setOpenIssueSeverity] = useState<IssueSeverity | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+
+  interface PendingVersionSwitch {
+    targetVersion: string;
+    document: WorkflowEditorDocument;
+    warnings: string[];
+  }
+  const [pendingVersionSwitch, setPendingVersionSwitch] = useState<PendingVersionSwitch | null>(null);
   const selectionRef = useRef<Selection>(state.selection);
   const documentStateRef = useRef(state.document);
   const activeWorkflowRef = useRef(state.activeWorkflow);
@@ -421,6 +433,24 @@ export function WorkflowEditor({
     state.document.meta.workflowUi,
     externalLayoutMeta,
   ]);
+
+  const handleVersionChange = useCallback(
+    (targetVersion: string) => {
+      const wireJson = serializeImportPayload(state.document);
+      const result = parseImportPayload(wireJson, state.document.meta, { sourceVersion: targetVersion });
+      if (!result.ok || !result.document) return;
+      const docWithVersion: WorkflowEditorDocument = {
+        ...result.document,
+        meta: { ...result.document.meta, cyodaVersion: targetVersion },
+      };
+      if (result.warnings && result.warnings.length > 0) {
+        setPendingVersionSwitch({ targetVersion, document: docWithVersion, warnings: result.warnings });
+      } else {
+        actions.silentReplace(docWithVersion, { preserveEditorState: true });
+      }
+    },
+    [state.document, actions],
+  );
 
   const requestDeleteState = (workflow: string, stateCode: string) => {
     setPendingDelete({ workflow, stateCode });
@@ -873,6 +903,9 @@ export function WorkflowEditor({
               });
               actions.setActiveWorkflow(to);
             }}
+            dialectVersion={`v${state.document.meta.cyodaVersion ?? LATEST_CYODA_VERSION}`}
+            supportedVersions={SUPPORTED_CYODA_VERSIONS}
+            onVersionChange={handleVersionChange}
           />
         )}
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -1042,6 +1075,18 @@ export function WorkflowEditor({
           />
         )}
         {helpOpen && <HelpModal onCancel={() => setHelpOpen(false)} />}
+        {pendingVersionSwitch && (
+          <VersionSwitchModal
+            fromVersion={`v${state.document.meta.cyodaVersion ?? LATEST_CYODA_VERSION}`}
+            toVersion={`v${pendingVersionSwitch.targetVersion}`}
+            warnings={pendingVersionSwitch.warnings}
+            onConfirm={() => {
+              actions.silentReplace(pendingVersionSwitch.document, { preserveEditorState: true });
+              setPendingVersionSwitch(null);
+            }}
+            onCancel={() => setPendingVersionSwitch(null)}
+          />
+        )}
         {chrome?.toolbar !== false && (
           <div style={{ position: "relative" }}>
             <Toolbar
