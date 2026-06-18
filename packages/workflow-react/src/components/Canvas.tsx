@@ -1694,7 +1694,15 @@ function CanvasInner({
                 <div style={{ height: 1, background: "#E2E8F0" }} />
               </>
             )}
-            <CtrlBtn onClick={() => rf.fitView({ padding: 0.18 })} title="Fit view">
+            <CtrlBtn
+              onClick={() => {
+                rf.fitView({ padding: 0.18 });
+                requestAnimationFrame(() => {
+                  if (layout) onViewportChange?.(rf.getViewport());
+                });
+              }}
+              title="Fit view"
+            >
               <FitViewIcon />
             </CtrlBtn>
             <CtrlBtn onClick={onToggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
