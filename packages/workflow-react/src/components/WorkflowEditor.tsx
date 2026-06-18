@@ -443,8 +443,22 @@ export function WorkflowEditor({
         ...result.document,
         meta: { ...result.document.meta, cyodaVersion: targetVersion },
       };
-      if (result.warnings && result.warnings.length > 0) {
-        setPendingVersionSwitch({ targetVersion, document: docWithVersion, warnings: result.warnings });
+      // Detect lossiness by comparing wire output before and after the version
+      // switch. parseImportPayload warnings only cover toCanonical-phase drops
+      // (e.g. scheduled processors); serialization-phase drops (e.g. v0.7
+      // omitting transitions[].schedule) are invisible to warnings but visible
+      // in the serialized output.
+      const beforeJson = wireJson;
+      const afterJson = serializeImportPayload(docWithVersion);
+      const parseWarnings = result.warnings ?? [];
+      const isLossy = beforeJson !== afterJson || parseWarnings.length > 0;
+      const warnings: string[] = parseWarnings.length > 0
+        ? parseWarnings
+        : isLossy
+          ? ["Some fields supported in the current version are not present in the target version and will be removed."]
+          : [];
+      if (isLossy) {
+        setPendingVersionSwitch({ targetVersion, document: docWithVersion, warnings });
       } else {
         actions.silentReplace(docWithVersion, { preserveEditorState: true });
       }
