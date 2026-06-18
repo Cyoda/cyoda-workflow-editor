@@ -97,23 +97,14 @@ describe("processor undo", () => {
     fireEvent.click(screen.getByTestId("select-transition"));
     fireEvent.click(screen.getByTestId("inspector-add-processor"));
     fireEvent.change(screen.getByTestId("processor-name-input"), {
-      target: { value: "schedule-finish" },
-    });
-    fireEvent.change(screen.getByTestId("processor-type-select"), {
-      target: { value: "scheduled" },
-    });
-    fireEvent.change(screen.getByTestId("processor-scheduled-delay-amount"), {
-      target: { value: "5" },
-    });
-    fireEvent.change(screen.getByTestId("processor-scheduled-transition"), {
-      target: { value: "go" },
+      target: { value: "enrich" },
     });
     fireEvent.click(screen.getByTestId("processor-modal-apply"));
 
-    expect(screen.getByText("schedule-finish")).toBeTruthy();
+    expect(screen.getByText("enrich")).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("canvas-undo"));
-    expect(screen.queryByText("schedule-finish")).toBeNull();
+    expect(screen.queryByText("enrich")).toBeNull();
   });
 
   it("undo reverts an edited processor", () => {

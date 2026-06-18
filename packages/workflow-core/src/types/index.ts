@@ -13,11 +13,17 @@ export type {
 export type {
   Processor,
   ExternalizedProcessor,
-  ScheduledProcessor,
   ExecutionMode,
   ExternalizedProcessorConfig,
 } from "./processor.js";
-export type { StateCode, TransitionName, Workflow, State, Transition } from "./workflow.js";
+export type {
+  StateCode,
+  TransitionName,
+  Workflow,
+  State,
+  Transition,
+  TransitionSchedule,
+} from "./workflow.js";
 export type {
   WorkflowSession,
   EntityIdentity,

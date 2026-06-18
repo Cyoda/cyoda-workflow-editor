@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
   DomainPatch,
   EdgeAnchor,
@@ -6,6 +6,7 @@ import type {
   HostRef,
   Processor,
   Transition,
+  TransitionSchedule,
   ValidationIssue,
   Workflow,
 } from "@cyoda/workflow-core";
@@ -54,6 +55,23 @@ export function TransitionForm({
     | null
   >(null);
 
+  const [scheduleDelayDraft, setScheduleDelayDraft] = useState<string>(
+    transition.schedule?.delayMs !== undefined ? String(transition.schedule.delayMs) : "",
+  );
+  const [scheduleTimeoutDraft, setScheduleTimeoutDraft] = useState<string>(
+    transition.schedule?.timeoutMs !== undefined ? String(transition.schedule.timeoutMs) : "",
+  );
+  const prevTransitionUuidRef = useRef(transitionUuid);
+  if (prevTransitionUuidRef.current !== transitionUuid) {
+    prevTransitionUuidRef.current = transitionUuid;
+    setScheduleDelayDraft(
+      transition.schedule?.delayMs !== undefined ? String(transition.schedule.delayMs) : "",
+    );
+    setScheduleTimeoutDraft(
+      transition.schedule?.timeoutMs !== undefined ? String(transition.schedule.timeoutMs) : "",
+    );
+  }
+
   const update = (updates: Partial<Transition>) =>
     onDispatch({ op: "updateTransition", transitionUuid, updates });
 
@@ -93,6 +111,28 @@ export function TransitionForm({
       transitionUuid,
       toIndex,
     });
+  };
+
+  const commitScheduleDelay = (raw: string) => {
+    const parsed = Number(raw.trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) return;
+    const next: TransitionSchedule = { ...transition.schedule, delayMs: parsed };
+    update({ schedule: next });
+  };
+
+  const commitScheduleTimeout = (raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) {
+      if (transition.schedule?.timeoutMs !== undefined) {
+        const { timeoutMs: _removed, ...rest } = transition.schedule;
+        update({ schedule: rest });
+      }
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed <= 0) return;
+    const next: TransitionSchedule = { ...transition.schedule, delayMs: transition.schedule?.delayMs ?? 1, timeoutMs: parsed };
+    update({ schedule: next });
   };
 
   const allStateNames = Object.keys(workflow.states);
@@ -294,6 +334,87 @@ export function TransitionForm({
       </TransitionSection>
 
       <TransitionSection
+        title="Scheduled transition"
+        testId="inspector-transition-schedule-section"
+      >
+        <label
+          style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, fontSize: 12, color: colors.textSecondary, cursor: "pointer" }}
+        >
+          <input
+            type="checkbox"
+            checked={transition.schedule !== undefined}
+            disabled={disabled}
+            data-testid="inspector-transition-schedule-enabled"
+            onChange={(e) => {
+              if (e.target.checked) {
+                setScheduleDelayDraft("1");
+                setScheduleTimeoutDraft("");
+                update({ schedule: { delayMs: 1 } });
+              } else {
+                setScheduleDelayDraft("");
+                setScheduleTimeoutDraft("");
+                update({ schedule: undefined });
+              }
+            }}
+          />
+          <span>Enable schedule</span>
+        </label>
+
+        {transition.schedule !== undefined && (
+          <>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary }}>
+              <span style={{ fontWeight: 500 }}>Delay (ms)</span>
+              <input
+                type="text"
+                value={scheduleDelayDraft}
+                disabled={disabled}
+                data-testid="inspector-transition-schedule-delay"
+                style={scheduleInputStyle}
+                onChange={(e) => setScheduleDelayDraft(e.target.value)}
+                onBlur={(e) => commitScheduleDelay(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+              />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary }}>
+              <span style={{ fontWeight: 500 }}>Timeout (ms)</span>
+              <input
+                type="text"
+                value={scheduleTimeoutDraft}
+                disabled={disabled}
+                data-testid="inspector-transition-schedule-timeout"
+                style={scheduleInputStyle}
+                onChange={(e) => setScheduleTimeoutDraft(e.target.value)}
+                onBlur={(e) => commitScheduleTimeout(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+              />
+            </label>
+          </>
+        )}
+
+        <p
+          style={{
+            margin: 0,
+            padding: "6px 8px",
+            fontSize: 12,
+            color: colors.warning,
+            background: colors.warningBg,
+            border: `1px solid ${colors.warningBorder}`,
+            borderRadius: radii.sm,
+            lineHeight: 1.45,
+          }}
+          data-testid="inspector-transition-schedule-notice"
+        >
+          Scheduled transitions can be configured but are not yet executed by the workflow engine.
+          Firing a scheduled transition currently returns 400 BAD_REQUEST.
+        </p>
+      </TransitionSection>
+
+      <TransitionSection
         title={messages.inspector.processors}
         testId="inspector-transition-processes-section"
       >
@@ -406,7 +527,6 @@ export function TransitionForm({
       {processorModal && (
         <ProcessorEditorModal
           title={processorModal.mode === "add" ? "Add processor" : "Edit processor"}
-          workflow={workflow}
           initialProcessor={
             processorModal.mode === "edit"
               ? processors[processorModal.processorIndex]
@@ -527,6 +647,14 @@ const emptyProcessorStateStyle = {
   border: `1px dashed ${colors.border}`,
   borderRadius: radii.md,
   background: colors.surfaceMuted,
+};
+
+const scheduleInputStyle = {
+  padding: "4px 8px",
+  fontSize: 12,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
+  background: "white",
 };
 
 function AnchorSelect({

@@ -74,33 +74,6 @@ describe("processor OpenAPI contract", () => {
     });
   });
 
-  test("scheduled processor round-trips with lowercase type and required config", () => {
-    const doc = parseDocument(
-      basePayload([
-        {
-          type: "scheduled",
-          name: "schedule-next",
-          config: {
-            delayMs: 30000,
-            transition: "finish",
-            timeoutMs: 1000,
-          },
-        },
-      ]),
-    );
-
-    const serialized = JSON.parse(serializeImportPayload(doc));
-    expect(serialized.workflows[0].states.start.transitions[0].processors[0]).toEqual({
-      type: "scheduled",
-      name: "schedule-next",
-      config: {
-        delayMs: 30000,
-        transition: "finish",
-        timeoutMs: 1000,
-      },
-    });
-  });
-
   test("missing processor type is normalized to externalized", () => {
     const doc = parseDocument(
       basePayload([
@@ -187,47 +160,6 @@ describe("processor OpenAPI contract", () => {
     );
   });
 
-  test("scheduled processor requires delayMs and transition, while timeoutMs remains optional", () => {
-    const missingDelay = parseImportPayload(
-      JSON.stringify(
-        basePayload([
-          {
-            type: "scheduled",
-            name: "schedule-next",
-            config: { transition: "finish" },
-          },
-        ]),
-      ),
-    );
-    expect(missingDelay.issues.some((issue) => issue.severity === "error")).toBe(true);
-
-    const missingTransition = parseImportPayload(
-      JSON.stringify(
-        basePayload([
-          {
-            type: "scheduled",
-            name: "schedule-next",
-            config: { delayMs: 10 },
-          },
-        ]),
-      ),
-    );
-    expect(missingTransition.issues.some((issue) => issue.severity === "error")).toBe(true);
-
-    const timeoutOptional = parseImportPayload(
-      JSON.stringify(
-        basePayload([
-          {
-            type: "scheduled",
-            name: "schedule-next",
-            config: { delayMs: 10, transition: "finish" },
-          },
-        ]),
-      ),
-    );
-    expect(timeoutOptional.document).toBeDefined();
-  });
-
   test("negative processor timing values are rejected", () => {
     const responseTimeout = parseImportPayload(
       JSON.stringify(
@@ -256,18 +188,5 @@ describe("processor OpenAPI contract", () => {
       ),
     );
     expect(crossover.issues.some((issue) => issue.severity === "error")).toBe(true);
-
-    const scheduledDelay = parseImportPayload(
-      JSON.stringify(
-        basePayload([
-          {
-            type: "scheduled",
-            name: "schedule-next",
-            config: { delayMs: -1, transition: "finish" },
-          },
-        ]),
-      ),
-    );
-    expect(scheduledDelay.issues.some((issue) => issue.severity === "error")).toBe(true);
   });
 });
