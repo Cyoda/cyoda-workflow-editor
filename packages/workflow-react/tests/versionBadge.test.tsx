@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { VersionBadge } from "../src/toolbar/VersionBadge.js";
+import { VersionSwitchModal } from "../src/modals/VersionSwitchModal.js";
 
 afterEach(cleanup);
 
@@ -50,5 +51,53 @@ describe("VersionBadge", () => {
     expect(badge.tagName).toBe("DIV");
     fireEvent.click(badge);
     expect(screen.queryByTestId("version-dropdown")).toBeNull();
+  });
+});
+
+describe("VersionSwitchModal", () => {
+  it("shows the target version and warning list", () => {
+    render(
+      <VersionSwitchModal
+        fromVersion="0.8"
+        toVersion="0.7"
+        warnings={["schedule removed from 2 transitions"]}
+        onConfirm={() => {}}
+        onCancel={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("version-switch-modal").textContent).toContain("0.7");
+    expect(screen.getByTestId("version-switch-modal").textContent).toContain(
+      "schedule removed from 2 transitions",
+    );
+  });
+
+  it("calls onConfirm when the destructive button is clicked", () => {
+    const onConfirm = vi.fn();
+    render(
+      <VersionSwitchModal
+        fromVersion="0.8"
+        toVersion="0.7"
+        warnings={["field dropped"]}
+        onConfirm={onConfirm}
+        onCancel={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("version-switch-confirm"));
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
+  it("calls onCancel when cancel is clicked", () => {
+    const onCancel = vi.fn();
+    render(
+      <VersionSwitchModal
+        fromVersion="0.8"
+        toVersion="0.7"
+        warnings={["field dropped"]}
+        onConfirm={() => {}}
+        onCancel={onCancel}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("version-switch-cancel"));
+    expect(onCancel).toHaveBeenCalledOnce();
   });
 });

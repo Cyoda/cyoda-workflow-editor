@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Workflow } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { VersionBadge } from "./VersionBadge.js";
 
 export interface WorkflowTabsProps {
   workflows: Workflow[];
@@ -10,6 +11,9 @@ export interface WorkflowTabsProps {
   onClose?: (name: string) => void;
   onRename?: (from: string, to: string) => void;
   readOnly: boolean;
+  dialectVersion?: string;
+  supportedVersions?: readonly string[];
+  onVersionChange?: (version: string) => void;
 }
 
 /**
@@ -24,6 +28,9 @@ export function WorkflowTabs({
   onClose,
   onRename,
   readOnly,
+  dialectVersion,
+  supportedVersions,
+  onVersionChange,
 }: WorkflowTabsProps) {
   const messages = useMessages();
   const [editingTab, setEditingTab] = useState<string | null>(null);
@@ -167,6 +174,17 @@ export function WorkflowTabs({
         >
           + {messages.toolbar.addWorkflow}
         </button>
+      )}
+      {dialectVersion && (
+        <>
+          <div style={{ flex: 1 }} />
+          <VersionBadge
+            version={dialectVersion}
+            supportedVersions={supportedVersions ?? []}
+            readOnly={readOnly}
+            onVersionChange={onVersionChange}
+          />
+        </>
       )}
     </nav>
   );
