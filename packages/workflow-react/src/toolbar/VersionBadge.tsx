@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { radii } from "../style/tokens.js";
+import { colors, radii } from "../style/tokens.js";
 
 export interface VersionBadgeProps {
   version: string;
@@ -26,6 +26,7 @@ export function VersionBadge({
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
 
+  // hooks must precede early return (React rules of hooks)
   if (readOnly) {
     return (
       <div
@@ -33,8 +34,8 @@ export function VersionBadge({
         style={{
           padding: "3px 9px",
           background: "#F1F5F9",
-          color: "#64748B",
-          border: "1px solid #E2E8F0",
+          color: colors.textTertiary,
+          border: `1px solid ${colors.borderSubtle}`,
           borderRadius: radii.sm,
           fontSize: 12,
           fontWeight: 600,
@@ -57,9 +58,9 @@ export function VersionBadge({
           alignItems: "center",
           gap: 4,
           padding: "3px 9px",
-          background: open ? "#DBEAFE" : "#EFF6FF",
-          color: "#1D4ED8",
-          border: `1px solid ${open ? "#93C5FD" : "#BFDBFE"}`,
+          background: open ? "#DBEAFE" : colors.infoBg,
+          color: colors.info,
+          border: `1px solid ${open ? colors.infoBorder : "#BFDBFE"}`,
           borderRadius: open ? "4px 4px 0 0" : radii.sm,
           fontSize: 12,
           fontWeight: 600,
@@ -103,7 +104,8 @@ export function VersionBadge({
             Dialect version — applies to all workflows
           </div>
           {[...supportedVersions].reverse().map((v) => {
-            const isCurrent = v.replace(/^v/, "") === version.replace(/^v/, "");
+            // version prop may carry a "v" prefix (e.g. "v0.8"); supportedVersions entries never do.
+            const isCurrent = v === version.replace(/^v/, "");
             return (
               <button
                 key={v}
