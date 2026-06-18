@@ -43,6 +43,8 @@ export interface WorkflowViewerProps {
   /** Render the synthetic start-marker badge produced by graph projection. */
   showStartMarker?: boolean;
   className?: string;
+  /** Dialect version string to display (e.g. "v0.8"). Omit to hide the badge. */
+  dialectVersion?: string;
 }
 
 export type WorkflowViewerSurface = "website" | "ops-console";
@@ -72,6 +74,7 @@ export function WorkflowViewer({
   onInspect,
   showStartMarker = false,
   className,
+  dialectVersion,
 }: WorkflowViewerProps) {
   const graph = useMemo(() => {
     if (graphInput) return graphInput;
@@ -216,9 +219,31 @@ export function WorkflowViewer({
   };
 
   return (
+    <div style={{ position: "relative", width, height, display: "inline-block" }}>
+      {dialectVersion && (
+        <div
+          data-testid="viewer-version-badge"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            padding: "3px 9px",
+            background: "#F1F5F9",
+            color: "#64748B",
+            border: "1px solid #E2E8F0",
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 600,
+            pointerEvents: "none",
+            zIndex: 1,
+          }}
+        >
+          {dialectVersion}
+        </div>
+      )}
     <svg
-      width={width}
-      height={height}
+      width="100%"
+      height="100%"
       viewBox={`0 0 ${effectiveLayout.width} ${effectiveLayout.height}`}
       preserveAspectRatio="xMidYMid meet"
       onClick={handleBackgroundClick}
@@ -316,6 +341,7 @@ export function WorkflowViewer({
         }))}
       </g>
     </svg>
+    </div>
   );
 }
 
