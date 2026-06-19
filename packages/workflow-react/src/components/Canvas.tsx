@@ -29,13 +29,14 @@ import { layoutGraph, estimateNodeSize, type LayoutOptions, type LayoutResult, t
 import { ArrowMarkers } from "./ArrowMarkers.js";
 import { RfStateNode, type RfStateNodeData } from "./RfStateNode.js";
 import { RfTransitionEdge, type RfEdgeData } from "./RfTransitionEdge.js";
+import { RfTransitionBlockNode, TRANSITION_BLOCK_SIZE, type RfTransitionBlockNodeData } from "./RfTransitionBlockNode.js";
 import { HoverContext, computeHighlightSet } from "./HoverContext.js";
 import { findNonOverlappingCenter, type Rect } from "./newStatePosition.js";
 import { orthogonalEdgePath } from "../routing/orthogonal.js";
 import { badgesFor } from "@cyoda/workflow-viewer/theme";
 import type { Selection } from "../state/types.js";
 
-const nodeTypes = { stateNode: RfStateNode };
+const nodeTypes = { stateNode: RfStateNode, transitionBlock: RfTransitionBlockNode };
 const edgeTypes = { transition: RfTransitionEdge };
 
 export interface CanvasProps {
@@ -88,6 +89,8 @@ export interface CanvasProps {
   onHelp?: () => void;
   /** Accessible label / tooltip for the help button. */
   helpLabel?: string;
+  /** Transition block positions, keyed by transition UUID. */
+  transitionBlockPositions?: Record<string, { x: number; y: number }>;
 }
 
 function toRfNodes(
@@ -95,9 +98,10 @@ function toRfNodes(
   layout: LayoutResult,
   activeWorkflow: string | null,
   issuesByNode: Map<string, ValidationIssue[]>,
+  transitionPositions: Record<string, { x: number; y: number }> | undefined,
   selection: Selection,
-): Node<RfStateNodeData>[] {
-  return graph.nodes
+): Node<RfStateNodeData | RfTransitionBlockNodeData>[] {
+  const stateNodes: Node<RfStateNodeData>[] = graph.nodes
     .filter((n): n is GraphStateNode => n.kind === "state")
     .filter((n) => !activeWorkflow || n.workflow === activeWorkflow)
     .map((n) => {
@@ -130,6 +134,71 @@ function toRfNodes(
         style: { width: size.width, height: size.height },
       };
     });
+
+  // Compute transition block nodes
+  const transitionEdges = graph.edges.filter(
+    (e): e is TransitionEdge => e.kind === "transition",
+  ).filter((e) => !activeWorkflow || e.workflow === activeWorkflow);
+
+  const transitionBlockNodes: Node<RfTransitionBlockNodeData>[] = transitionEdges.map((e) => {
+    // Position: use stored position or compute midpoint
+    let position: { x: number; y: number };
+    const storedPos = transitionPositions?.[e.id];
+    if (storedPos) {
+      position = storedPos;
+    } else if (e.isSelf) {
+      // Self-transitions: place to the right of the source node
+      const srcPos = layout.positions.get(e.sourceId);
+      if (srcPos) {
+        position = {
+          x: srcPos.x + srcPos.width + 20,
+          y: srcPos.y - TRANSITION_BLOCK_SIZE.height / 2,
+        };
+      } else {
+        position = { x: 0, y: 0 };
+      }
+    } else {
+      // Compute midpoint from source + target layout positions
+      const srcPos = layout.positions.get(e.sourceId);
+      const tgtPos = layout.positions.get(e.targetId);
+      if (srcPos && tgtPos) {
+        position = {
+          x: (srcPos.x + srcPos.width / 2 + tgtPos.x + tgtPos.width / 2) / 2 - TRANSITION_BLOCK_SIZE.width / 2,
+          y: (srcPos.y + srcPos.height / 2 + tgtPos.y + tgtPos.height / 2) / 2 - TRANSITION_BLOCK_SIZE.height / 2,
+        };
+      } else {
+        // Fallback for missing positions
+        position = { x: 0, y: 0 };
+      }
+    }
+
+    const selected = selection?.kind === "transition" && selection.transitionUuid === e.id;
+    const processorCount = e.summary.processor?.kind === "single" ? 1
+      : e.summary.processor?.kind === "multiple" ? e.summary.processor.count
+      : 0;
+    const hasCriterion = !!e.summary.criterion;
+
+    return {
+      id: e.id,
+      type: "transitionBlock" as const,
+      data: {
+        transitionName: e.summary.display,
+        processorCount,
+        hasCriterion,
+        selected,
+      },
+      position,
+      draggable: true,
+      selectable: true,
+      selected,
+      width: TRANSITION_BLOCK_SIZE.width,
+      height: TRANSITION_BLOCK_SIZE.height,
+      style: { width: TRANSITION_BLOCK_SIZE.width, height: TRANSITION_BLOCK_SIZE.height },
+      zIndex: 10,
+    };
+  });
+
+  return [...stateNodes, ...transitionBlockNodes];
 }
 
 // Module-level canvas context for label text measurement (created once).
@@ -716,17 +785,17 @@ function pointForHandle(
 }
 
 function positionsFromNodes(
-  nodes: Node<RfStateNodeData>[],
+  nodes: Node<RfStateNodeData | RfTransitionBlockNodeData>[],
 ): Map<string, { x: number; y: number }> {
   return new Map(nodes.map((node) => [node.id, node.position]));
 }
 
 function reconcileNodes(
-  previousNodes: Node<RfStateNodeData>[],
-  nextBaseNodes: Node<RfStateNodeData>[],
+  previousNodes: Node<RfStateNodeData | RfTransitionBlockNodeData>[],
+  nextBaseNodes: Node<RfStateNodeData | RfTransitionBlockNodeData>[],
   previousBasePositions: Map<string, { x: number; y: number }> | null,
   draggingIds: ReadonlySet<string>,
-): Node<RfStateNodeData>[] {
+): Node<RfStateNodeData | RfTransitionBlockNodeData>[] {
   if (previousNodes.length === 0) return nextBaseNodes;
 
   const previousById = new Map(previousNodes.map((node) => [node.id, node]));
@@ -1323,9 +1392,10 @@ function CanvasInner({
   resizeKey = 0,
   onHelp,
   helpLabel,
+  transitionBlockPositions,
 }: CanvasProps) {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
-  const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
+  const [nodes, setNodes] = useState<Node<RfStateNodeData | RfTransitionBlockNodeData>[]>([]);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const previousBasePositionsRef = useRef<Map<string, { x: number; y: number }> | null>(null);
   // When true, the next reconcileNodes pass will skip drag-position preservation
@@ -1466,9 +1536,9 @@ function CanvasInner({
   const baseNodes = useMemo(
     () =>
       layout
-        ? toRfNodes(graph, layout, activeWorkflow, issuesByNode, selection)
+        ? toRfNodes(graph, layout, activeWorkflow, issuesByNode, transitionBlockPositions, selection)
         : [],
-    [graph, layout, activeWorkflow, issuesByNode, selection],
+    [graph, layout, activeWorkflow, issuesByNode, transitionBlockPositions, selection],
   );
 
   useEffect(() => {
@@ -1514,10 +1584,12 @@ function CanvasInner({
   const displayPositions = useMemo(() => {
     const positions = new Map<string, NodePosition>(layout?.positions ?? []);
     for (const node of nodes) {
+      if (node.type === "transitionBlock") continue; // not obstacles for edge routing
+      const stateNodeData = node.data as RfStateNodeData;
       const layoutPosition = layout?.positions.get(node.id);
-      const size = node.data.size ?? {
-        width: layoutPosition?.width ?? estimateNodeSize(node.data.node.stateCode).width,
-        height: layoutPosition?.height ?? estimateNodeSize(node.data.node.stateCode).height,
+      const size = stateNodeData.size ?? {
+        width: layoutPosition?.width ?? estimateNodeSize(stateNodeData.node.stateCode).width,
+        height: layoutPosition?.height ?? estimateNodeSize(stateNodeData.node.stateCode).height,
       };
       positions.set(node.id, {
         id: node.id,
@@ -1563,6 +1635,10 @@ function CanvasInner({
   const onEdgeMouseLeave: EdgeMouseHandler = useCallback(() => setHoveredId(null), []);
 
   const onNodeClick: NodeMouseHandler = (_, node) => {
+    if (node.type === "transitionBlock") {
+      onSelectionChange({ kind: "transition", transitionUuid: node.id });
+      return;
+    }
     const data = node.data as RfStateNodeData;
     onSelectionChange({
       kind: "state",

@@ -332,13 +332,43 @@ export function WorkflowEditor({
         });
         return;
       }
+      // When retargeting a transition (changing next), clear its block position
+      // so it recomputes to the new geometry midpoint.
+      if (patch.op === "updateTransition" && patch.updates.next !== undefined) {
+        const ptr = state.document.meta.ids.transitions[patch.transitionUuid];
+        if (ptr) {
+          const hasStoredPos = !!state.document.meta.workflowUi[ptr.workflow]?.transitionPositions?.[patch.transitionUuid];
+          if (hasStoredPos) {
+            const clearPatch: DomainPatch = { op: "removeTransitionBlockPosition", transitionId: patch.transitionUuid };
+            actions.dispatchTransaction({
+              summary: "Update transition",
+              patches: [patch, clearPatch],
+              inverses: [invertPatch(state.document, clearPatch), invertPatch(state.document, patch)],
+            });
+            return;
+          }
+        }
+      }
       if (patch.op === "moveTransitionSource") {
         const nextDoc = applyPatch(state.document, patch);
         const newUuid = transitionUuidByName(nextDoc, patch.workflow, patch.toState, patch.transitionName);
+        const oldUuid = transitionUuidByName(state.document, patch.workflow, patch.fromState, patch.transitionName);
+        const patches: DomainPatch[] = [patch];
+        const inverses: DomainPatch[] = [{ op: "moveTransitionSource", workflow: patch.workflow, fromState: patch.toState, toState: patch.fromState, transitionName: patch.transitionName }];
+        // Clear the block position for the moved transition (UUID may have changed)
+        if (newUuid) {
+          const clearPatch: DomainPatch = { op: "removeTransitionBlockPosition", transitionId: newUuid };
+          patches.push(clearPatch);
+          inverses.unshift(invertPatch(state.document, clearPatch));
+        } else if (oldUuid) {
+          const clearPatch: DomainPatch = { op: "removeTransitionBlockPosition", transitionId: oldUuid };
+          patches.push(clearPatch);
+          inverses.unshift(invertPatch(state.document, clearPatch));
+        }
         actions.dispatchTransaction({
           summary: `Move transition "${patch.transitionName}" to "${patch.toState}"`,
-          patches: [patch],
-          inverses: [{ op: "moveTransitionSource", workflow: patch.workflow, fromState: patch.toState, toState: patch.fromState, transitionName: patch.transitionName }],
+          patches,
+          inverses,
           selectionAfter: newUuid ? { kind: "transition", transitionUuid: newUuid } : null,
         });
         return;
@@ -367,13 +397,23 @@ export function WorkflowEditor({
   const saveDisabled = readOnly || derived.errorCount > 0 || saveBlockedByJson;
 
   const handleNodeDragStop = useCallback(
-    (nodeId: string, _x: number, _y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
+    (nodeId: string, x: number, y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
+      // Check if the dragged node is a transition block (in ids.transitions, not ids.states)
+      const transitionPtr = state.document.meta.ids.transitions[nodeId];
+      if (transitionPtr) {
+        // Dragging a transition block — save only its position
+        const patch: DomainPatch = { op: "setTransitionBlockPosition", transitionId: nodeId, x, y };
+        const inverse = invertPatch(state.document, patch);
+        actions.dispatchTransaction({ patches: [patch], inverses: [inverse], summary: "Move transition block" });
+        return;
+      }
+      // Otherwise handle as state node drag (existing behavior)
       const ids = state.document.meta.ids.states;
       const patches: DomainPatch[] = [];
-      for (const { id, x, y } of allPositions) {
+      for (const { id, x: px, y: py } of allPositions) {
         const ptr = ids[id];
         if (!ptr) continue;
-        patches.push({ op: "setNodePosition", workflow: ptr.workflow, stateCode: ptr.state, x, y, ...(id === nodeId ? { pinned: true } : {}) });
+        patches.push({ op: "setNodePosition", workflow: ptr.workflow, stateCode: ptr.state, x: px, y: py, ...(id === nodeId ? { pinned: true } : {}) });
       }
       if (patches.length === 0) return;
       const inverses = patches.map((p) => invertPatch(state.document, p));
@@ -388,7 +428,7 @@ export function WorkflowEditor({
     // Clear all pinned positions so ELK can arrange everything from scratch.
     const workflowUi = { ...state.document.meta.workflowUi };
     const current = workflowUi[workflow] ?? {};
-    workflowUi[workflow] = { ...current, layout: undefined, edgeAnchors: undefined };
+    workflowUi[workflow] = { ...current, layout: undefined, edgeAnchors: undefined, transitionPositions: undefined };
     actions.silentReplace(
       {
         session: state.document.session,
@@ -802,6 +842,11 @@ export function WorkflowEditor({
         resizeKey={inspectorVisible ? 1 : 0}
         onHelp={() => setHelpOpen(true)}
         helpLabel={mergedMessages.toolbar.help}
+        transitionBlockPositions={
+          state.activeWorkflow
+            ? state.document.meta.workflowUi[state.activeWorkflow]?.transitionPositions
+            : undefined
+        }
       />
       {reconnectError && (
         <div
