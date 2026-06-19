@@ -117,4 +117,9 @@ export interface WorkflowUiMeta {
    * exported Cyoda JSON.
    */
   comments?: Record<string, CommentMeta>;
+  /**
+   * Per-transition block positions keyed by synthetic transition UUID.
+   * Editor-only; never serialised into exported Cyoda JSON.
+   */
+  transitionPositions?: Record<string, { x: number; y: number }>;
 }

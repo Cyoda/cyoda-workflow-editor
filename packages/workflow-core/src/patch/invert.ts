@@ -235,6 +235,34 @@ export function invertPatch(
       if (!prior) return noop();
       return { op: "addComment", workflow: patch.workflow, comment: structuredClone(prior) };
     }
+
+    case "setTransitionBlockPosition": {
+      const ptr = doc.meta.ids.transitions[patch.transitionId];
+      if (!ptr) return noop();
+      const prior = doc.meta.workflowUi[ptr.workflow]?.transitionPositions?.[patch.transitionId];
+      if (!prior) {
+        return { op: "removeTransitionBlockPosition", transitionId: patch.transitionId };
+      }
+      return {
+        op: "setTransitionBlockPosition",
+        transitionId: patch.transitionId,
+        x: prior.x,
+        y: prior.y,
+      };
+    }
+
+    case "removeTransitionBlockPosition": {
+      const ptr = doc.meta.ids.transitions[patch.transitionId];
+      if (!ptr) return noop();
+      const prior = doc.meta.workflowUi[ptr.workflow]?.transitionPositions?.[patch.transitionId];
+      if (!prior) return noop();
+      return {
+        op: "setTransitionBlockPosition",
+        transitionId: patch.transitionId,
+        x: prior.x,
+        y: prior.y,
+      };
+    }
   }
 }
 

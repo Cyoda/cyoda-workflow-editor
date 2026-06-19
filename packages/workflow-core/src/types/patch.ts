@@ -93,4 +93,22 @@ export type DomainPatch =
   /**
    * UI-only: remove a canvas comment.
    */
-  | { op: "removeComment"; workflow: string; commentId: string };
+  | { op: "removeComment"; workflow: string; commentId: string }
+  /**
+   * UI-only: persist a manual position for a transition block node.
+   * Writes to `meta.workflowUi[workflow].transitionPositions[transitionId]`.
+   * Does not touch `session.workflows`.
+   */
+  | {
+      op: "setTransitionBlockPosition";
+      transitionId: string;
+      x: number;
+      y: number;
+    }
+  /**
+   * UI-only: clear a manual transition block position, allowing it to recompute.
+   */
+  | {
+      op: "removeTransitionBlockPosition";
+      transitionId: string;
+    };
