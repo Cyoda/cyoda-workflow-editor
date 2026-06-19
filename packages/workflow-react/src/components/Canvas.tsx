@@ -188,7 +188,6 @@ function toRfNodes(
         selected,
       },
       position,
-      draggable: true,
       selectable: true,
       selected,
       width: TRANSITION_BLOCK_SIZE.width,
