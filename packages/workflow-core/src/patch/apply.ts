@@ -27,6 +27,8 @@ export function applyPatch(
   if (patch.op === "addComment") return applyAddComment(doc, patch);
   if (patch.op === "updateComment") return applyUpdateComment(doc, patch);
   if (patch.op === "removeComment") return applyRemoveComment(doc, patch);
+  if (patch.op === "setTransitionBlockPosition") return applySetTransitionBlockPosition(doc, patch);
+  if (patch.op === "removeTransitionBlockPosition") return applyRemoveTransitionBlockPosition(doc, patch);
 
   const nextSession = produce(doc.session, (d) => {
     // Cast to break immer's WritableDraft recursion over the deeply-nested
@@ -336,7 +338,7 @@ function applyResetLayout(
 ): WorkflowEditorDocument {
   const workflowUi = { ...doc.meta.workflowUi };
   const current = workflowUi[patch.workflow] ?? {};
-  workflowUi[patch.workflow] = { ...current, layout: undefined };
+  workflowUi[patch.workflow] = { ...current, layout: undefined, transitionPositions: undefined };
   return {
     session: doc.session,
     meta: { ...doc.meta, workflowUi, revision: doc.meta.revision + 1 },
@@ -385,6 +387,47 @@ function applyRemoveComment(
   workflowUi[patch.workflow] = {
     ...current,
     comments: Object.keys(comments).length > 0 ? comments : undefined,
+  };
+  return {
+    session: doc.session,
+    meta: { ...doc.meta, workflowUi, revision: doc.meta.revision + 1 },
+  };
+}
+
+function applySetTransitionBlockPosition(
+  doc: WorkflowEditorDocument,
+  patch: Extract<DomainPatch, { op: "setTransitionBlockPosition" }>,
+): WorkflowEditorDocument {
+  const ptr = doc.meta.ids.transitions[patch.transitionId];
+  if (!ptr) return { ...doc, meta: { ...doc.meta, revision: doc.meta.revision + 1 } };
+
+  const workflowUi = { ...doc.meta.workflowUi };
+  const current = workflowUi[ptr.workflow] ?? {};
+  const transitionPositions = {
+    ...(current.transitionPositions ?? {}),
+    [patch.transitionId]: { x: patch.x, y: patch.y },
+  };
+  workflowUi[ptr.workflow] = { ...current, transitionPositions };
+  return {
+    session: doc.session,
+    meta: { ...doc.meta, workflowUi, revision: doc.meta.revision + 1 },
+  };
+}
+
+function applyRemoveTransitionBlockPosition(
+  doc: WorkflowEditorDocument,
+  patch: Extract<DomainPatch, { op: "removeTransitionBlockPosition" }>,
+): WorkflowEditorDocument {
+  const ptr = doc.meta.ids.transitions[patch.transitionId];
+  if (!ptr) return { ...doc, meta: { ...doc.meta, revision: doc.meta.revision + 1 } };
+
+  const workflowUi = { ...doc.meta.workflowUi };
+  const current = workflowUi[ptr.workflow] ?? {};
+  const transitionPositions = { ...(current.transitionPositions ?? {}) };
+  delete transitionPositions[patch.transitionId];
+  workflowUi[ptr.workflow] = {
+    ...current,
+    transitionPositions: Object.keys(transitionPositions).length > 0 ? transitionPositions : undefined,
   };
   return {
     session: doc.session,
@@ -630,7 +673,18 @@ function cleanupWorkflowUi(
       edgeAnchors = Object.keys(cleanAnchors).length > 0 ? cleanAnchors : undefined;
     }
 
-    result[wfName] = { ...ui, layout, comments, edgeAnchors };
+    let transitionPositions = ui.transitionPositions;
+    if (transitionPositions && meta) {
+      const validTransitionIds = validTransitionIdsByWorkflow.get(wfName) ?? new Set<string>();
+      const cleanPositions = Object.fromEntries(
+        Object.entries(transitionPositions).filter(([transitionUuid]) =>
+          validTransitionIds.has(transitionUuid),
+        ),
+      );
+      transitionPositions = Object.keys(cleanPositions).length > 0 ? cleanPositions : undefined;
+    }
+
+    result[wfName] = { ...ui, layout, comments, edgeAnchors, transitionPositions };
   }
 
   return result;
