@@ -397,17 +397,7 @@ export function WorkflowEditor({
   const saveDisabled = readOnly || derived.errorCount > 0 || saveBlockedByJson;
 
   const handleNodeDragStop = useCallback(
-    (nodeId: string, x: number, y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
-      // Check if the dragged node is a transition block (in ids.transitions, not ids.states)
-      const transitionPtr = state.document.meta.ids.transitions[nodeId];
-      if (transitionPtr) {
-        // Dragging a transition block — save only its position
-        const patch: DomainPatch = { op: "setTransitionBlockPosition", transitionId: nodeId, x, y };
-        const inverse = invertPatch(state.document, patch);
-        actions.dispatchTransaction({ patches: [patch], inverses: [inverse], summary: "Move transition block" });
-        return;
-      }
-      // Otherwise handle as state node drag (existing behavior)
+    (nodeId: string, _x: number, _y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
       const ids = state.document.meta.ids.states;
       const patches: DomainPatch[] = [];
       for (const { id, x: px, y: py } of allPositions) {
@@ -418,6 +408,15 @@ export function WorkflowEditor({
       if (patches.length === 0) return;
       const inverses = patches.map((p) => invertPatch(state.document, p));
       actions.dispatchTransaction({ patches, inverses, summary: "Move state" });
+    },
+    [state.document, actions],
+  );
+
+  const handleTransitionLabelDragEnd = useCallback(
+    (transitionId: string, x: number, y: number) => {
+      const patch: DomainPatch = { op: "setTransitionBlockPosition", transitionId, x, y };
+      const inverse = invertPatch(state.document, patch);
+      actions.dispatchTransaction({ patches: [patch], inverses: [inverse], summary: "Move transition label" });
     },
     [state.document, actions],
   );
@@ -842,11 +841,12 @@ export function WorkflowEditor({
         resizeKey={inspectorVisible ? 1 : 0}
         onHelp={() => setHelpOpen(true)}
         helpLabel={mergedMessages.toolbar.help}
-        transitionBlockPositions={
+        transitionPositions={
           state.activeWorkflow
             ? state.document.meta.workflowUi[state.activeWorkflow]?.transitionPositions
             : undefined
         }
+        onTransitionLabelDragEnd={!readOnly ? handleTransitionLabelDragEnd : undefined}
       />
       {reconnectError && (
         <div
