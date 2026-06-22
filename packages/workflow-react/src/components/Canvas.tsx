@@ -434,22 +434,47 @@ function toRfEdges(
 
       if (!stubHitsObstacle(srcPt.x, midX, srcPt.y, edgeObstacles)) continue;
 
-      // Current stub is blocked — try same-side sub-handles first, then
-      // bottom/top as fallback (their vertical stubs naturally avoid horizontal obstacles).
-      const candidates = [
-        `${baseSide}-top`, `${baseSide}-bottom`, baseSide,
-        "bottom", "top",
-      ] as const;
-      for (const h of candidates) {
+      // Score all candidate exits: count how many key segments hit obstacles.
+      // Horizontal exits: check source stub + horizontal approach to target.
+      // Vertical exits: check only the immediate stub segment.
+      // Pick the candidate with the lowest score.
+      const srcCX = srcPos.x + srcPos.width / 2;
+      const tgtCX = tgtPos.x + tgtPos.width / 2;
+      const isBack = srcPos.y > tgtPos.y || (srcPos.y === tgtPos.y && srcCX > tgtCX);
+      const oppSide = baseSide === "right" ? "left" : "right";
+      const allCandidates = isBack
+        ? [`${baseSide}-top`, `${baseSide}-bottom`, oppSide, `${oppSide}-top`, `${oppSide}-bottom`, "bottom", "top"]
+        : [`${baseSide}-top`, `${baseSide}-bottom`, "bottom", "top"];
+      let bestH: string | null = null;
+      let bestScore = Infinity;
+      for (const h of allCandidates) {
         if (h === currentHandle) continue;
         const pt = pointForHandle(srcPos, h);
         if (!pt) continue;
-        // bottom/top exits have vertical stubs — skip the horizontal obstacle check.
         const isVerticalExit = h === "bottom" || h === "top";
-        if (!isVerticalExit && stubHitsObstacle(pt.x, midX, pt.y, edgeObstacles)) continue;
-        autoHandles.set(`${e.id}:source`, h);
-        break;
+        let score = 0;
+        if (isVerticalExit) {
+          const hSny = h === "top" ? -1 : 1;
+          const stubEnd = pt.y + hSny * ROUTE_STUB;
+          const yLo = Math.min(pt.y, stubEnd), yHi = Math.max(pt.y, stubEnd);
+          for (const o of edgeObstacles) {
+            if (o.x + o.width < pt.x - 8 || o.x > pt.x + 8) continue;
+            if (o.y + o.height < yLo || o.y > yHi) continue;
+            score++;
+          }
+        } else {
+          const hSnx = h.startsWith("right") ? 1 : -1;
+          const hStubX = pt.x + hSnx * ROUTE_STUB;
+          const hMidX = hSnx > 0
+            ? Math.max((hStubX + tStubX) / 2, hStubX)
+            : Math.min((hStubX + tStubX) / 2, hStubX);
+          if (stubHitsObstacle(pt.x, hMidX, pt.y, edgeObstacles)) score++;
+          if (stubHitsObstacle(hMidX, tStubX, tgtPt.y, edgeObstacles)) score++;
+        }
+        if (score < bestScore) { bestScore = score; bestH = h; }
+        if (bestScore === 0) break;
       }
+      if (bestH) autoHandles.set(`${e.id}:source`, bestH);
     }
   }
 

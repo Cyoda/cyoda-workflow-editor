@@ -163,11 +163,20 @@ function nudgeH(x1: number, x2: number, y: number, obs: NodePosition[]): number 
 function nudgeV(y1: number, y2: number, x: number, obs: NodePosition[]): number {
   const pad = 8;
   const lo = Math.min(y1, y2), hi = Math.max(y1, y2);
-  for (const o of obs) {
-    if (hi < o.y - pad || lo > o.y + o.height + pad) continue;
-    if (x < o.x - pad || x > o.x + o.width + pad) continue;
-    const left = o.x - pad - 1, right = o.x + o.width + pad + 1;
-    x = Math.abs(x - left) < Math.abs(x - right) ? left : right;
+  // Iteratively merge all x-intervals that block the current x and jump clear.
+  // A single pass can oscillate when two obstacle groups push x in opposite
+  // directions; merging their intervals resolves the conflict in one step.
+  for (let pass = 0; pass <= obs.length; pass++) {
+    const blocking = obs.filter(
+      o => !(hi < o.y - pad || lo > o.y + o.height + pad) && x >= o.x - pad && x <= o.x + o.width + pad,
+    );
+    if (blocking.length === 0) break;
+    const intervals = blocking.map(o => [o.x - pad, o.x + o.width + pad] as [number, number]);
+    intervals.sort((a, b) => a[0] - b[0]);
+    let mlo = intervals[0]![0], mhi = intervals[0]![1];
+    for (const [l, r] of intervals.slice(1)) { if (l <= mhi + 1) mhi = Math.max(mhi, r); }
+    const leftClear = mlo - 1, rightClear = mhi + 1;
+    x = Math.abs(x - leftClear) < Math.abs(x - rightClear) ? leftClear : rightClear;
   }
   return x;
 }
@@ -612,7 +621,94 @@ function computeHandles(
     }
   }
 
+  // ── Obstacle-clearing for horizontal stubs ──────────────────────────────────
+  // When a left/right-exit edge's horizontal stub passes through a non-endpoint
+  // node, try same-side sub-handles first, then fall back to bottom/top whose
+  // vertical stubs naturally avoid horizontal obstacles.
+  {
+    const allObstacles = Array.from(positions.values());
+    for (const e of edges) {
+      if (e.isSelf || e.sourceAnchor) continue;
+      const srcPos = positions.get(e.sourceId);
+      const tgtPos = positions.get(e.targetId);
+      if (!srcPos || !tgtPos) continue;
+      const curSrcHandle = assignments.get(`${e.id}:source`);
+      if (!curSrcHandle) continue;
+      const baseSide = curSrcHandle.startsWith("right") ? "right"
+                     : curSrcHandle.startsWith("left")  ? "left"
+                     : null;
+      if (!baseSide) continue;
+      const snx = baseSide === "right" ? 1 : -1;
+      const tgtHandle = assignments.get(`${e.id}:target`);
+      const srcPt = pointForHandle(srcPos, curSrcHandle);
+      const tgtPt = pointForHandle(tgtPos, tgtHandle);
+      if (!srcPt || !tgtPt) continue;
+      const tnx = tgtHandle?.startsWith("right") ? 1 : tgtHandle?.startsWith("left") ? -1 : 0;
+      const sStubX = srcPt.x + snx * ROUTE_STUB;
+      const tStubX = tgtPt.x + tnx * ROUTE_STUB;
+      let midX = (sStubX + tStubX) / 2;
+      if (snx > 0) midX = Math.max(midX, sStubX); else midX = Math.min(midX, sStubX);
+      if (tnx > 0) midX = Math.max(midX, tStubX); else if (tnx < 0) midX = Math.min(midX, tStubX);
+      const edgeObstacles = allObstacles.filter(o => o.id !== e.sourceId && o.id !== e.targetId);
+      if (!stubHitsObstacle(srcPt.x, midX, srcPt.y, edgeObstacles)) continue;
+      const back = isBackEdge(e, positions, orientation);
+      const oppSide = (baseSide === "right" ? "left" : "right") as "left" | "right";
+      const srcOccupied = explicitByNode.get(e.sourceId) ?? new Set<string>();
+      // Score all candidate exits: count how many key segments hit obstacles.
+      // Horizontal exits check source stub + horizontal approach to target.
+      // Vertical exits (top/bottom) check only the immediate stub segment.
+      // Pick the candidate with the lowest score; prefer earlier candidates on ties.
+      const allCandidates = back
+        ? [`${baseSide}-top`, `${baseSide}-bottom`, oppSide, `${oppSide}-top`, `${oppSide}-bottom`, "bottom", "top"]
+        : [`${baseSide}-top`, `${baseSide}-bottom`, "bottom", "top"];
+      let bestH: string | null = null;
+      let bestScore = Infinity;
+      for (const h of allCandidates) {
+        if (h === curSrcHandle || srcOccupied.has(h)) continue;
+        const pt = pointForHandle(srcPos, h);
+        if (!pt) continue;
+        const isVertical = h === "bottom" || h === "top";
+        let score = 0;
+        if (isVertical) {
+          const hSny = h === "top" ? -1 : 1;
+          const stubEnd = pt.y + hSny * ROUTE_STUB;
+          const x1 = pt.x - 8, x2 = pt.x + 8;
+          const yLo = Math.min(pt.y, stubEnd), yHi = Math.max(pt.y, stubEnd);
+          for (const o of edgeObstacles) {
+            if (o.x + o.width < x1 || o.x > x2) continue;
+            if (o.y + o.height < yLo || o.y > yHi) continue;
+            score++;
+          }
+        } else {
+          const hSnx = h.startsWith("right") ? 1 : -1;
+          const hStubX = pt.x + hSnx * ROUTE_STUB;
+          const checkMidX = hSnx > 0
+            ? Math.max((hStubX + tStubX) / 2, hStubX)
+            : Math.min((hStubX + tStubX) / 2, hStubX);
+          if (stubHitsObstacle(pt.x, checkMidX, pt.y, edgeObstacles)) score++;
+          if (stubHitsObstacle(checkMidX, tStubX, tgtPt.y, edgeObstacles)) score++;
+        }
+        if (score < bestScore) { bestScore = score; bestH = h; }
+        if (bestScore === 0) break;
+      }
+      if (bestH) assignments.set(`${e.id}:source`, bestH);
+    }
+  }
+
   return assignments;
+}
+
+function stubHitsObstacle(
+  x1: number, x2: number, y: number,
+  obstacles: NodePosition[], pad = 8,
+): boolean {
+  const loX = Math.min(x1, x2), hiX = Math.max(x1, x2);
+  for (const o of obstacles) {
+    if (hiX <= o.x - pad || loX >= o.x + o.width + pad) continue;
+    if (y <= o.y - pad || y >= o.y + o.height + pad) continue;
+    return true;
+  }
+  return false;
 }
 
 // ── Parallel offsets ──────────────────────────────────────────────────────────
