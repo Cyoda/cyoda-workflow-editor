@@ -77,6 +77,10 @@ function summarize(patch: DomainPatch): string {
       return `Update comment`;
     case "removeComment":
       return `Remove comment`;
+    case "setTransitionBlockPosition":
+      return `Move transition label`;
+    case "removeTransitionBlockPosition":
+      return `Reset transition label`;
   }
 }
 

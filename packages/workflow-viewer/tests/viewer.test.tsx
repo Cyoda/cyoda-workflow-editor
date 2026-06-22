@@ -129,11 +129,15 @@ describe("WorkflowViewer", () => {
     render(<WorkflowViewer graph={graph} />);
 
     const node = screen.getByTestId("state-node-draft");
-    const rects = node.querySelectorAll("rect");
-    expect(rects).toHaveLength(3);
-    expect(rects[0]?.getAttribute("stroke")).toBe("#FDA4AF");
-    expect(rects[2]?.getAttribute("stroke")).toBe("#059669");
-    expect(rects[2]?.getAttribute("stroke-dasharray")).toBe("3 3");
+    // Nodes now render via foreignObject + HTML. Check the outer div border
+    // color and the inner ring div's dashed border.
+    const outerDiv = node.querySelector("foreignObject > div") as HTMLElement | null;
+    // jsdom normalises hex colours to rgb() — #FDA4AF → rgb(253, 164, 175).
+    expect(outerDiv?.style.border).toContain("rgb(253, 164, 175)");
+    const innerRingDiv = node.querySelector('[style*="dashed"]') as HTMLElement | null;
+    expect(innerRingDiv).not.toBeNull();
+    // #059669 → rgb(5, 150, 105)
+    expect(innerRingDiv?.style.border).toContain("rgb(5, 150, 105)");
   });
 
   test("can explicitly render a start marker when enabled", () => {
@@ -280,9 +284,9 @@ describe("WorkflowViewer", () => {
     });
 
     const { container } = render(<WorkflowViewer graph={graph} />);
-    const texts = Array.from(container.querySelectorAll("text")).map((n) => n.textContent);
-    expect(texts).toContain("process");
-    expect(texts).toContain("enrich");
+    // Labels and badges now render via foreignObject + HTML — check textContent.
+    expect(container.textContent).toContain("process");
+    expect(container.textContent).toContain("enrich");
   });
 
   test("accepts an external selection and surfaces changes", () => {
@@ -341,9 +345,10 @@ describe("WorkflowViewer", () => {
       />,
     );
 
-    const rect = screen.getByTestId("state-node-wide").querySelector("rect");
-    expect(rect?.getAttribute("width")).toBe("220");
-    expect(rect?.getAttribute("height")).toBe("96");
+    // Nodes now render via foreignObject — check its width/height attributes.
+    const fo = screen.getByTestId("state-node-wide").querySelector("foreignObject");
+    expect(fo?.getAttribute("width")).toBe("220");
+    expect(fo?.getAttribute("height")).toBe("96");
   });
 
   test("renders manual transitions dotted and automatic transitions solid", () => {
@@ -425,11 +430,14 @@ describe("WorkflowViewer", () => {
       />,
     );
 
-    const labelRects = Array.from(container.querySelectorAll("rect")).filter(
-      (r) => r.getAttribute("fill") === workflowPalette.edgeLabel.fill,
+    // Labels now render as foreignObject with overflow:visible at labelX/labelY.
+    // Distinguish from node foreignObjects (which have explicit width/height > 1)
+    // by checking width="1".
+    const labelFOs = Array.from(container.querySelectorAll("foreignObject")).filter(
+      (fo) => fo.getAttribute("width") === "1",
     );
-    expect(labelRects).toHaveLength(2);
-    const yValues = labelRects.map((r) => r.getAttribute("y"));
+    expect(labelFOs).toHaveLength(2);
+    const yValues = labelFOs.map((fo) => fo.getAttribute("y"));
     expect(new Set(yValues).size).toBe(2);
   });
 });

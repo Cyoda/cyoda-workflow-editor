@@ -89,6 +89,10 @@ export interface CanvasProps {
   onHelp?: () => void;
   /** Accessible label / tooltip for the help button. */
   helpLabel?: string;
+  /** Stored user-set label mid-segment positions keyed by transition UUID. */
+  transitionPositions?: Record<string, { x: number; y: number }>;
+  /** Called when the user finishes dragging a transition label. */
+  onTransitionLabelDragEnd?: (edgeId: string, x: number, y: number) => void;
 }
 
 function toRfNodes(
@@ -218,6 +222,8 @@ function toRfEdges(
   selection: Selection,
   orientation: "vertical" | "horizontal",
   transitionDataMap: Map<string, Transition>,
+  transitionPositions: Record<string, { x: number; y: number }> | undefined,
+  onTransitionLabelDragEnd: ((edgeId: string, x: number, y: number) => void) | undefined,
 ): Edge<RfEdgeData>[] {
   const stateById = new Map(
     graph.nodes
@@ -568,6 +574,8 @@ function toRfEdges(
 
   for (const e of transitions) {
     if (e.isSelf) continue;
+    // Skip distributeLabels for manually pinned edges — position is user-set.
+    if (transitionPositions?.[e.id]) continue;
     const srcPos = displayPositions.get(e.sourceId);
     const tgtPos = displayPositions.get(e.targetId);
     if (!srcPos || !tgtPos) continue;
@@ -663,6 +671,9 @@ function toRfEdges(
       const targetHandle = autoHandles.get(`${e.id}:target`);
       const sourcePosition = positionForHandle(sourceHandle);
       const targetPosition = positionForHandle(targetHandle);
+      const stored = transitionPositions?.[e.id];
+      const isHorizMid = sourcePosition === Position.Bottom || sourcePosition === Position.Top;
+      const forcedMid = stored ? (isHorizMid ? stored.y : stored.x) : undefined;
 
       return {
         id: e.id,
@@ -681,10 +692,13 @@ function toRfEdges(
           liveTargetPosition: targetPosition,
           liveSourceRect: displayPositions.get(e.sourceId),
           liveTargetRect: displayPositions.get(e.targetId),
-          parallelOffset: parallelOffsets.get(e.id),
-          labelXOffset: labelXOffsets.get(e.id),
-          labelYOffset: labelYOffsets.get(e.id),
+          parallelOffset: forcedMid !== undefined ? 0 : parallelOffsets.get(e.id),
+          labelXOffset: forcedMid !== undefined ? 0 : labelXOffsets.get(e.id),
+          labelYOffset: forcedMid !== undefined ? 0 : labelYOffsets.get(e.id),
           transition: transitionDataMap.get(e.id),
+          onLabelDragEnd: onTransitionLabelDragEnd,
+          isPinned: !!stored,
+          forcedMid,
         },
         reconnectable: true,
         interactionWidth: selected ? 28 : 18,
@@ -1352,6 +1366,8 @@ function CanvasInner({
   resizeKey = 0,
   onHelp,
   helpLabel,
+  transitionPositions,
+  onTransitionLabelDragEnd,
 }: CanvasProps) {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [nodes, setNodes] = useState<Node<RfStateNodeData>[]>([]);
@@ -1362,6 +1378,7 @@ function CanvasInner({
   // triggered (Auto-arrange / Reset positions) and cleared after reconcileNodes
   // consumes it.
   const forceBasePositionsRef = useRef(false);
+  const isReconnectingRef = useRef(false);
   // Set of node IDs currently being dragged. Cleared to an empty set on drag
   // stop. Only changes at drag-start / drag-stop (not on every mousemove), so
   // the dependent `edges` useMemo recomputes at most twice per drag gesture.
@@ -1590,9 +1607,11 @@ function CanvasInner({
             selection,
             orientation,
             transitionDataMap,
+            transitionPositions,
+            onTransitionLabelDragEnd,
           )
         : [],
-    [graph, layout, displayPositions, activeWorkflow, selection, orientation, transitionDataMap],
+    [graph, layout, displayPositions, activeWorkflow, selection, orientation, transitionDataMap, transitionPositions, onTransitionLabelDragEnd],
   );
 
   const highlightSet = useMemo(
@@ -1624,6 +1643,7 @@ function CanvasInner({
   };
 
   const onEdgeClick: EdgeMouseHandler = (_, edge) => {
+    if (isReconnectingRef.current) return;
     onSelectionChange({ kind: "transition", transitionUuid: edge.id });
   };
 
@@ -1788,6 +1808,8 @@ function CanvasInner({
           onPaneClick={() => onSelectionChange(activeWorkflow ? { kind: "workflow", workflow: activeWorkflow } : null)}
           onConnect={readOnly ? undefined : onConnect}
           onReconnect={readOnly ? undefined : onReconnect}
+          onReconnectStart={readOnly ? undefined : () => { isReconnectingRef.current = true; }}
+          onReconnectEnd={readOnly ? undefined : () => { isReconnectingRef.current = false; }}
           onNodesDelete={readOnly ? undefined : onNodesDelete}
           onEdgesDelete={readOnly ? undefined : onEdgesDelete}
           onNodeDragStart={readOnly ? undefined : handleNodeDragStart}

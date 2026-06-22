@@ -376,10 +376,22 @@ export function WorkflowEditor({
         patches.push({ op: "setNodePosition", workflow: ptr.workflow, stateCode: ptr.state, x, y, ...(id === nodeId ? { pinned: true } : {}) });
       }
       if (patches.length === 0) return;
+      // Clear stored transition positions for edges connected to the moved node.
+      const workflow = state.document.meta.ids.states[nodeId]?.workflow;
+      if (workflow) {
+        const stored = state.document.meta.workflowUi[workflow]?.transitionPositions ?? {};
+        for (const edge of derived.graph.edges) {
+          if (edge.kind !== "transition" || edge.workflow !== workflow) continue;
+          if (edge.sourceId !== nodeId && edge.targetId !== nodeId) continue;
+          if (stored[edge.id]) {
+            patches.push({ op: "removeTransitionBlockPosition", transitionId: edge.id });
+          }
+        }
+      }
       const inverses = patches.map((p) => invertPatch(state.document, p));
       actions.dispatchTransaction({ patches, inverses, summary: "Move state" });
     },
-    [state.document, actions],
+    [state.document, derived.graph, actions],
   );
 
   const handleAutoLayout = useCallback(() => {
@@ -388,7 +400,7 @@ export function WorkflowEditor({
     // Clear all pinned positions so ELK can arrange everything from scratch.
     const workflowUi = { ...state.document.meta.workflowUi };
     const current = workflowUi[workflow] ?? {};
-    workflowUi[workflow] = { ...current, layout: undefined, edgeAnchors: undefined };
+    workflowUi[workflow] = { ...current, layout: undefined, edgeAnchors: undefined, transitionPositions: undefined };
     actions.silentReplace(
       {
         session: state.document.session,
@@ -433,6 +445,23 @@ export function WorkflowEditor({
     state.document.meta.workflowUi,
     externalLayoutMeta,
   ]);
+
+  const transitionPositions = useMemo(() => {
+    const workflow = state.activeWorkflow;
+    if (!workflow) return undefined;
+    return state.document.meta.workflowUi[workflow]?.transitionPositions;
+  }, [state.activeWorkflow, state.document.meta.workflowUi]);
+
+  const handleTransitionLabelDragEnd = useCallback(
+    (edgeId: string, x: number, y: number) => {
+      actions.dispatchTransaction({
+        summary: "Move transition label",
+        patches: [{ op: "setTransitionBlockPosition", transitionId: edgeId, x, y }],
+        inverses: [{ op: "removeTransitionBlockPosition", transitionId: edgeId }],
+      });
+    },
+    [actions],
+  );
 
   const handleVersionChange = useCallback(
     (targetVersion: string) => {
@@ -772,6 +801,8 @@ export function WorkflowEditor({
         selection={state.selection}
         layoutOptions={effectiveLayoutOptions}
         savedViewport={savedViewport}
+        transitionPositions={transitionPositions}
+        onTransitionLabelDragEnd={handleTransitionLabelDragEnd}
         onSelectionChange={handleSelectionChange}
         onViewportChange={handleViewportChange}
         onConnect={handleConnect}
