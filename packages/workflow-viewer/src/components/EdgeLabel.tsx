@@ -7,9 +7,11 @@ interface Props {
   x: number;
   y: number;
   dimmed: boolean;
+  onMouseEnter?: (e: React.MouseEvent) => void;
+  onMouseLeave?: (e: React.MouseEvent) => void;
 }
 
-export function EdgeLabel({ edge, x, y, dimmed }: Props) {
+export function EdgeLabel({ edge, x, y, dimmed, onMouseEnter, onMouseLeave }: Props) {
   const title = edge.summary.display;
   const badges = badgesFor(edge.summary, {
     manual: edge.manual,
@@ -19,6 +21,8 @@ export function EdgeLabel({ edge, x, y, dimmed }: Props) {
   return (
     <foreignObject x={x} y={y} width={1} height={1} style={{ overflow: "visible" }}>
       <div
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
         style={{
           display: "inline-flex",
           flexDirection: "column",
@@ -32,7 +36,8 @@ export function EdgeLabel({ edge, x, y, dimmed }: Props) {
           fontFamily: typography.fontFamily,
           opacity: dimmed ? 0.15 : 1,
           transition: "opacity 0.15s ease",
-          pointerEvents: "none",
+          pointerEvents: onMouseEnter ? "auto" : "none",
+          cursor: onMouseEnter ? "default" : undefined,
           userSelect: "none",
           transform: "translate(-50%, -50%)",
           whiteSpace: "nowrap",

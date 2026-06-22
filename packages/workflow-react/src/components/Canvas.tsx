@@ -19,7 +19,7 @@ import {
   Position,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import type { ValidationIssue } from "@cyoda/workflow-core";
+import type { Transition, ValidationIssue, WorkflowEditorDocument } from "@cyoda/workflow-core";
 import type {
   GraphDocument,
   StateNode as GraphStateNode,
@@ -40,6 +40,7 @@ const edgeTypes = { transition: RfTransitionEdge };
 
 export interface CanvasProps {
   graph: GraphDocument;
+  document?: WorkflowEditorDocument;
   issues: ValidationIssue[];
   activeWorkflow: string | null;
   selection: Selection;
@@ -216,6 +217,7 @@ function toRfEdges(
   activeWorkflow: string | null,
   selection: Selection,
   orientation: "vertical" | "horizontal",
+  transitionDataMap: Map<string, Transition>,
 ): Edge<RfEdgeData>[] {
   const stateById = new Map(
     graph.nodes
@@ -682,6 +684,7 @@ function toRfEdges(
           parallelOffset: parallelOffsets.get(e.id),
           labelXOffset: labelXOffsets.get(e.id),
           labelYOffset: labelYOffsets.get(e.id),
+          transition: transitionDataMap.get(e.id),
         },
         reconnectable: true,
         interactionWidth: selected ? 28 : 18,
@@ -1320,6 +1323,7 @@ function groupIssuesByNode(
 
 function CanvasInner({
   graph,
+  document: workflowDocument,
   issues,
   activeWorkflow,
   selection,
@@ -1555,6 +1559,27 @@ function CanvasInner({
     return positions;
   }, [layout, nodes]);
 
+  const transitionDataMap = useMemo(() => {
+    if (!workflowDocument) return new Map<string, Transition>();
+    const stateCodeByUuid = new Map<string, string>();
+    for (const [uuid, ptr] of Object.entries(workflowDocument.meta.ids.states)) {
+      stateCodeByUuid.set(uuid, ptr.state);
+    }
+    const map = new Map<string, Transition>();
+    for (const edge of graph.edges) {
+      if (edge.kind !== "transition") continue;
+      const stateCode = stateCodeByUuid.get(edge.sourceId);
+      if (!stateCode) continue;
+      const wf = workflowDocument.session.workflows.find(w => w.name === edge.workflow);
+      if (!wf) continue;
+      const state = wf.states[stateCode];
+      if (!state) continue;
+      const t = state.transitions.find(tr => tr.name === edge.summary.full);
+      if (t) map.set(edge.id, t);
+    }
+    return map;
+  }, [workflowDocument, graph]);
+
   const edges = useMemo(
     () =>
       layout
@@ -1564,9 +1589,10 @@ function CanvasInner({
             activeWorkflow,
             selection,
             orientation,
+            transitionDataMap,
           )
         : [],
-    [graph, layout, displayPositions, activeWorkflow, selection, orientation],
+    [graph, layout, displayPositions, activeWorkflow, selection, orientation, transitionDataMap],
   );
 
   const highlightSet = useMemo(

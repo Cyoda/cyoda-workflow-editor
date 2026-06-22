@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { WorkflowEditorDocument } from "@cyoda/workflow-core";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Transition, WorkflowEditorDocument } from "@cyoda/workflow-core";
 import type {
   GraphDocument,
   GraphNode,
@@ -18,6 +18,7 @@ import { EdgeLabel } from "./EdgeLabel.js";
 import { geometry, workflowPalette } from "../theme/tokens.js";
 import { routeEdges, distributeLabels } from "@cyoda/workflow-layout";
 import { badgesFor } from "../theme/badges.js";
+import { TransitionTooltip } from "./TransitionTooltip.js";
 
 // Mirrors Canvas.tsx measureLabelText — uses Canvas 2D for accurate uppercase width.
 let _ctx: CanvasRenderingContext2D | null | undefined;
@@ -140,6 +141,34 @@ export function WorkflowViewer({
   const [internalSelection, setInternalSelection] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const selection = selectedId ?? internalSelection;
+
+  // Tooltip state
+  const [tooltipEdgeId, setTooltipEdgeId] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Build map from edge UUID → Transition for tooltip.
+  // Use edge.sourceId → stateCode (via meta.ids.states) + edge.summary.full to find the transition.
+  const transitionDataMap = useMemo(() => {
+    if (!document) return new Map<string, Transition>();
+    const stateCodeByUuid = new Map<string, string>();
+    for (const [uuid, ptr] of Object.entries(document.meta.ids.states)) {
+      stateCodeByUuid.set(uuid, ptr.state);
+    }
+    const map = new Map<string, Transition>();
+    for (const edge of visibleGraph.edges) {
+      if (edge.kind !== "transition") continue;
+      const stateCode = stateCodeByUuid.get(edge.sourceId);
+      if (!stateCode) continue;
+      const wf = document.session.workflows.find(w => w.name === edge.workflow);
+      if (!wf) continue;
+      const state = wf.states[stateCode];
+      if (!state) continue;
+      const t = state.transitions.find(tr => tr.name === edge.summary.full);
+      if (t) map.set(edge.id, t);
+    }
+    return map;
+  }, [document, visibleGraph]);
 
   const stateNodes = useMemo(
     () => visibleGraph.nodes.filter((n): n is StateNode => n.kind === "state"),
@@ -292,8 +321,10 @@ export function WorkflowViewer({
     }
   };
 
+  const tooltipTransition = tooltipEdgeId ? transitionDataMap.get(tooltipEdgeId) : undefined;
+
   return (
-    <div style={{ position: "relative", width, height, display: "inline-block" }}>
+    <div ref={containerRef} style={{ position: "relative", width, height, display: "inline-block" }}>
       {dialectVersion && (
         <div
           data-testid="viewer-version-badge"
@@ -384,6 +415,7 @@ export function WorkflowViewer({
           const labelPos = distributedLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target);
           const isHighlighted = highlightSet?.has(edge.id) ?? false;
           const isDimmed = anythingFocused && !isHighlighted;
+          const hasTooltipData = transitionDataMap.has(edge.id);
           return (
             <EdgeLabel
               key={`label-${edge.id}`}
@@ -391,6 +423,15 @@ export function WorkflowViewer({
               x={labelPos.midX}
               y={labelPos.midY}
               dimmed={isDimmed}
+              onMouseEnter={hasTooltipData ? (e) => {
+                const rect = containerRef.current?.getBoundingClientRect();
+                if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                setTooltipEdgeId(edge.id);
+              } : undefined}
+              onMouseLeave={hasTooltipData ? () => {
+                setTooltipEdgeId(null);
+                setTooltipPos(null);
+              } : undefined}
             />
           );
         })}
@@ -406,6 +447,13 @@ export function WorkflowViewer({
         }))}
       </g>
     </svg>
+    {tooltipTransition && tooltipPos && (
+      <TransitionTooltip
+        transition={tooltipTransition}
+        x={tooltipPos.x}
+        y={tooltipPos.y}
+      />
+    )}
     </div>
   );
 }

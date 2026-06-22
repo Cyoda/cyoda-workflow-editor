@@ -1,10 +1,12 @@
-import { memo, useContext } from "react";
+import { memo, useContext, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BaseEdge,
   EdgeLabelRenderer,
   type Position,
   type EdgeProps,
 } from "reactflow";
+import type { Transition } from "@cyoda/workflow-core";
 import type { TransitionEdge } from "@cyoda/workflow-graph";
 import {
   badgesFor,
@@ -17,6 +19,7 @@ import {
 import { orthogonalEdgePath, type Rect } from "../routing/orthogonal.js";
 import { arrowMarkerId } from "./ArrowMarkers.js";
 import { HoverContext } from "./HoverContext.js";
+import { TransitionTooltip } from "./TransitionTooltip.js";
 
 export interface RfEdgeData {
   edge: TransitionEdge;
@@ -46,6 +49,8 @@ export interface RfEdgeData {
   /** Pre-computed offsets applied to the label to resolve overlaps (slide along the segment). */
   labelXOffset?: number;
   labelYOffset?: number;
+  /** Full transition data for the tooltip popup. */
+  transition?: Transition;
 }
 
 function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
@@ -95,6 +100,8 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     disabled: edge.disabled,
   });
 
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+
   return (
     <>
       <BaseEdge
@@ -133,6 +140,9 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           className="nodrag nopan"
           data-testid={`rf-edge-label-${edge.id}`}
           title={edge.summary.full !== edge.summary.display ? edge.summary.full : undefined}
+          onMouseEnter={data.transition ? (e) => setTooltipPos({ x: e.clientX, y: e.clientY }) : undefined}
+          onMouseMove={data.transition ? (e) => setTooltipPos({ x: e.clientX, y: e.clientY }) : undefined}
+          onMouseLeave={data.transition ? () => setTooltipPos(null) : undefined}
         >
           <div
             style={{
@@ -178,6 +188,10 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           )}
         </div>
       </EdgeLabelRenderer>
+      {tooltipPos && data.transition && createPortal(
+        <TransitionTooltip transition={data.transition} x={tooltipPos.x} y={tooltipPos.y} />,
+        document.body,
+      )}
     </>
   );
 }

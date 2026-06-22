@@ -766,6 +766,7 @@ export function WorkflowEditor({
     >
       <Canvas
         graph={derived.graph}
+        document={state.document}
         issues={derived.issues}
         activeWorkflow={state.activeWorkflow}
         selection={state.selection}
