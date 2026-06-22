@@ -14,6 +14,42 @@ interface Props {
   onHoverLeave: () => void;
 }
 
+function StateRoleIcon({ label, color }: { label: string; color: string }) {
+  const common = {
+    width: 10,
+    height: 10,
+    fill: "none" as const,
+    stroke: color,
+    strokeWidth: 1.6,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  if (label === "INITIAL") {
+    return <svg {...common} viewBox="0 0 10 10"><polygon points="2.5,1.5 8.5,5 2.5,8.5" fill={color} stroke="none" /></svg>;
+  }
+  if (label === "TERMINAL") {
+    return <svg {...common} viewBox="0 0 10 10"><rect x="1.8" y="1.8" width="6.4" height="6.4" rx="1" fill={color} stroke="none" /></svg>;
+  }
+  if (label === "MANUAL REVIEW") {
+    return (
+      <svg {...common} viewBox="0 0 10 10">
+        <path d="M5 2.2 L7 5 L5 7.8 L3 5 Z" />
+        <circle cx="5" cy="5" r="0.8" fill={color} stroke="none" />
+      </svg>
+    );
+  }
+  if (label === "PROCESSING" || label === "PROCESSING STATE") {
+    return (
+      <svg {...common} viewBox="0 0 10 10">
+        <circle cx="5" cy="5" r="2.6" />
+        <path d="M5 1.4 V2.7 M5 7.3 V8.6 M1.4 5 H2.7 M7.3 5 H8.6" />
+      </svg>
+    );
+  }
+  return <svg {...common} viewBox="0 0 10 10"><circle cx="5" cy="5" r="2.2" fill={color} stroke="none" /></svg>;
+}
+
 export function StateNodeView({
   node,
   position,
@@ -31,20 +67,21 @@ export function StateNodeView({
   const isInitialTerminal = node.role === "initial-terminal";
   const category = roleCategoryLabel(node);
 
-  const opacity = dimmed ? 0.35 : 1;
-  const outerStroke = selected
+  const borderColor = selected
     ? workflowPalette.neutrals.slate900
     : palette.border;
-  const outerStrokeWidth = selected ? strokeWidth + 1 : strokeWidth;
+  const borderWidth = selected ? strokeWidth + 1 : strokeWidth;
+
+  // Inner ring color for terminal/initial nodes — matches SVG viewer decoration
+  const innerRingColor = "innerRing" in palette
+    ? (palette as { innerRing: string }).innerRing
+    : workflowPalette.neutrals.white75;
 
   return (
     <g
       transform={`translate(${position.x}, ${position.y})`}
-      opacity={opacity}
-      onClick={(e) => {
-        e.stopPropagation();
-        onSelect(node.id);
-      }}
+      opacity={dimmed ? 0.35 : 1}
+      onClick={(e) => { e.stopPropagation(); onSelect(node.id); }}
       onMouseEnter={() => onHoverEnter(node.id)}
       onMouseLeave={onHoverLeave}
       style={{ cursor: "pointer" }}
@@ -53,78 +90,82 @@ export function StateNodeView({
       role="button"
       tabIndex={0}
     >
-      <rect
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-        rx={radius}
-        ry={radius}
-        fill={palette.fill}
-        stroke={outerStroke}
-        strokeWidth={outerStrokeWidth}
-        filter={highlighted || selected ? "url(#wf-node-shadow-strong)" : "url(#wf-node-shadow)"}
-      />
-      {isTerminal && (
-        <rect
-          x={terminalInset}
-          y={terminalInset}
-          width={width - terminalInset * 2}
-          height={height - terminalInset * 2}
-          rx={terminalInnerRadius}
-          ry={terminalInnerRadius}
-          fill="none"
-          stroke={
-            "innerRing" in palette
-              ? palette.innerRing
-              : workflowPalette.neutrals.white75
-          }
-          strokeWidth={1}
-        />
-      )}
-      {isInitialTerminal && (
-        <rect
-          x={terminalInset}
-          y={terminalInset}
-          width={width - terminalInset * 2}
-          height={height - terminalInset * 2}
-          rx={terminalInnerRadius}
-          ry={terminalInnerRadius}
-          fill="none"
-          stroke={workflowPalette.node.initial.border}
-          strokeWidth={1}
-          strokeDasharray="3 3"
-        />
-      )}
-      <text
-        x={width / 2}
-        y={height / 2 - 8}
-        textAnchor="middle"
-        fill={palette.meta}
-        fontFamily={typography.fontFamily}
-        fontSize={typography.stateCategory.size}
-        fontWeight={typography.stateCategory.weight}
-        letterSpacing={typography.stateCategory.tracking}
-      >
-        {category}
-      </text>
-      <text
-        x={width / 2}
-        y={height / 2 + 12}
-        textAnchor="middle"
-        fill={palette.title}
-        fontFamily={typography.monoFamily}
-        fontSize={typography.stateTitle.size}
-        fontWeight={typography.stateTitle.weight}
-        letterSpacing={typography.stateTitle.tracking}
-      >
-        {truncate(node.stateCode, 18)}
-      </text>
+      <foreignObject x={0} y={0} width={width} height={height} style={{ overflow: "visible" }}>
+        <div
+          style={{
+            width,
+            height,
+            boxSizing: "border-box",
+            position: "relative",
+            background: palette.fill,
+            border: `${borderWidth}px solid ${borderColor}`,
+            borderRadius: radius,
+            boxShadow: selected || highlighted
+              ? "0 2px 4px rgba(15,23,42,0.14)"
+              : "0 1px 2px rgba(15,23,42,0.08)",
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 2,
+            padding: "0 8px",
+            fontFamily: typography.fontFamily,
+            userSelect: "none",
+          }}
+        >
+          {/* Inner ring for terminal/initial-terminal nodes */}
+          {isTerminal && (
+            <div style={{
+              position: "absolute",
+              inset: terminalInset,
+              borderRadius: terminalInnerRadius,
+              border: isInitialTerminal
+                ? `1px dashed ${workflowPalette.node.initial.border}`
+                : `1px solid ${innerRingColor}`,
+              pointerEvents: "none",
+            }} />
+          )}
+
+          {/* Category row: icon + label */}
+          <div
+            style={{
+              color: palette.meta,
+              fontSize: typography.stateCategory.size,
+              fontWeight: typography.stateCategory.weight,
+              letterSpacing: typography.stateCategory.tracking,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 4,
+              width: "100%",
+              textAlign: "center",
+              position: "relative",
+            }}
+          >
+            <StateRoleIcon label={category} color={palette.meta} />
+            {category}
+          </div>
+
+          {/* State code */}
+          <div
+            style={{
+              color: palette.title,
+              fontFamily: typography.monoFamily,
+              fontSize: typography.stateTitle.size,
+              fontWeight: typography.stateTitle.weight,
+              letterSpacing: typography.stateTitle.tracking,
+              textAlign: "center",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              maxWidth: "100%",
+              position: "relative",
+            }}
+          >
+            {node.stateCode}
+          </div>
+        </div>
+      </foreignObject>
     </g>
   );
-}
-
-function truncate(s: string, max: number): string {
-  if (s.length <= max) return s;
-  return `${s.slice(0, max - 1)}…`;
 }

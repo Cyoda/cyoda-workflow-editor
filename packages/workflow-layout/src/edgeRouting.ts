@@ -17,6 +17,61 @@ export interface EdgePathResult {
   /** Label placement midpoint. */
   labelX: number;
   labelY: number;
+  /** True when the label sits on a horizontal mid-segment (bottom/top exit). */
+  isHorizSegment: boolean;
+}
+
+export interface LabelSlot {
+  edgeId: string;
+  main: number;
+  mainSize: number;
+  cross: number;
+  crossSize: number;
+}
+
+/**
+ * Cluster overlapping labels along one axis and distribute them symmetrically
+ * around their cluster mean. "main" = axis of separation, "cross" = band axis.
+ */
+export function distributeLabels(slots: LabelSlot[], gap: number): Map<string, number> {
+  const n = slots.length;
+  if (n <= 1) return new Map();
+  const parent: number[] = Array.from({ length: n }, (_, i) => i);
+  const find = (i: number): number => {
+    let j = i;
+    while (parent[j] !== j) j = parent[j]!;
+    while (parent[i] !== j) { const nx = parent[i]!; parent[i] = j; i = nx; }
+    return j;
+  };
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const a = slots[i]!, b = slots[j]!;
+      if (Math.abs(a.cross - b.cross) < (a.crossSize + b.crossSize) / 2 &&
+          Math.abs(a.main - b.main) < (a.mainSize + b.mainSize) / 2 + gap) {
+        parent[find(i)] = find(j);
+      }
+    }
+  }
+  const clusters = new Map<number, LabelSlot[]>();
+  for (let i = 0; i < n; i++) {
+    const root = find(i);
+    if (!clusters.has(root)) clusters.set(root, []);
+    clusters.get(root)!.push(slots[i]!);
+  }
+  const offsets = new Map<string, number>();
+  for (const cluster of clusters.values()) {
+    if (cluster.length <= 1) continue;
+    cluster.sort((a, b) => a.main - b.main);
+    const total = cluster.reduce((s, c) => s + c.mainSize, 0) + gap * (cluster.length - 1);
+    const mean = cluster.reduce((s, c) => s + c.main, 0) / cluster.length;
+    let pos = mean - total / 2;
+    for (const slot of cluster) {
+      const delta = pos + slot.mainSize / 2 - slot.main;
+      if (Math.abs(delta) > 0.5) offsets.set(slot.edgeId, delta);
+      pos += slot.mainSize + gap;
+    }
+  }
+  return offsets;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -830,15 +885,17 @@ export function routeEdges(
 
     const obstacles = allObstacles.filter(o => o.id !== e.sourceId && o.id !== e.targetId);
 
+    const srcAnchor = positionForHandle(srcHandle);
     const { path, labelX, labelY } = computeOrthogonalPath(
       srcPt.x, srcPt.y, tgtPt.x, tgtPt.y,
-      positionForHandle(srcHandle), positionForHandle(tgtHandle),
+      srcAnchor, positionForHandle(tgtHandle),
       srcPos, tgtPos,
       parallelOffsets.get(e.id) ?? 0,
       obstacles,
     );
+    const isHorizSegment = srcAnchor === "bottom" || srcAnchor === "top";
 
-    result.set(e.id, { d: path, labelX, labelY });
+    result.set(e.id, { d: path, labelX, labelY, isHorizSegment });
   }
 
   return result;

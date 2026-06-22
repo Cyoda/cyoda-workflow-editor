@@ -8,15 +8,30 @@ import type {
   WorkflowInspection,
 } from "@cyoda/workflow-graph";
 import { computeHighlightSet, inspectGraphFocus, projectToGraph } from "@cyoda/workflow-graph";
-import { simpleLayout, nudgeLabels, type LayoutResult, type NodePosition } from "../layout.js";
+import { simpleLayout, type LayoutResult, type NodePosition } from "../layout.js";
 import { usePanZoom } from "../hooks/usePanZoom.js";
 import { Defs } from "./Defs.js";
 import { StartMarker } from "./StartMarker.js";
 import { StateNodeView } from "./StateNode.js";
 import { EdgePath, computeEdgeGeometry } from "./EdgePath.js";
 import { EdgeLabel } from "./EdgeLabel.js";
-import { geometry, typography, workflowPalette } from "../theme/tokens.js";
-import { routeEdges } from "@cyoda/workflow-layout";
+import { geometry, workflowPalette } from "../theme/tokens.js";
+import { routeEdges, distributeLabels } from "@cyoda/workflow-layout";
+import { badgesFor } from "../theme/badges.js";
+
+// Mirrors Canvas.tsx measureLabelText — uses Canvas 2D for accurate uppercase width.
+let _ctx: CanvasRenderingContext2D | null | undefined;
+function measureLabelText(text: string): number {
+  if (_ctx === undefined) {
+    try {
+      const cvs = document.createElement("canvas");
+      _ctx = cvs.getContext("2d");
+      if (_ctx) _ctx.font = '700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif';
+    } catch { _ctx = null; }
+  }
+  if (!_ctx) return text.length * 6;
+  return _ctx.measureText(text.toUpperCase()).width + text.length * 0.36;
+}
 
 export interface WorkflowViewerProps {
   graph?: GraphDocument;
@@ -160,34 +175,80 @@ export function WorkflowViewer({
     return routeEdges(transitionEdges, effectiveLayout.positions, "vertical", terminalIds);
   }, [effectiveLayout, transitionEdges, terminalIds]);
 
-  // Apply collision avoidance on top of router/geometry label positions.
-  // Pill dimensions mirror the foreignObject EdgeLabel rendered by the editor:
-  // font 9px * ~0.6 char width + paddingX*2; height = font + paddingY*2 (+badge row when present).
-  const nudgedLabelPositions = useMemo(() => {
-    const CHAR_W = 9 * 0.6;
-    const PADDING_X = geometry.labelPill.paddingX * 2;
-    const PILL_H_BASE = typography.edgeLabel.size + geometry.labelPill.paddingY * 2 + 4;
-    const BADGE_ROW = 14 + 3;
-    const items = transitionEdges.flatMap((edge) => {
-      const elkRoute = effectiveLayout.edges?.get(edge.id);
+  // Distribute labels using the same algorithm as the editor:
+  // - horizontal-segment labels (bottom/top exit) → spread in X
+  // - vertical-segment labels (left/right exit)   → spread in Y
+  // - cross-axis pass clears remaining H vs V conflicts
+  const distributedLabelPositions = useMemo(() => {
+    const LABEL_PX = geometry.labelPill.paddingX;
+    // Match Canvas.tsx exactly: 9px font + 2×3px padding + 2×1px border = 22; badge row = 18
+    const LABEL_H_BASE = 22;
+    const BADGE_ROW = 18;
+    const LABEL_GAP = 4;
+
+    type Slot = { edgeId: string; cx: number; cy: number; w: number; h: number; isHoriz: boolean };
+    const slots: Slot[] = [];
+
+    for (const edge of transitionEdges) {
+      if (edge.isSelf) continue;
       const routerPath = computedEdgePaths?.get(edge.id);
-      let midX: number, midY: number;
-      if (elkRoute) {
-        midX = elkRoute.labelX; midY = elkRoute.labelY;
-      } else if (routerPath) {
-        midX = routerPath.labelX; midY = routerPath.labelY;
+      const elkRoute = effectiveLayout.edges?.get(edge.id);
+      let cx: number, cy: number, isHoriz: boolean;
+      if (routerPath) {
+        cx = routerPath.labelX; cy = routerPath.labelY; isHoriz = routerPath.isHorizSegment;
+      } else if (elkRoute) {
+        cx = elkRoute.labelX; cy = elkRoute.labelY; isHoriz = false;
       } else {
-        const source = effectiveLayout.positions.get(edge.sourceId);
-        const target = effectiveLayout.positions.get(edge.targetId);
-        if (!source || !target) return [];
-        ({ midX, midY } = computeEdgeGeometry(edge, source, target));
+        const src = effectiveLayout.positions.get(edge.sourceId);
+        const tgt = effectiveLayout.positions.get(edge.targetId);
+        if (!src || !tgt) continue;
+        const g = computeEdgeGeometry(edge, src, tgt);
+        cx = g.midX; cy = g.midY; isHoriz = Math.abs(src.y - tgt.y) < src.height * 0.75;
       }
-      const hasBadges = !!edge.summary.criterion || !!edge.summary.processor || !!edge.summary.execution;
-      const pillW = Math.max(40, edge.summary.display.length * CHAR_W + PADDING_X);
-      const pillH = PILL_H_BASE + (hasBadges ? BADGE_ROW : 0);
-      return [{ id: edge.id, midX, midY, pillW, pillH }];
-    });
-    return nudgeLabels(items);
+      const badges = badgesFor(edge.summary, { manual: edge.manual, disabled: edge.disabled });
+      const w = Math.max(40, measureLabelText(edge.summary.display) + 2 * LABEL_PX + 2);
+      const h = LABEL_H_BASE + (badges.length > 0 ? BADGE_ROW : 0);
+      slots.push({ edgeId: edge.id, cx, cy, w, h, isHoriz });
+    }
+
+    const xOffsets = distributeLabels(
+      slots.filter(s => s.isHoriz).map(s => ({ edgeId: s.edgeId, main: s.cx, mainSize: s.w, cross: s.cy, crossSize: s.h })),
+      LABEL_GAP,
+    );
+    const yOffsets = distributeLabels(
+      slots.filter(s => !s.isHoriz).map(s => ({ edgeId: s.edgeId, main: s.cy, mainSize: s.h, cross: s.cx, crossSize: s.w })),
+      LABEL_GAP,
+    );
+
+    // Cross-axis pass: push horizontal labels clear of vertical label columns.
+    const horizSlots = slots.filter(s => s.isHoriz);
+    const vertSlots  = slots.filter(s => !s.isHoriz);
+    for (let pass = 0; pass < 3; pass++) {
+      let changed = false;
+      for (const h of horizSlots) {
+        let hx = h.cx + (xOffsets.get(h.edgeId) ?? 0);
+        const hyLo = h.cy - h.h / 2, hyHi = h.cy + h.h / 2;
+        for (const v of vertSlots) {
+          const vy = v.cy + (yOffsets.get(v.edgeId) ?? 0);
+          if (hyHi <= vy - v.h / 2 || hyLo >= vy + v.h / 2) continue;
+          const vxLo = v.cx - v.w / 2, vxHi = v.cx + v.w / 2;
+          if (hx + h.w / 2 <= vxLo || hx - h.w / 2 >= vxHi) continue;
+          hx = hx < v.cx ? vxLo - h.w / 2 - LABEL_GAP : vxHi + h.w / 2 + LABEL_GAP;
+          changed = true;
+        }
+        xOffsets.set(h.edgeId, hx - h.cx);
+      }
+      if (!changed) break;
+    }
+
+    const result = new Map<string, { midX: number; midY: number }>();
+    for (const s of slots) {
+      result.set(s.edgeId, {
+        midX: s.cx + (xOffsets.get(s.edgeId) ?? 0),
+        midY: s.cy + (yOffsets.get(s.edgeId) ?? 0),
+      });
+    }
+    return result;
   }, [computedEdgePaths, effectiveLayout, transitionEdges]);
 
   const focusId = hovered ?? selection;
@@ -320,7 +381,7 @@ export function WorkflowViewer({
           const source = effectiveLayout.positions.get(edge.sourceId);
           const target = effectiveLayout.positions.get(edge.targetId);
           if (!source || !target) return null;
-          const labelPos = nudgedLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target);
+          const labelPos = distributedLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target);
           const isHighlighted = highlightSet?.has(edge.id) ?? false;
           const isDimmed = anythingFocused && !isHighlighted;
           return (
