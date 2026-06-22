@@ -440,8 +440,7 @@ export function WorkflowViewer({
               y={labelPos.midY}
               dimmed={isDimmed}
               onMouseEnter={hasTooltipData ? (e) => {
-                const rect = containerRef.current?.getBoundingClientRect();
-                if (rect) setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                setTooltipPos({ x: e.clientX, y: e.clientY });
                 setTooltipEdgeId(edge.id);
               } : undefined}
               onMouseLeave={hasTooltipData ? () => {

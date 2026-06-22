@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import type { Criterion, Processor, Transition } from "@cyoda/workflow-core";
 import { typography, workflowPalette } from "../theme/tokens.js";
 
@@ -8,10 +9,10 @@ interface Props {
 }
 
 export function TransitionTooltip({ transition, x, y }: Props) {
-  return (
+  return createPortal(
     <div
       style={{
-        position: "absolute",
+        position: "fixed",
         left: x + 12,
         top: y + 12,
         zIndex: 100,
@@ -55,7 +56,8 @@ export function TransitionTooltip({ transition, x, y }: Props) {
       {!transition.criterion && !transition.processors?.length && (
         <div style={{ color: workflowPalette.neutrals.slate500, fontStyle: "italic" }}>No criterion or processors</div>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
