@@ -20,8 +20,8 @@ export function TransitionTooltip({ transition, x, y }: Props) {
         borderRadius: 6,
         boxShadow: "0 4px 12px rgba(15,23,42,0.12)",
         padding: "10px 12px",
-        minWidth: 200,
-        maxWidth: 320,
+        maxWidth: 480,
+        overflowWrap: "break-word",
         fontFamily: typography.fontFamily,
         fontSize: 12,
         color: workflowPalette.neutrals.slate900,
@@ -65,7 +65,7 @@ function CriterionView({ criterion, depth = 0 }: { criterion: Criterion; depth?:
 
   if (criterion.type === "simple") {
     return (
-      <div style={base}>
+      <div style={{ ...base, overflowWrap: "break-word" }}>
         <Chip color="blue">{criterion.operation}</Chip>
         <code style={{ fontSize: 11, marginLeft: 4 }}>{criterion.jsonPath}</code>
         {criterion.value !== undefined && (
@@ -98,7 +98,7 @@ function CriterionView({ criterion, depth = 0 }: { criterion: Criterion; depth?:
   }
   if (criterion.type === "array") {
     return (
-      <div style={base}>
+      <div style={{ ...base, overflowWrap: "break-word" }}>
         <Chip color="orange">array</Chip>
         <Chip color="blue" style={{ marginLeft: 4 }}>{criterion.operation}</Chip>
         <code style={{ fontSize: 11, marginLeft: 4 }}>{criterion.jsonPath}</code>

@@ -20,8 +20,8 @@ export function TransitionTooltip({ transition, x, y }: Props) {
         borderRadius: 6,
         boxShadow: "0 4px 12px rgba(15,23,42,0.12)",
         padding: "10px 12px",
-        minWidth: 200,
-        maxWidth: 320,
+        maxWidth: 480,
+        overflowWrap: "break-word",
         fontFamily: typography.fontFamily,
         fontSize: 12,
         color: workflowPalette.neutrals.slate900,
@@ -66,7 +66,7 @@ function CriterionView({ criterion, depth = 0 }: { criterion: Criterion; depth?:
   const s: React.CSSProperties = { paddingLeft: indent, marginBottom: 3 };
 
   if (criterion.type === "simple") return (
-    <div style={s}>
+    <div style={{ ...s, overflowWrap: "break-word" }}>
       <Chip color="blue">{criterion.operation}</Chip>
       <code style={{ fontSize: 11, marginLeft: 4 }}>{criterion.jsonPath}</code>
       {criterion.value !== undefined && <span style={{ marginLeft: 4, color: workflowPalette.neutrals.slate500 }}>= {JSON.stringify(criterion.value)}</span>}
@@ -87,7 +87,7 @@ function CriterionView({ criterion, depth = 0 }: { criterion: Criterion; depth?:
     </div>
   );
   if (criterion.type === "array") return (
-    <div style={s}>
+    <div style={{ ...s, overflowWrap: "break-word" }}>
       <Chip color="orange">array</Chip>
       <Chip color="blue" style={{ marginLeft: 4 }}>{criterion.operation}</Chip>
       <code style={{ fontSize: 11, marginLeft: 4 }}>{criterion.jsonPath}</code>
