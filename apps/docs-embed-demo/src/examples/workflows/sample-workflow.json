@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "name": "DocumentLifecycleWorkflow",
-  "desc": "Workflow derived from the supplied diagram: new -> active -> approved -> archived, with externalized and scheduled processors covering validation, notification, delayed follow-up, and COMMIT_BEFORE_DISPATCH editing paths.",
+  "desc": "Workflow derived from the supplied diagram: new -> active -> approved -> archived, with externalized processors covering validation, notification, and COMMIT_BEFORE_DISPATCH editing paths.",
   "initialState": "new",
   "active": true,
   "states": {
@@ -22,12 +22,10 @@
               }
             },
             {
-              "type": "scheduled",
-              "name": "schedule_follow_up",
+              "type": "externalized",
+              "name": "notify_created",
               "config": {
-                "delayMs": 300000,
-                "transition": "reactivate",
-                "timeoutMs": 30000
+                "calculationNodesTags": "notifications"
               }
             }
           ]
