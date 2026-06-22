@@ -137,6 +137,22 @@ export function WorkflowViewer({
   }, [graphLayout, visibleGraph]);
 
   const effectiveLayout = computedLayout ?? simpleLayout(visibleGraph);
+
+  // Compute actual node bounds for a symmetric viewBox padding regardless of
+  // ELK's internal padding (which is larger at the bottom than the top).
+  const contentBounds = useMemo(() => {
+    const PAD = 24;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const pos of effectiveLayout.positions.values()) {
+      minX = Math.min(minX, pos.x);
+      minY = Math.min(minY, pos.y);
+      maxX = Math.max(maxX, pos.x + pos.width);
+      maxY = Math.max(maxY, pos.y + pos.height);
+    }
+    if (!isFinite(minX)) return { x: -PAD, y: -PAD, w: PAD * 2, h: PAD * 2 };
+    return { x: minX - PAD, y: minY - PAD, w: maxX - minX + PAD * 2, h: maxY - minY + PAD * 2 };
+  }, [effectiveLayout]);
+
   const pan = usePanZoom();
   const [internalSelection, setInternalSelection] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
@@ -349,7 +365,7 @@ export function WorkflowViewer({
     <svg
       width="100%"
       height="100%"
-      viewBox={`0 0 ${effectiveLayout.width} ${effectiveLayout.height}`}
+      viewBox={`${contentBounds.x} ${contentBounds.y} ${contentBounds.w} ${contentBounds.h}`}
       preserveAspectRatio="xMidYMid meet"
       onClick={handleBackgroundClick}
       onWheel={pan.onWheel}
