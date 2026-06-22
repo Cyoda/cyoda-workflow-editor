@@ -15,7 +15,7 @@ import { StartMarker } from "./StartMarker.js";
 import { StateNodeView } from "./StateNode.js";
 import { EdgePath, computeEdgeGeometry } from "./EdgePath.js";
 import { EdgeLabel } from "./EdgeLabel.js";
-import { workflowPalette } from "../theme/tokens.js";
+import { geometry, typography, workflowPalette } from "../theme/tokens.js";
 import { routeEdges } from "@cyoda/workflow-layout";
 
 export interface WorkflowViewerProps {
@@ -160,19 +160,32 @@ export function WorkflowViewer({
     return routeEdges(transitionEdges, effectiveLayout.positions, "vertical", terminalIds);
   }, [effectiveLayout, transitionEdges, terminalIds]);
 
-  // Pre-compute fallback label positions with collision avoidance.
-  // Only used when neither ELK routes nor our router produced label coords.
-  const fallbackLabelPositions = useMemo(() => {
-    if (computedEdgePaths || (effectiveLayout.edges && effectiveLayout.edges.size > 0)) return null;
-    const CHAR_W = 6.5;
-    const PILL_H = 24;
+  // Apply collision avoidance on top of router/geometry label positions.
+  // Pill dimensions mirror the foreignObject EdgeLabel rendered by the editor:
+  // font 9px * ~0.6 char width + paddingX*2; height = font + paddingY*2 (+badge row when present).
+  const nudgedLabelPositions = useMemo(() => {
+    const CHAR_W = 9 * 0.6;
+    const PADDING_X = geometry.labelPill.paddingX * 2;
+    const PILL_H_BASE = typography.edgeLabel.size + geometry.labelPill.paddingY * 2 + 4;
+    const BADGE_ROW = 14 + 3;
     const items = transitionEdges.flatMap((edge) => {
-      const source = effectiveLayout.positions.get(edge.sourceId);
-      const target = effectiveLayout.positions.get(edge.targetId);
-      if (!source || !target) return [];
-      const { midX, midY } = computeEdgeGeometry(edge, source, target);
-      const pillW = Math.max(40, edge.summary.display.length * CHAR_W + 12);
-      return [{ id: edge.id, midX, midY, pillW, pillH: PILL_H }];
+      const elkRoute = effectiveLayout.edges?.get(edge.id);
+      const routerPath = computedEdgePaths?.get(edge.id);
+      let midX: number, midY: number;
+      if (elkRoute) {
+        midX = elkRoute.labelX; midY = elkRoute.labelY;
+      } else if (routerPath) {
+        midX = routerPath.labelX; midY = routerPath.labelY;
+      } else {
+        const source = effectiveLayout.positions.get(edge.sourceId);
+        const target = effectiveLayout.positions.get(edge.targetId);
+        if (!source || !target) return [];
+        ({ midX, midY } = computeEdgeGeometry(edge, source, target));
+      }
+      const hasBadges = !!edge.summary.criterion || !!edge.summary.processor || !!edge.summary.execution;
+      const pillW = Math.max(40, edge.summary.display.length * CHAR_W + PADDING_X);
+      const pillH = PILL_H_BASE + (hasBadges ? BADGE_ROW : 0);
+      return [{ id: edge.id, midX, midY, pillW, pillH }];
     });
     return nudgeLabels(items);
   }, [computedEdgePaths, effectiveLayout, transitionEdges]);
@@ -307,14 +320,7 @@ export function WorkflowViewer({
           const source = effectiveLayout.positions.get(edge.sourceId);
           const target = effectiveLayout.positions.get(edge.targetId);
           if (!source || !target) return null;
-          const elkRoute = effectiveLayout.edges?.get(edge.id);
-          const routerPath = computedEdgePaths?.get(edge.id);
-          // Priority: ELK route → shared router → nudged fallback → simple geometry.
-          const labelPos = elkRoute
-            ? { midX: elkRoute.labelX, midY: elkRoute.labelY }
-            : routerPath
-              ? { midX: routerPath.labelX, midY: routerPath.labelY }
-              : (fallbackLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target));
+          const labelPos = nudgedLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target);
           const isHighlighted = highlightSet?.has(edge.id) ?? false;
           const isDimmed = anythingFocused && !isHighlighted;
           return (
@@ -323,8 +329,6 @@ export function WorkflowViewer({
               edge={edge}
               x={labelPos.midX}
               y={labelPos.midY}
-              width={elkRoute?.labelWidth}
-              height={elkRoute?.labelHeight}
               dimmed={isDimmed}
             />
           );
