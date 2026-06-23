@@ -46,7 +46,6 @@
     "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/uuid": "^9.0.8",
     "fast-check": "^3.19.0"
   }
 }
