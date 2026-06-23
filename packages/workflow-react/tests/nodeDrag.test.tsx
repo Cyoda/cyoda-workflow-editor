@@ -850,7 +850,13 @@ describe("node drag — position persistence", () => {
       />,
     );
 
-    await waitFor(() => expect(rfCallbacks.onNodeDragStop).toBeDefined());
+    await waitFor(() => {
+      // Wait for the drag handler AND for the layout to have populated nodes —
+      // handleNodeDragStop snapshots rf.getNodes(), so firing before nodes load
+      // yields an empty allPositions and persists nothing (flaky in CI timing).
+      expect(rfCallbacks.onNodeDragStop).toBeDefined();
+      expect(rfCallbacks.latestNodes?.length ?? 0).toBeGreaterThan(0);
+    });
 
     await act(async () => {
       rfCallbacks.onNodeDragStop?.(null, {
@@ -883,7 +889,13 @@ describe("node drag — position persistence", () => {
 
     render(<WorkflowEditor document={doc} localStorageKey="test-drag-layout" />);
 
-    await waitFor(() => expect(rfCallbacks.onNodeDragStop).toBeDefined());
+    await waitFor(() => {
+      // Wait for the drag handler AND for the layout to have populated nodes —
+      // handleNodeDragStop snapshots rf.getNodes(), so firing before nodes load
+      // yields an empty allPositions and persists nothing (flaky in CI timing).
+      expect(rfCallbacks.onNodeDragStop).toBeDefined();
+      expect(rfCallbacks.latestNodes?.length ?? 0).toBeGreaterThan(0);
+    });
 
     await act(async () => {
       rfCallbacks.onNodeDragStop?.(null, {
