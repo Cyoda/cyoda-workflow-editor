@@ -1,3 +1,13 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+# Supply-chain hardening (pnpm 10)
+# 14 days = 14*24*60 = 20160 minutes. No version younger than this enters the lockfile.
+minimumReleaseAge: 20160
+minimumReleaseAgeExclude:
+  - "@cyoda/*"
+# Only these packages may run install lifecycle scripts (pnpm 10 blocks all others).
+# Seeded with esbuild; add any package pnpm reports under "Ignored build scripts" in Step 5.
+onlyBuiltDependencies:
+  - esbuild

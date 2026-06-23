@@ -13,7 +13,7 @@
     "url": "https://github.com/Cyoda-platform/cyoda-workflow-editor/issues"
   },
   "license": "Apache-2.0",
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",
   "pnpm": {
     "overrides": {
       "react": "^18.3.1",
@@ -53,6 +53,6 @@
     "vitest": "^3.2.6"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19"
   }
 }
