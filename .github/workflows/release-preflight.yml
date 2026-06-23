@@ -31,6 +31,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch base branch for changeset status
+        run: git fetch --no-tags origin +refs/heads/main:refs/heads/main
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
 
