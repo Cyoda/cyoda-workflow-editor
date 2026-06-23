@@ -3,10 +3,12 @@ name: Release Preflight
 on:
   push:
     branches:
+      - staging
       - release/**
   pull_request:
     branches:
       - main
+      - staging
       - release/**
   workflow_dispatch:
 
@@ -15,7 +17,12 @@ permissions:
 
 jobs:
   preflight:
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'release/') || startsWith(github.base_ref, 'release/')
+    if: >-
+      github.event_name != 'pull_request'
+      || github.head_ref == 'staging'
+      || github.base_ref == 'staging'
+      || startsWith(github.head_ref, 'release/')
+      || startsWith(github.base_ref, 'release/')
     runs-on: ubuntu-latest
 
     steps:
