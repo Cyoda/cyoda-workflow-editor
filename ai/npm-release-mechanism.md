@@ -373,3 +373,29 @@ For Cyoda Workflow Editor, this is the cleanest practical policy:
 5. use prerelease mode when you want RCs
 6. use release branches only when you need consolidation/stabilization
 7. use tags/releases as markers, not as the version authority
+
+⸻
+
+Permanent staging branch (standard integration target)
+
+This repo uses a permanent, long-lived `staging` branch as the standard
+integration target. It refines the policy above:
+
+* All feature/fix PRs and all Dependabot PRs target `staging`, not `main`.
+* `staging` runs CI and release preflight on every push and PR, but never
+  publishes to npm and never runs `changeset version`. It only accumulates
+  `.changeset/*.md` entries.
+* To cut a release, open a PR `staging → main` and merge it as a merge commit
+  (not squash), so the changeset files reach `main`.
+* On `main`, the Changesets action opens/updates the "Version Packages" PR;
+  merging it publishes the changed public packages to `latest`. `main` remains
+  the only publisher.
+* `dependabot.yml` carries `target-branch: "staging"`. Note Dependabot reads this
+  file only from the default branch (`main`).
+* `release.yml`'s `workflow_dispatch` runs the Changesets action against `main`
+  only — it is a safe manual fallback, never an arbitrary-branch publish.
+* Version-pinned `release/*` branches remain supported for occasional ad-hoc
+  stabilization bundles, but are not the day-to-day flow.
+
+All original invariants still hold: CI-only publishing, publish-from-`main`,
+Changesets as the version authority, private packages never publish.
