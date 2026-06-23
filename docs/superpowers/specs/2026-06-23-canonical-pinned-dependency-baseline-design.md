@@ -128,10 +128,13 @@ Executed via `superpowers:subagent-driven-development`.
 4. **Lint → latest** — eslint 10 flat-config migration + typescript-eslint 8 +
    prettier. Verify `pnpm lint` + suite. (Lint becomes a verified gate here.)
 5. **Types / runtime non-react** — @types/node 26, typescript 6, immer 11,
-   fast-check 4, elkjs. Verify.
+   fast-check 4, elkjs. Verify, plus a **manual smoke of `workflow-layout`**
+   rendering after the elkjs bump (thin automated coverage — see Testing).
 6. **zod 4 migration** — isolated, highest-risk; verify. Fallback per §4.
 7. **react 19 layer** — react/react-dom 19, @types/react(-dom) 19, peer
-   widening, monaco 0.55 + peer widening. Verify the full UI suite.
+   widening, monaco 0.55 + peer widening. Verify the full UI suite, plus a
+   **manual smoke of `workflow-layout` (as rendered by the viewer) and the
+   `workflow-monaco` editor** (thin automated coverage — see Testing).
 
 ### 6. Dependabot reconfiguration
 
@@ -173,6 +176,26 @@ separate follow-up; out of scope for execution in this spec.
 - The private `@cyoda/docs-embed-demo` has one pre-existing failing test
   (`embedViewerPage` — reproduces on baseline, not in CI); it is out of scope
   and explicitly not a gate, but must not regress further.
+
+### Coverage context and manual smoke
+
+Statement coverage (measured 2026-06-23) is strong where the riskiest
+migrations land — `workflow-react` 84%, `workflow-core` 79%, `workflow-viewer`
+78% — so the automated suite is an adequate per-layer regression gate for the
+react-19, zod-4, and immer-11 work. Two packages have **thin** automated
+coverage and the suite will not reliably catch behavioral regressions in them:
+
+- `workflow-layout` — 35% statements (pure geometry/edge-routing math).
+- `workflow-monaco` — 43% statements.
+
+Therefore, **any layer that can change the behavior of those two packages must
+add a manual smoke check** (run `@cyoda/docs-embed-demo` via `pnpm --filter
+@cyoda/docs-embed-demo dev` and visually confirm the graph lays out, edges
+route, and the Monaco editor mounts/edits). Concretely this applies to:
+
+- **Layer 5** (elkjs bump) → smoke `workflow-layout` rendering.
+- **Layer 7** (react 19 + monaco 0.55) → smoke both `workflow-layout` output as
+  rendered by the viewer and the `workflow-monaco` editor.
 
 ## Success Criteria
 
