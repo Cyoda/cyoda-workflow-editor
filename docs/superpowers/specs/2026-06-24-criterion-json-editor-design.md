@@ -3,7 +3,9 @@
 **Date:** 2026-06-24
 **Status:** Design — pending review (revised after independent review)
 **Packages affected:** `@cyoda/workflow-react`, `@cyoda/workflow-monaco`, `@cyoda/workflow-core`
-**Breaking:** Yes — the public Monaco runtime interface is widened (see "Breaking change & coordination"). Requires a coordinated `cyoda-dev-console` update.
+**Breaking:** Yes — removes the now-dead field-hint API (`hintProvider` prop,
+`EntityFieldHintProvider` / `FieldHint` exports). Requires a coordinated `cyoda-dev-console`
+update to stop passing `hintProvider`.
 
 ## Summary
 
@@ -16,13 +18,12 @@ mode.
 We are **ripping out the assembly/builder** and making **JSON the only way to edit a
 criterion**. The "Edit criterion" popup becomes a good JSON editor — Monaco (the editor
 already used for the whole-workflow JSON view) when a runtime is available, with a plain
-`<textarea>` fallback otherwise — featuring syntax highlighting, live schema validation,
-and a hard validation gate on Apply.
+`<textarea>` fallback otherwise — featuring syntax highlighting, live schema validation, and
+a hard validation gate on Apply.
 
-The existing entity field-path autocomplete (the old `hintProvider`) is **preserved**, but
-re-expressed as a Monaco completion provider. **This requires widening the public Monaco
-runtime interface** (it currently exposes only `json.jsonDefaults`, with no completion-
-provider surface), which is a breaking change coordinated with `cyoda-dev-console`.
+The entity field-path **autocomplete is dropped**, and its now-dead supporting API
+(`hintProvider`, `EntityFieldHintProvider`, `FieldHint`) is **removed** — a small, clean
+breaking change coordinated with `cyoda-dev-console`.
 
 ## Goals
 
@@ -35,14 +36,14 @@ provider surface), which is a breaking change coordinated with `cyoda-dev-consol
   (see §2.1). Invalid criteria cannot be committed; the error is shown.
 - The collapsed summary card shows the criterion **type badge + a compact read-only JSON
   snippet**.
-- Entity field-path autocomplete is preserved as a Monaco completion provider (Monaco path
-  only).
 - Read-only / `disabled` mode is explicitly handled.
+- Remove the dead field-hint API surface.
 
 ## Non-goals
 
 - No change to the `Criterion` data model, the `setCriterion` patch, or any downstream
   consumer of criteria.
+- No field-path autocomplete in the JSON editor (capability intentionally dropped).
 - No change to the whole-workflow `WorkflowJsonEditor` (it stays as-is; we do not try to
   generalize it).
 - No change to how processors/transitions are otherwise edited. (Processor prechecks remain
@@ -55,13 +56,11 @@ provider surface), which is a breaking change coordinated with `cyoda-dev-consol
 1. **Scope:** Remove the assembly/builder entirely. The popup is JSON-only with syntax
    highlighting and a validation gate.
 2. **Summary card:** Criterion **type badge + compact read-only JSON snippet**.
-3. **Field-path hinting:** **Preserve** it, re-wired as a Monaco completion provider scoped
-   to criterion models. This is now understood to be a **breaking** change (the public
-   runtime interface must gain completion-provider surface) and is done **now**, coordinated
-   with `cyoda-dev-console`. (Corrects an earlier, incorrect "non-breaking" assumption.)
+3. **Field-path autocomplete:** **Dropped.** No Monaco completion provider, no runtime-
+   interface widening. The dead `hintProvider` prop and `EntityFieldHintProvider`/`FieldHint`
+   exports are **removed** (breaking; coordinated with `cyoda-dev-console`).
 4. **Editor path:** **Monaco when a runtime is available, plain `<textarea>` fallback
-   otherwise.** Hints exist only in the Monaco path. Both paths enforce the validation gate
-   on Apply.
+   otherwise.** Both paths enforce the validation gate on Apply.
 5. **Validation strictness:** **Port the builder's extra checks** (jsonPath-subset validity,
    `BETWEEN`/`BETWEEN_INCLUSIVE` arity, non-empty scalar values) into the Apply gate — no
    validation regression versus the builder.
@@ -86,7 +85,8 @@ provider surface), which is a breaking change coordinated with `cyoda-dev-consol
 - `hintProvider?: EntityFieldHintProvider` is a public prop on `WorkflowEditor`
   (`WorkflowEditor.tsx:1089`) and `Inspector` (`Inspector.tsx:79`, wrapping the subtree in
   `<FieldHintsProvider>`). `EntityFieldHintProvider`/`FieldHint` are public types from
-  `workflow-core`, re-exported by `workflow-react`.
+  `workflow-core` (defined under `src/types/`), re-exported by `workflow-react`. After the
+  builder is removed nothing consumes them — they are deleted (§6).
 - `CriterionSchema` is exported from `workflow-core` (`src/index.ts:65`), a recursive lazy
   union of the five variants. `z.toJSONSchema(CriterionSchema, { target: "draft-7" })`
   **works** (verified): top-level `anyOf`, recursive `$ref:"#"` for `group.conditions`,
@@ -95,14 +95,11 @@ provider surface), which is a breaking change coordinated with `cyoda-dev-consol
   `workflowJsonSchema()`, `WORKFLOW_SCHEMA_URI`. Schema↔model matching by `fileMatch` URI
   prefix (default `cyoda://workflow/`, asserted in `schema.test.ts`). Registration is
   idempotent (replace-by-`schemaUri`).
-- **Runtime interface today:** `MonacoLike` (`packages/workflow-monaco/src/types.ts:61`)
-  exposes `languages.json.jsonDefaults` **only** — no `registerCompletionItemProvider`, no
-  completion/position/range constructors. `WorkflowJsonMonacoRuntime`
-  (`WorkflowJsonEditor.tsx:55`) extends it with `Uri.parse` + `editor.createModel/create`.
-  `workflow-monaco` registers zero completion providers anywhere.
 - Monaco is an optional peer dependency, provided as a runtime object via
   `jsonEditor={{ monaco, … }}` on `WorkflowEditor`. `enableJsonEditor` defaults to `false`
-  and is independent of whether a runtime is supplied (see §3 matrix).
+  and is independent of whether a runtime is supplied (see §3 matrix). The current runtime
+  interface (`MonacoLike`) exposes only `languages.json.jsonDefaults` — sufficient for the
+  schema-validation path; no completion surface is needed since autocomplete is dropped.
 
 ## Architecture
 
@@ -136,7 +133,7 @@ A small, self-contained editor — **not** a reuse of `WorkflowJsonEditor` (too 
 
 - Props (names finalized in the plan): `value: Criterion | undefined`,
   `onApply(next: Criterion): void`, `onCancel(): void`, `disabled: boolean`, and the Monaco
-  runtime + `hintProvider` resolved from context (§3/§4).
+  runtime resolved from context (§3).
 - **Monaco path:** create an isolated text model on a deterministic unique URI under
   `cyoda://criterion/` (e.g. `cyoda://criterion/<host-key>.json`) so the criterion schema's
   `fileMatch` applies; create the editor; register the schema once per runtime (idempotent);
@@ -144,7 +141,7 @@ A small, self-contained editor — **not** a reuse of `WorkflowJsonEditor` (too 
   `JSON.stringify(value ?? emptyDefault, null, 2)`. When `disabled`, set Monaco
   `readOnly:true` and hide/disable Apply.
 - **Textarea fallback:** when no runtime in context, render the plain `<textarea>`
-  (monospace), no hints; same disabled handling.
+  (monospace); same disabled handling.
 - **Apply (both paths):** `JSON.parse` → validation gate (§2.1). On failure, surface the
   error(s) inline and block. On success, call `onApply(parsed)`; the modal dispatches the
   existing `{ op: "setCriterion", host, path: ["criterion"], criterion }` patch — unchanged
@@ -167,56 +164,29 @@ builder-level strictness on Apply without tightening the round-trip schema.)
 
 ### 3. Monaco runtime plumbing (context) + availability matrix
 
-`WorkflowEditor` already receives `jsonEditor.monaco`. Expose that runtime (or `null`) plus
-the `hintProvider` to the inspector subtree via a new lightweight React context (e.g.
-`CriterionEditorContext`), provided by `WorkflowEditor`. `CriterionJsonEditor` reads it;
-`null` runtime → textarea fallback. Avoids prop-drilling through `Inspector` →
-`TransitionForm` → `CriterionSection`. `Inspector` stops feeding `hintProvider` to the
-deleted `FieldHintsProvider` and instead exposes it through this context.
+`WorkflowEditor` already receives `jsonEditor.monaco`. Expose that runtime (or `null`) to the
+inspector subtree via a new lightweight React context (e.g. `CriterionMonacoContext`),
+provided by `WorkflowEditor`. `CriterionJsonEditor` reads it; `null` → textarea fallback.
+Avoids prop-drilling through `Inspector` → `TransitionForm` → `CriterionSection`.
 
 Availability matrix (document in code/tests):
 
 | `jsonEditor.monaco` supplied | `enableJsonEditor` | Criterion editor |
 | --- | --- | --- |
-| yes | any | Monaco + schema squiggles + completion |
-| no | any | textarea fallback (no hints) |
+| yes | any | Monaco + schema squiggles |
+| no | any | textarea fallback |
 
 The criterion editor's Monaco use is gated on the **runtime being supplied**, independent of
 `enableJsonEditor` (which only governs the whole-workflow JSON tab/split).
 
-### 4. Field-path autocomplete → Monaco completion provider (BREAKING)
-
-Re-express the `hintProvider` data (`EntityFieldHintProvider` → `FieldHint[]` for the session
-entity) as a Monaco completion item provider registered for the JSON language, scoped to
-criterion models, activating when the cursor is inside a `jsonPath` string value.
-
-**This requires widening the public Monaco runtime interface.** Today `MonacoLike.languages`
-exposes only `json.jsonDefaults`. We must add the completion surface the provider needs —
-at minimum:
-
-- `languages.registerCompletionItemProvider(languageSelector, provider): { dispose(): void }`
-- `languages.CompletionItemKind` (enum values used)
-- whatever position/range/model surface the provider callback requires (align with the
-  `TextModelLike`/`Position`/`Range` types already in `types.ts`).
-
-Keep the addition minimal and structural (provider-agnostic), matching the existing
-`MonacoLike` style. The **completion-source function** (given `FieldHint[]` + cursor context
-→ completion items) is a pure function, implemented and unit-tested independently of Monaco.
-A thin registration wrapper (e.g. `registerCriterionFieldCompletions(monaco, opts)`) lives in
-`workflow-monaco` and is exported.
-
-Because the public interface changes, `cyoda-dev-console` (and any other consumer
-constructing a runtime) must pass a richer `monaco` object. Track under
-"Breaking change & coordination."
-
-### 5. Summary card rework
+### 4. Summary card rework
 
 `CriterionSummaryCard` shows the criterion **type badge** + a **compact read-only JSON
 snippet** when a criterion is set (decide single-line vs. truncated multi-line in the plan),
 plus Add/Edit/Remove. All actions respect `disabled` (read-only hides/disables Add/Edit/
 Remove). "Add" seeds an empty/default criterion and opens the editor.
 
-### 6. Deletions
+### 5. Deletions
 
 - From `CriterionForm.tsx`: `CriterionBuilder`, `RuleEditorPanel`, `RuleGroupBlock`, the
   Simple/Function/Lifecycle/Array field forms, `AddConditionMenu`, `PlainEnglishPreview`,
@@ -224,6 +194,10 @@ Remove). "Add" seeds an empty/default criterion and opens the editor.
   Salvage the builder's validation predicates into the reusable gate (§2.1) before deleting.
 - Delete `inspector/criteria/JsonPathInput.tsx`, `inspector/criteria/FieldHintsContext.tsx`,
   `inspector/criteria/fieldLabels.ts`.
+- **Remove the dead field-hint API (breaking):** the `hintProvider` prop on `WorkflowEditor`
+  and `Inspector` (+ the `<FieldHintsProvider>` wrap), and the `EntityFieldHintProvider` /
+  `FieldHint` type exports from `workflow-core` and `workflow-react`. Confirm no other
+  consumer in-repo references them before deletion.
 - Keep: `CriterionSection` (same export + props — `TransitionForm` untouched), the reworked
   `CriterionSummaryCard`, and the modal shell hosting `CriterionJsonEditor`. Split the
   remaining code into focused files (`CriterionSection.tsx`, `CriterionSummaryCard.tsx`,
@@ -232,17 +206,15 @@ Remove). "Add" seeds an empty/default criterion and opens the editor.
 ## Data flow
 
 ```
-WorkflowEditor (provides CriterionEditorContext: { monacoRuntime|null, hintProvider })
+WorkflowEditor (provides CriterionMonacoContext: monacoRuntime | null)
   └─ Inspector → TransitionForm
        └─ CriterionSection (unchanged props: host, criterion, disabled, onDispatch, …)
             ├─ CriterionSummaryCard → type badge + compact JSON + Add/Edit/Remove (respect disabled)
             └─ Modal (on Edit)
                  └─ CriterionJsonEditor
                       ├─ runtime from context?
-                      │     ├─ yes → Monaco model on cyoda://criterion/…
-                      │     │          + registerCriterionSchema (squiggles)
-                      │     │          + registerCriterionFieldCompletions (hintProvider)
-                      │     └─ no  → <textarea> fallback (no hints)
+                      │     ├─ yes → Monaco model on cyoda://criterion/… + registerCriterionSchema (squiggles)
+                      │     └─ no  → <textarea> fallback
                       └─ Apply: JSON.parse → CriterionSchema.safeParse → extra strictness checks (recursive)
                                    ├─ invalid → inline error(s), block
                                    └─ valid   → onApply → onDispatch({ op:"setCriterion", … })
@@ -261,13 +233,12 @@ WorkflowEditor (provides CriterionEditorContext: { monacoRuntime|null, hintProvi
 
 ## Breaking change & coordination
 
-- Widening `MonacoLike`/`WorkflowJsonMonacoRuntime` with completion-provider surface (§4) is
-  a public-API change in `workflow-monaco`/`workflow-react`. `cyoda-dev-console` must update
-  its runtime construction to satisfy the wider interface.
+- Removing `hintProvider` and the `EntityFieldHintProvider` / `FieldHint` exports is a
+  public-API change in `workflow-react` and `workflow-core`. `cyoda-dev-console` must drop
+  its `hintProvider` usage on `WorkflowEditor`.
 - Versioning: major bump across the affected packages, coordinated per the repo's release
   mechanism. Follows the in-flight 0.3.0 major work.
-- `hintProvider` / `EntityFieldHintProvider` / `FieldHint` remain in the public API and
-  remain meaningful (now consumed by the completion provider via context).
+- This is the only breaking aspect — the JSON-editor swap itself is additive/internal.
 
 ## Testing
 
@@ -279,8 +250,6 @@ only the structural surface):
   - Validation gate (§2.1): valid criterion passes; bad jsonPath, BETWEEN arity, empty
     scalar value each fail with the right issue — including nested `group` and
     `function.criterion` recursion.
-  - Completion-source function (§4): given `FieldHint[]` + a cursor-inside-`jsonPath`
-    context → expected items; outside a `jsonPath` value → none.
   - `criterionJsonSchema()` generates and validates a nested `group` criterion (recursive
     `$ref`); `registerCriterionSchema` registers under its own URI/fileMatch and coexists
     with the workflow schema.
@@ -291,9 +260,9 @@ only the structural surface):
     `disabled`.
   - Textarea fallback renders and applies when no runtime in context.
   - Read-only: Apply hidden / editor non-editable.
-- **Known gap (document explicitly):** live squiggle rendering and live completion popups
-  have **no automated coverage** because the fakes don't run the language service. Mitigate
-  with the pure-function tests above + manual verification.
+- **Known gap (document explicitly):** live squiggle rendering has **no automated coverage**
+  because the fakes don't run the language service. Mitigate with the pure-function tests
+  above + manual verification.
 - **Remove/rewrite obsolete builder tests** — approximately: `criterionModal`,
   `criterionSimple`, `criterionGroup`, `criterionLifecycle`, `criterionFunction`,
   `criterionArray`, `jsonPathHints`, `fieldLabels`; check `automatedOrderingInspector` and
@@ -302,13 +271,13 @@ only the structural surface):
 
 ## Open items / to verify during implementation
 
-- Final shape of the widened completion surface on `MonacoLike` (minimal set that real
-  Monaco satisfies and the fakes can stub).
+- Confirm no in-repo consumer (outside the deleted criteria builder) references
+  `hintProvider` / `EntityFieldHintProvider` / `FieldHint` before removing them.
 - Exact compact-JSON rendering for the summary card (single-line vs. truncated multi-line).
 - Manual exercise of the recursive `$ref:"#"` schema against a real Monaco build to confirm
   acceptable squiggle behavior; decide whether the `if/then` discriminated schema is worth
   it.
 - Confirm `CriterionSection`'s existing props remain sufficient (host/criterion/disabled/
   onDispatch) with only context plumbing added at the `WorkflowEditor` level.
-- Coordinate the `cyoda-dev-console` runtime update and the version bump.
+- Coordinate the `cyoda-dev-console` `hintProvider` removal and the version bump.
 ```
