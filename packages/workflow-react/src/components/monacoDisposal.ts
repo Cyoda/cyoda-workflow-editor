@@ -13,6 +13,13 @@
 // before the very first StrictMode mount→dispose can fire a rejection.
 // `installMonacoCancellationFilter()` is also exported and called at editor
 // creation as a belt-and-suspenders / documentation point; both are idempotent.
+//
+// KNOWN LIMITATION (Firefox): this fully silences the noise in Chromium-family
+// browsers, but Firefox's devtools logs "Uncaught (in promise) Canceled" from
+// its own rejection tracking and does not reliably honor preventDefault() here.
+// Those messages are benign (cancellation on dispose), dev-only (amplified by
+// React StrictMode's double-mount), and have no effect on production or
+// behavior — accepted as known Firefox dev-console noise.
 let installed = false;
 
 // Monaco's CancellationError sets both `name` and `message` to exactly
