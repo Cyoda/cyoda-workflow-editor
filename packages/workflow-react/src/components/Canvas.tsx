@@ -1619,13 +1619,23 @@ function CanvasInner({
     [hoveredId, graph.nodes, graph.edges],
   );
 
+  // Recompute React Flow's internal handle/edge anchor geometry after the node
+  // set or layout changes. Deps MUST key on `baseNodes` (the layout-derived
+  // memo), NOT the live `nodes` state. `updateNodeInternals` makes React Flow
+  // re-measure and emit `dimensions` NodeChanges; those flow through
+  // `handleNodesChange` -> `setNodes`, mutating `nodes`. Depending on `nodes`
+  // here therefore re-triggers this effect from its own side effect — an
+  // infinite measure->setNodes->measure loop that, under React 19 + React Flow
+  // 11, never settles and pins the main thread (~65 dimension changes/sec on a
+  // ~13-node graph). `baseNodes` only changes on real graph/layout/selection
+  // changes, so the cycle is broken while handles still update when they should.
   useEffect(() => {
     if (!layout) return;
     const rafId = requestAnimationFrame(() => {
-      for (const node of nodes) updateNodeInternals(node.id);
+      for (const node of baseNodes) updateNodeInternals(node.id);
     });
     return () => cancelAnimationFrame(rafId);
-  }, [layout, nodes, resizeKey, updateNodeInternals]);
+  }, [layout, baseNodes, resizeKey, updateNodeInternals]);
 
   const onNodeMouseEnter: NodeMouseHandler = useCallback((_, node) => setHoveredId(node.id), []);
   const onNodeMouseLeave: NodeMouseHandler = useCallback(() => setHoveredId(null), []);
