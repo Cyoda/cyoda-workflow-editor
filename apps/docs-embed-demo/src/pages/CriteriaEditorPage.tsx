@@ -14,7 +14,6 @@ import {
 import { fixtureBySlug, fixturesFor } from "../examples/fixtureCatalog.js";
 import { getMonacoRuntime } from "../lib/monacoRuntime.js";
 import { loadFixture, serializeDocument } from "../lib/workflowDemo.js";
-import { createSampleHintProvider } from "../lib/entityHints.js";
 import tradeEntitySample from "../examples/entity/tradeEntity.json";
 
 const ENTITY: EntityIdentity = {
@@ -58,18 +57,6 @@ export function CriteriaEditorPage() {
       return next;
     });
   };
-
-  const hintProvider = useMemo(
-    () =>
-      createSampleHintProvider(
-        {
-          [ENTITY.entityName]: { sample: tradeEntitySample, maxDepth: 6 },
-        },
-        // Small latency so the loading row is observable in the demo.
-        120,
-      ),
-    [],
-  );
 
   const selectedFixture = fixtureBySlug(selectedSlug) ?? fixtures[0];
   const loaded = useMemo(
@@ -177,7 +164,6 @@ export function CriteriaEditorPage() {
             key={`clean-${selectedFixture.slug}-${docVersion}`}
             document={currentDocument}
             mode="editor"
-            hintProvider={hintProvider}
             onChange={setCurrentDocument}
             onSave={() => {}}
             developerMode={false}
@@ -193,7 +179,7 @@ export function CriteriaEditorPage() {
       <PageIntro
         eyebrow="Criteria editor"
         title="Criterion editor — full coverage demo"
-        description="Trade settlement variant wired to the StructuredTrade entity sample. Select a transition, use the compact inspector card to add or edit a criterion, then work in the focused modal. Apply commits one patch; Cancel discards the draft. The JSONPath input is wired to an EntityFieldHintProvider derived from the entity sample below."
+        description="Trade settlement variant wired to the StructuredTrade entity sample. Select a transition, use the compact inspector card to add or edit a criterion, then work in the focused modal. The criterion is edited as JSON with schema validation — Monaco highlights syntax errors and schema violations in real time. Apply commits one patch; Cancel discards the draft."
       />
 
       <FixtureSelector
@@ -207,7 +193,6 @@ export function CriteriaEditorPage() {
         issues={loaded.issues}
         extra={[
           { label: "Entity", value: `${ENTITY.entityName} v${ENTITY.modelVersion}` },
-          { label: "Hint provider", value: "sample-backed" },
         ]}
       />
 
@@ -280,9 +265,9 @@ export function CriteriaEditorPage() {
             <h2>Workflow editor</h2>
             <p className="muted-text">
               Select a transition, click Add/Edit criterion in the inspector,
-              then focus any JSONPath input in the modal to see entity-scoped
-              autocomplete. Apply updates the graph badge and exported JSON;
-              Cancel leaves both untouched.
+              then edit the criterion as JSON in the Monaco editor — schema
+              validation squiggles appear in real time. Apply updates the graph
+              badge and exported JSON; Cancel leaves both untouched.
             </p>
           </div>
         </div>
@@ -297,7 +282,6 @@ export function CriteriaEditorPage() {
               monaco,
               modelUri: `cyoda://criteria-demo/${selectedFixture.slug}.json`,
             }}
-            hintProvider={hintProvider}
             onChange={setCurrentDocument}
             onSave={() => {}}
             developerMode
