@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@cyoda/workflow-core": "workspace:*",
-    "@cyoda/workflow-graph": "workspace:*"
+    "@cyoda/workflow-graph": "workspace:*",
+    "elkjs": "catalog:"
   }
 }
