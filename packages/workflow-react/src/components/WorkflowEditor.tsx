@@ -31,6 +31,7 @@ import type { EditorMode, Selection } from "../state/types.js";
 import { Canvas } from "./Canvas.js";
 import { resolveConnection, type PendingConnect } from "./resolveConnection.js";
 import { Inspector } from "../inspector/Inspector.js";
+import { CriterionMonacoProvider } from "../inspector/CriterionMonacoContext.js";
 import { Toolbar, type IssueSeverity } from "../toolbar/Toolbar.js";
 import { IssuesDrawer } from "../toolbar/IssuesDrawer.js";
 import { WorkflowTabs } from "../toolbar/WorkflowTabs.js";
@@ -906,6 +907,7 @@ export function WorkflowEditor({
   ) : null;
 
   return (
+    <CriterionMonacoProvider value={jsonEditor?.monaco ?? null}>
     <I18nContext.Provider value={mergedMessages}>
      <EditorConfigContext.Provider value={editorConfig}>
       <div
@@ -1164,6 +1166,7 @@ export function WorkflowEditor({
       </div>
      </EditorConfigContext.Provider>
     </I18nContext.Provider>
+    </CriterionMonacoProvider>
   );
 }
 
