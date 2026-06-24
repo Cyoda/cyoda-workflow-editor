@@ -25,4 +25,3 @@ export type { SaveConfirmModalProps } from "./save/SaveConfirmModal.js";
 export { ConflictBanner } from "./save/ConflictBanner.js";
 export type { ConflictBannerProps } from "./save/ConflictBanner.js";
 export { diffSummary } from "./save/diff.js";
-export type { EntityFieldHintProvider, FieldHint } from "@cyoda/workflow-core";

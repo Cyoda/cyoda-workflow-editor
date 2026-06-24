@@ -6,7 +6,6 @@ import {
   type EdgeAnchor,
   type EdgeAnchorPair,
   type EditorViewport,
-  type EntityFieldHintProvider,
   type PatchTransaction,
   invertPatch,
   LATEST_CYODA_VERSION,
@@ -100,11 +99,6 @@ export interface WorkflowEditorProps {
   /** Reports JSON parse/schema/apply status for host UX. */
   onJsonStatusChange?: (status: JsonEditStatus) => void;
   /**
-   * Optional model-schema autocomplete source for criterion jsonPath inputs.
-   * When omitted, jsonPath inputs render as plain free-text fields.
-   */
-  hintProvider?: EntityFieldHintProvider;
-  /**
    * Show developer-oriented affordances (raw JSON tab in the inspector and
    * other diagnostics). Defaults to `false` so SMEs/BAs see a clean view.
    * Existing demo and admin surfaces that previously relied on the JSON tab
@@ -173,7 +167,6 @@ export function WorkflowEditor({
   jsonEditorPlacement = "tab",
   jsonEditor = null,
   onJsonStatusChange,
-  hintProvider,
   developerMode = false,
 }: WorkflowEditorProps) {
   const mergedMessages = useMemo(() => mergeMessages(messages), [messages]);
@@ -1088,7 +1081,6 @@ export function WorkflowEditor({
                 onClose={() => handleSelectionChange(null)}
                 onRequestDeleteState={requestDeleteState}
                 width={inspectorWidth}
-                {...(hintProvider ? { hintProvider } : {})}
               />
             </>
           )}
