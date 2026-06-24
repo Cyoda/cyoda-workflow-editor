@@ -35,7 +35,6 @@ catalog:
   vite: 8.0.16
   vitest: 4.1.8
   zod: 4.4.3
-  zod-to-json-schema: 3.25.2
 
 # Supply-chain hardening (pnpm 10)
 # 14 days = 14*24*60 = 20160 minutes. No version younger than this enters the lockfile.
