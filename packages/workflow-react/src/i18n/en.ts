@@ -166,7 +166,7 @@ export const defaultMessages = {
     noneAutomatedWarning:
       "Automated transitions without criteria should usually be last in the transition order.",
     cancel: "Cancel",
-    applyModal: "Apply criterion",
+    applyModal: "Apply",
   },
 };
 
