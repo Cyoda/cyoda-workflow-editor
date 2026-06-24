@@ -1,8 +1,9 @@
 ---
-"@cyoda/workflow-core": major
+"@cyoda/workflow-core": minor
 ---
 
-Major bump for cyoda-go v0.8.0 support.
+cyoda-go v0.8.0 support. (Pre-1.0 `minor` per the 0.x convention — contains
+the breaking change noted below; the project is intentionally staying in 0.x.)
 
 - **Removed `ScheduledProcessorSchema`** (and the `ScheduledProcessor` type). The
   `scheduled` processor type — an unsupported v0.7 platform hack — is gone from
