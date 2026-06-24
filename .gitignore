@@ -27,3 +27,4 @@ pnpm-debug.log*
 .claude/
 .superpowers/
 .sandbox/
+.playwright-mcp/
