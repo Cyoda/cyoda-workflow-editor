@@ -78,27 +78,6 @@ export class WorkflowApiTransportError extends Error {
   }
 }
 
-/**
- * JSONPath hint provider for criterion editing (spec §17.2, §15.3).
- * Optional — when omitted, criterion JSONPath inputs fall back to free-text.
- */
-export interface EntityFieldHintProvider {
-  /**
-   * Return a flat list of JSONPath candidates for the given entity at
-   * the call-site depth. The result is used to power an autocomplete
-   * dropdown; implementations should cache per-entity internally.
-   */
-  listFieldPaths(entity: EntityIdentity): Promise<FieldHint[]>;
-}
-
-export interface FieldHint {
-  jsonPath: string;
-  /** Human-readable type (string | number | boolean | object | array). */
-  type: string;
-  /** Optional description for hover. */
-  description?: string;
-}
-
 /** Visible save-flow state surfaced to the UI shell (spec §17.3). */
 export type SaveStatus =
   | { kind: "idle" }

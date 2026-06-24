@@ -6,7 +6,6 @@ import {
   type EdgeAnchor,
   type EdgeAnchorPair,
   type EditorViewport,
-  type EntityFieldHintProvider,
   type PatchTransaction,
   invertPatch,
   LATEST_CYODA_VERSION,
@@ -31,6 +30,7 @@ import type { EditorMode, Selection } from "../state/types.js";
 import { Canvas } from "./Canvas.js";
 import { resolveConnection, type PendingConnect } from "./resolveConnection.js";
 import { Inspector } from "../inspector/Inspector.js";
+import { CriterionMonacoProvider } from "../inspector/CriterionMonacoContext.js";
 import { Toolbar, type IssueSeverity } from "../toolbar/Toolbar.js";
 import { IssuesDrawer } from "../toolbar/IssuesDrawer.js";
 import { WorkflowTabs } from "../toolbar/WorkflowTabs.js";
@@ -98,11 +98,6 @@ export interface WorkflowEditorProps {
   jsonEditor?: WorkflowJsonEditorConfig | null;
   /** Reports JSON parse/schema/apply status for host UX. */
   onJsonStatusChange?: (status: JsonEditStatus) => void;
-  /**
-   * Optional model-schema autocomplete source for criterion jsonPath inputs.
-   * When omitted, jsonPath inputs render as plain free-text fields.
-   */
-  hintProvider?: EntityFieldHintProvider;
   /**
    * Show developer-oriented affordances (raw JSON tab in the inspector and
    * other diagnostics). Defaults to `false` so SMEs/BAs see a clean view.
@@ -172,7 +167,6 @@ export function WorkflowEditor({
   jsonEditorPlacement = "tab",
   jsonEditor = null,
   onJsonStatusChange,
-  hintProvider,
   developerMode = false,
 }: WorkflowEditorProps) {
   const mergedMessages = useMemo(() => mergeMessages(messages), [messages]);
@@ -906,6 +900,7 @@ export function WorkflowEditor({
   ) : null;
 
   return (
+    <CriterionMonacoProvider value={jsonEditor?.monaco ?? null}>
     <I18nContext.Provider value={mergedMessages}>
      <EditorConfigContext.Provider value={editorConfig}>
       <div
@@ -1086,7 +1081,6 @@ export function WorkflowEditor({
                 onClose={() => handleSelectionChange(null)}
                 onRequestDeleteState={requestDeleteState}
                 width={inspectorWidth}
-                {...(hintProvider ? { hintProvider } : {})}
               />
             </>
           )}
@@ -1164,6 +1158,7 @@ export function WorkflowEditor({
       </div>
      </EditorConfigContext.Provider>
     </I18nContext.Provider>
+    </CriterionMonacoProvider>
   );
 }
 

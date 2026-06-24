@@ -52,9 +52,7 @@ export type { PatchTransaction } from "./transaction.js";
 export { PatchConflictError } from "./transaction.js";
 export type {
   ConcurrencyToken,
-  EntityFieldHintProvider,
   ExportResult,
-  FieldHint,
   ImportResult,
   SaveStatus,
   WorkflowApi,

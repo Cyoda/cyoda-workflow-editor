@@ -1,8 +1,10 @@
 ---
-"@cyoda/workflow-react": major
+"@cyoda/workflow-react": minor
 ---
 
-Remove scheduled processor UI; add transition schedule inspector.
+Remove scheduled processor UI; add transition schedule inspector. (Pre-1.0
+`minor` per the 0.x convention — removes UI tied to the dropped `scheduled`
+processor type; the project is intentionally staying in 0.x.)
 
 The `scheduled` processor type was removed from `@cyoda/workflow-core` v0.8.
 This release removes all corresponding UI: the type selector, duration fields,

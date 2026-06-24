@@ -1,3 +1,4 @@
+export { registerCriterionSchema, criterionJsonSchema, CRITERION_SCHEMA_URI } from "./criterionSchema.js";
 export { registerWorkflowSchema, workflowJsonSchema, WORKFLOW_SCHEMA_URI } from "./schema.js";
 export { issuesToMarkers, applyMarkers, rangeForPath } from "./markers.js";
 export {
@@ -32,3 +33,9 @@ export type {
   Range,
   TextModelLike,
 } from "./types.js";
+export type {
+  MonacoUriLike,
+  WorkflowJsonModelLike,
+  WorkflowJsonEditorInstance,
+  WorkflowJsonMonacoRuntime,
+} from "./runtime.js";

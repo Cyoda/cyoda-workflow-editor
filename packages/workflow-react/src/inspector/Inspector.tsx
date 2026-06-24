@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type {
   DomainPatch,
-  EntityFieldHintProvider,
   ValidationIssue,
   WorkflowEditorDocument,
 } from "@cyoda/workflow-core";
@@ -14,7 +13,6 @@ import { WorkflowForm } from "./WorkflowForm.js";
 import { StateForm } from "./StateForm.js";
 import { TransitionForm } from "./TransitionForm.js";
 import { ProcessorForm } from "./ProcessorForm.js";
-import { FieldHintsProvider } from "./criteria/FieldHintsContext.js";
 
 export interface InspectorProps {
   document: WorkflowEditorDocument;
@@ -26,11 +24,6 @@ export interface InspectorProps {
   onClose?: () => void;
   onRequestDeleteState: (workflow: string, stateCode: string) => void;
   width?: number;
-  /**
-   * Optional model-schema autocomplete source for criterion jsonPath inputs.
-   * When omitted, jsonPath inputs render as plain free-text fields.
-   */
-  hintProvider?: EntityFieldHintProvider;
 }
 
 function issueKeyForSelection(selection: Selection): string | null {
@@ -58,7 +51,6 @@ export function Inspector({
   onSelectionChange,
   onClose,
   onRequestDeleteState,
-  hintProvider,
   width = 384,
 }: InspectorProps) {
   const messages = useMessages();
@@ -76,7 +68,6 @@ export function Inspector({
   const breadcrumb = renderBreadcrumb(resolved);
 
   return (
-    <FieldHintsProvider provider={hintProvider} entity={doc.session.entity}>
     <aside
       style={{
         height: "100%",
@@ -213,7 +204,6 @@ export function Inspector({
         )}
       </div>
     </aside>
-    </FieldHintsProvider>
   );
 }
 

@@ -39,28 +39,6 @@ test("criteria editor page mounts and surfaces every coverage row", async ({ pag
   expect(errors, errors.join("\n")).toEqual([]);
 });
 
-test("criteria editor: focusing the JSONPath input shows entity-scoped hints", async ({ page }) => {
-  await page.goto("/criteria");
-  await expect(page.getByTestId("criteria-page")).toBeVisible();
-
-  // Click any visible "edit criterion" pencil in the inspector. The inspector
-  // is only populated after a transition is selected — click the first
-  // transition edge label and then the criterion edit pencil.
-  const transitionLabel = page.locator(".react-flow__edge").first();
-  await transitionLabel.click({ force: true });
-
-  const editBtn = page.getByTestId("inspector-criterion-edit").first();
-  await editBtn.click();
-
-  // Focus the simple-criterion JSONPath input and expect the hint panel.
-  const pathInput = page.getByTestId("criterion-simple-path").first();
-  await pathInput.focus();
-
-  await expect(page.getByTestId("criterion-simple-path-hints")).toBeVisible();
-  // At least one hint row should appear once the async provider resolves.
-  await expect(page.getByTestId("criterion-simple-path-hint-0")).toBeVisible();
-});
-
 test("criteria editor shows compact inspector card and opens modal editor", async ({ page }) => {
   await page.goto("/criteria");
   await expect(page.getByTestId("criteria-page")).toBeVisible();
@@ -76,17 +54,13 @@ test("criteria editor shows compact inspector card and opens modal editor", asyn
   await expect(page.getByTestId("inspector-transition-criteria-section")).not.toContainText(
     "Edit as JSON",
   );
-  await expect(page.getByTestId("inspector-transition-criteria-section")).not.toContainText(
-    "Apply",
-  );
   await expect(page.getByTestId("criterion-type-select")).toHaveCount(0);
 
   await page.getByTestId("inspector-criterion-edit").click();
 
   await expect(page.getByTestId("criterion-editor-modal")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Edit criterion" })).toBeVisible();
-  await expect(page.getByTestId("criterion-type-select")).toHaveCount(0);
-  await expect(page.getByTestId("criterion-builder")).toBeVisible();
+  await expect(page.getByTestId("criterion-json-editor")).toBeVisible();
   await expect(page.getByTestId("criterion-modal-apply")).toBeVisible();
 
   await page.getByTestId("criterion-modal-cancel").click();
@@ -94,26 +68,40 @@ test("criteria editor shows compact inspector card and opens modal editor", asyn
   await expect(page.getByTestId("criterion-summary-card")).toBeVisible();
 });
 
-test("criteria editor modal exposes group AND/OR composition controls", async ({ page }) => {
+// Regression guard for the React Flow 11 / React 19 idle render loop: the Canvas
+// effect that calls updateNodeInternals must key on the layout-derived node memo,
+// not the live `nodes` state — otherwise re-measure -> dimensions change ->
+// setNodes -> re-measure churns continuously and pins the main thread (was
+// ~630ms of long-task CPU per second of idle on this ~13-node graph; fixed: ~0).
+// Measured in-browser because the loop needs real React Flow node measurement,
+// which jsdom does not run.
+test("criteria editor graph does not burn CPU while idle (no React Flow render loop)", async ({ page }) => {
   await page.goto("/criteria");
-  await expect(page.getByTestId("criteria-page")).toBeVisible();
+  await expect(page.getByTestId("workflow-editor-shell")).toBeVisible();
+  // Let ELK layout + the one-shot fitView settle.
+  await page.waitForTimeout(4000);
 
-  await page
-    .locator('[data-testid^="rf-edge-label-"]')
-    .filter({ hasText: "VALID_LARGE_USD_TRADE" })
-    .first()
-    .dispatchEvent("click");
-  await page.getByTestId("inspector-criterion-edit").click();
+  const longTaskMs = await page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        let total = 0;
+        let po: PerformanceObserver | undefined;
+        try {
+          po = new PerformanceObserver((l) => {
+            for (const e of l.getEntries()) total += e.duration;
+          });
+          po.observe({ entryTypes: ["longtask"] });
+        } catch {
+          // longtask unsupported -> report 0 (test is a no-op rather than flaky)
+        }
+        setTimeout(() => {
+          po?.disconnect();
+          resolve(Math.round(total));
+        }, 2000);
+      }),
+  );
 
-  const modal = page.getByTestId("criterion-editor-modal");
-  await expect(modal).toBeVisible();
-  await expect(modal.getByText("Group criterion")).toBeVisible();
-  await expect(modal.getByText("Match", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("criterion-group-and")).toContainText("All conditions (AND)");
-  await expect(page.getByTestId("criterion-group-or")).toContainText("Any condition (OR)");
-  await expect(page.getByTestId("criterion-group-add-condition")).toBeVisible();
-  await expect(page.getByTestId("criterion-group-add-group")).toBeVisible();
-  await expect(page.getByTestId("criterion-group-editor-0")).toHaveCount(0);
-  await expect(page.getByTestId("criterion-group-edit-0")).toBeVisible();
-  await expect(page.getByTestId("criterion-group-actions-0")).toBeVisible();
+  // Generous budget: the bug produced ~630ms of long-task CPU over this 2s idle
+  // window; the fix measures ~0. 400ms cleanly separates the two with CI margin.
+  expect(longTaskMs, `idle long-task CPU was ${longTaskMs}ms over 2s`).toBeLessThan(400);
 });
