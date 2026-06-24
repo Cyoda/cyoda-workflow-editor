@@ -49,4 +49,10 @@ describe("parseCriterionJson", () => {
     expect(r.error).toBeNull();
     expect(r.criterion).not.toBeNull();
   });
+
+  it("rejects an invalid function precheck (recursion through the gate)", () => {
+    const r = parseCriterionJson('{"type":"function","function":{"name":"myFn","criterion":{"type":"simple","jsonPath":"","operation":"EQUALS"}}}');
+    expect(r.criterion).toBeNull();
+    expect(r.error).toBe("Choose a field for this condition.");
+  });
 });

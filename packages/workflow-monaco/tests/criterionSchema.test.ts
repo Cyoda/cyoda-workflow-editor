@@ -32,7 +32,7 @@ describe("criterionJsonSchema", () => {
     expect(() => JSON.stringify(schema)).not.toThrow();
   });
 
-  it("validates a nested group criterion when checked with a JSON-schema validator", () => {
+  it("serializes a recursive criterion schema (self-$ref) without throwing", () => {
     // Smoke check that recursion resolves: stringify round-trips and contains a self ref.
     const schema = JSON.stringify(criterionJsonSchema());
     expect(schema).toContain("$ref");

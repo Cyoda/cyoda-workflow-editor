@@ -280,6 +280,7 @@ describe("criterion modal UX", () => {
 
     expect((view.getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(true);
     expect(view.getByTestId("criterion-modal-blocking-error")).toBeTruthy();
+    expect(view.getByTestId("criterion-modal-blocking-error").textContent).toBe("Choose a field for this condition.");
   });
 
   it("applies one criterion patch, updates the graph badge, preserves selection, and undo restores previous state", () => {
