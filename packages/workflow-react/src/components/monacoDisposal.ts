@@ -8,7 +8,11 @@
 //
 // Instead, install ONE permanent listener that drops only Monaco's
 // CancellationError ("Canceled") rejections and lets everything else through.
-// Armed when a Monaco editor is created, so it is active before any disposal.
+// The filter self-installs at module load (the side effect at the bottom of
+// this file), so it is armed before React renders any editor — and therefore
+// before the very first StrictMode mount→dispose can fire a rejection.
+// `installMonacoCancellationFilter()` is also exported and called at editor
+// creation as a belt-and-suspenders / documentation point; both are idempotent.
 let installed = false;
 
 // Monaco's CancellationError sets both `name` and `message` to exactly
@@ -33,3 +37,7 @@ export function installMonacoCancellationFilter(): void {
     if (isMonacoCanceled(e.reason)) e.preventDefault();
   });
 }
+
+// Self-install on import: importing this module (which the Monaco editor
+// components do) arms the filter immediately, before any editor mounts.
+installMonacoCancellationFilter();
