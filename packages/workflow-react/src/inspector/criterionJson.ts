@@ -45,13 +45,18 @@ export function parseCriterionJson(text: string): CriterionJsonResult {
     return { criterion: res.data, error: null };
   }
 
-  // Schema-invalid: surface a friendly blocking message when criterionBlockingError can
-  // produce one on this (untyped) input without throwing; otherwise the zod message.
+  // Schema-invalid: prefer a friendlier criterionBlockingError message for the common
+  // incomplete-but-criterion-shaped cases (e.g. the empty-jsonPath "Add" seed). Only
+  // attempt it when `raw` is plausibly a criterion object; the try/catch is a narrow
+  // net for legitimately-partial criteria (e.g. a "simple" missing jsonPath) that can
+  // throw inside criterionBlockingError — not a blanket swallow of arbitrary input.
   let friendly: string | null = null;
-  try {
-    friendly = criterionBlockingError(raw as Criterion);
-  } catch {
-    friendly = null;
+  if (typeof raw === "object" && raw !== null && typeof (raw as { type?: unknown }).type === "string") {
+    try {
+      friendly = criterionBlockingError(raw as Criterion);
+    } catch {
+      friendly = null;
+    }
   }
   return { criterion: null, error: friendly ?? zodMessage(res.error) };
 }

@@ -21,6 +21,7 @@ export function CriterionJsonEditor({ value, disabled, modelKey, onChange }: Cri
   const monaco = useCriterionMonaco();
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // Pinned to first render: the editor owns the text after mount; value prop changes don't re-seed.
   const initialText = useRef(JSON.stringify(value, null, 2)).current;
 
   if (monaco) {
