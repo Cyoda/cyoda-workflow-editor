@@ -153,10 +153,13 @@ A small, self-contained editor — **not** a reuse of `WorkflowJsonEditor` (too 
 - **Monaco path:** create an isolated text model on a deterministic unique URI under
   `cyoda://criterion/` (e.g. `cyoda://criterion/<host-key>.json`) so the criterion schema's
   `fileMatch` applies; create the editor; register the schema once per runtime (idempotent);
-  **dispose model + editor on unmount.** Note `WorkflowJsonEditor.tsx` already carries a
-  StrictMode double-mount workaround for the "model already exists" race (a disposal counter,
-  `WorkflowJsonEditor.tsx:27-31,179-192`) — reuse/share that mitigation rather than
-  rediscover it. When `disabled`, set Monaco `readOnly:true` and hide/disable Apply.
+  **dispose model + editor on unmount.** `WorkflowJsonEditor.tsx` already carries a
+  module-level handler that suppresses Monaco's "Canceled" promise rejections during disposal
+  under React StrictMode (`_monacoDisposalCount`, `WorkflowJsonEditor.tsx:22-37` + the
+  increment/decrement around disposal) — a dev-only Monaco/StrictMode quirk, not a repo
+  design flaw. **Extract it into one shared helper** that both `WorkflowJsonEditor` and
+  `CriterionJsonEditor` use; do NOT copy it (two module-level handlers would be the real
+  smell). When `disabled`, set Monaco `readOnly:true` and hide/disable Apply.
 - **Seeding "Add" (no valid empty criterion exists):** `CriterionSchema` requires non-empty
   `jsonPath` / `conditions` / function `name`, so there is *no* schema-valid blank criterion.
   The builder seeds `defaultCriterion("simple")` (`CriterionForm.tsx:258`) — a `simple`
