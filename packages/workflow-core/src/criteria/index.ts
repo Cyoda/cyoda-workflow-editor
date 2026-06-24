@@ -13,3 +13,5 @@ export { validateJsonPathSubset } from "./jsonPathSubset.js";
 export type { JsonPathRejectReason, JsonPathValidationResult } from "./jsonPathSubset.js";
 
 export { describeCriterion } from "./describe.js";
+
+export { criterionBlockingError } from "./criterionBlockingError.js";

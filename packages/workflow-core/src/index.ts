@@ -163,6 +163,7 @@ export {
   SUPPORTED_GROUP_OPERATORS,
   SUPPORTED_SIMPLE_OPERATORS,
   UNSUPPORTED_OPERATORS,
+  criterionBlockingError,
   describeCriterion,
   validateJsonPathSubset,
 } from "./criteria/index.js";
