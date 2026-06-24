@@ -33,3 +33,9 @@ export type {
   Range,
   TextModelLike,
 } from "./types.js";
+export type {
+  MonacoUriLike,
+  WorkflowJsonModelLike,
+  WorkflowJsonEditorInstance,
+  WorkflowJsonMonacoRuntime,
+} from "./runtime.js";
