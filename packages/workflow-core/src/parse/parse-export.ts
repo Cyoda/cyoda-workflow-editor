@@ -23,7 +23,7 @@ export function parseExportPayload(
   }
 
   let canonical: unknown;
-  let warnings: string[] = [];
+  let warnings: string[];
   try {
     const result = getDialect(sourceVersion).toCanonical(parsed);
     canonical = result.value;

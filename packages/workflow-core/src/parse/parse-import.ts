@@ -89,7 +89,7 @@ export function parseImportPayload(
   }
 
   let canonical: unknown;
-  let warnings: string[] = [];
+  let warnings: string[];
   try {
     const result = getDialect(sourceVersion).toCanonical(parsed.value);
     canonical = result.value;

@@ -6,7 +6,6 @@ import { WorkflowViewer } from "../src/index.js";
 import { computeEdgeGeometry } from "../src/components/EdgePath.js";
 import { nudgeLabels } from "../src/layout.js";
 import { laneDashArray } from "../src/theme/lane.js";
-import { workflowPalette } from "../src/theme/tokens.js";
 
 afterEach(() => cleanup());
 

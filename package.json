@@ -30,7 +30,7 @@
     "test:watch": "pnpm -r --filter=\"./packages/*\" run test:watch",
     "bench": "pnpm -r --filter=\"./packages/*\" run bench",
     "typecheck": "pnpm -r --filter=\"./packages/*\" run typecheck",
-    "lint": "eslint packages apps --ext .ts,.tsx",
+    "lint": "eslint packages apps",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "changeset": "changeset",
     "version-packages": "changeset version",
@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@eslint/js": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
@@ -50,6 +51,7 @@
     "prettier": "catalog:",
     "tsup": "catalog:",
     "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
     "vitest": "catalog:"
   },
   "engines": {

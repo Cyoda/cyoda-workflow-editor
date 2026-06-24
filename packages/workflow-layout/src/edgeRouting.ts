@@ -228,7 +228,7 @@ function nudgeV(y1: number, y2: number, x: number, obs: NodePosition[]): number 
     if (blocking.length === 0) break;
     const intervals = blocking.map(o => [o.x - pad, o.x + o.width + pad] as [number, number]);
     intervals.sort((a, b) => a[0] - b[0]);
-    let mlo = intervals[0]![0], mhi = intervals[0]![1];
+    const mlo = intervals[0]![0]; let mhi = intervals[0]![1];
     for (const [l, r] of intervals.slice(1)) { if (l <= mhi + 1) mhi = Math.max(mhi, r); }
     const leftClear = mlo - 1, rightClear = mhi + 1;
     x = Math.abs(x - leftClear) < Math.abs(x - rightClear) ? leftClear : rightClear;
