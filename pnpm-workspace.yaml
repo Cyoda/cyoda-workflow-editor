@@ -2,9 +2,8 @@ packages:
   - "packages/*"
   - "apps/*"
 
-# Shared dependency catalog — Tasks 3-7 bump versions here only.
-# Exact versions pinned to current resolved values (no upgrades in this commit).
-# Note: monaco-editor is 0.52.2; workflow-monaco devDep moves 0.50.0→0.52.2 (the one permitted change).
+# Shared dependency catalog — pinned to current resolved values.
+# Exact versions; no carets or tildes permitted (peers may keep ranges).
 catalog:
   "@changesets/cli": 2.31.0
   "@playwright/test": 1.60.0
@@ -42,11 +41,9 @@ catalog:
 minimumReleaseAge: 20160
 minimumReleaseAgeExclude:
   - "@cyoda/*"
-  # Exception: these are security-patched transitive deps forced by pnpm.overrides
-  # (commit 7e9baf9). Their patched versions are <14 days old and their cooled
-  # predecessors are still vulnerable, so the cooldown cannot apply. Transitional —
-  # removed in Task 9 when the overrides are pruned and vite 8 / jsdom 29 supersede them.
-  - form-data
+  # Exception: esbuild is forced to >=0.28.1 via pnpm.overrides to clear the
+  # GHSA-67mh-4wv8-2f99 advisory (0.27.x is vulnerable; tsup/vite pull it in).
+  # The patched version may be <14 days old, so the cooldown is excluded here.
   - esbuild
   - "@esbuild/*"
 # Only these packages may run install lifecycle scripts (pnpm 10 blocks all others).
