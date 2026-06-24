@@ -34,7 +34,7 @@ catalog:
   uuid: 14.0.0
   vite: 8.0.16
   vitest: 4.1.8
-  zod: 3.25.76
+  zod: 4.4.3
   zod-to-json-schema: 3.25.2
 
 # Supply-chain hardening (pnpm 10)
