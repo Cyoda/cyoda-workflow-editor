@@ -25,4 +25,28 @@ describe("parseCriterionJson", () => {
     expect(r.criterion).toBeNull();
     expect(r.error).toBe("Choose a field for this condition.");
   });
+
+  it("rejects a jsonPath outside the supported gjson subset (beyond-schema)", () => {
+    const r = parseCriterionJson('{"type":"simple","jsonPath":"$..deep","operation":"EQUALS","value":"x"}');
+    expect(r.criterion).toBeNull();
+    expect(r.error).toMatch(/JSON path is invalid/);
+  });
+
+  it("rejects BETWEEN without a 2-element array (beyond-schema)", () => {
+    const r = parseCriterionJson('{"type":"simple","jsonPath":"$.a","operation":"BETWEEN","value":[1]}');
+    expect(r.criterion).toBeNull();
+    expect(r.error).toMatch(/BETWEEN requires/);
+  });
+
+  it("rejects an empty group via the schema", () => {
+    const r = parseCriterionJson('{"type":"group","operator":"AND","conditions":[]}');
+    expect(r.criterion).toBeNull();
+    expect(r.error).toBeTruthy();
+  });
+
+  it("accepts a valid nested group", () => {
+    const r = parseCriterionJson('{"type":"group","operator":"AND","conditions":[{"type":"simple","jsonPath":"$.a","operation":"EQUALS","value":"x"}]}');
+    expect(r.error).toBeNull();
+    expect(r.criterion).not.toBeNull();
+  });
 });
