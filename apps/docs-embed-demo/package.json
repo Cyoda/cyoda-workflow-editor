@@ -28,6 +28,7 @@
     "reactflow": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@playwright/test": "catalog:",
     "@types/react": "catalog:",

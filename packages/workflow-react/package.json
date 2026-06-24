@@ -49,11 +49,12 @@
     "@cyoda/workflow-viewer": "workspace:*"
   },
   "peerDependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^18.3.1 || ^19.0.0",
+    "react-dom": "^18.3.1 || ^19.0.0",
     "reactflow": "^11"
   },
   "devDependencies": {
+    "@testing-library/dom": "catalog:",
     "@testing-library/react": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
