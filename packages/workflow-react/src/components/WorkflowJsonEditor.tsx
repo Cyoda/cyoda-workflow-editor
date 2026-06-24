@@ -17,7 +17,7 @@ import type {
 } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
 import type { Selection } from "../state/types.js";
-import { suppressMonacoDisposalRejections } from "./monacoDisposal.js";
+import { installMonacoCancellationFilter } from "./monacoDisposal.js";
 export type {
   MonacoUriLike,
   WorkflowJsonModelLike,
@@ -109,6 +109,7 @@ export function WorkflowJsonEditor({
     });
 
     editorRef.current = editor;
+    installMonacoCancellationFilter();
     schemaHandleRef.current = registerWorkflowSchema(monaco);
     controllerRef.current = attachWorkflowJsonController({
       monaco,
@@ -134,8 +135,6 @@ export function WorkflowJsonEditor({
     controllerRef.current.renderIssues(issuesRef.current, documentRef.current);
 
     return () => {
-      suppressMonacoDisposalRejections();
-
       cursorBridgeRef.current?.dispose();
       cursorBridgeRef.current = null;
       controllerRef.current?.dispose();

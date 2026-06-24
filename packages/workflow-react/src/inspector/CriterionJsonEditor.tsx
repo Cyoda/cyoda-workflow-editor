@@ -6,7 +6,7 @@ import {
   type WorkflowJsonEditorInstance,
 } from "@cyoda/workflow-monaco";
 import { useCriterionMonaco } from "./CriterionMonacoContext.js";
-import { suppressMonacoDisposalRejections } from "../components/monacoDisposal.js";
+import { installMonacoCancellationFilter } from "../components/monacoDisposal.js";
 import { parseCriterionJson, criterionModelUri, type CriterionJsonResult } from "./criterionJson.js";
 import { colors, fonts, radii } from "../style/tokens.js";
 
@@ -104,6 +104,7 @@ function MonacoCriterionEditor({
       readOnly: disabled,
     });
     editorRef.current = editor;
+    installMonacoCancellationFilter();
     const schemaHandle = registerCriterionSchema(monaco);
 
     const report = () => onChangeRef.current(parseCriterionJson(model.getValue()));
@@ -111,7 +112,6 @@ function MonacoCriterionEditor({
     const sub = model.onDidChangeContent(report);
 
     return () => {
-      suppressMonacoDisposalRejections();
       sub.dispose();
       schemaHandle.dispose();
       editor.dispose();
