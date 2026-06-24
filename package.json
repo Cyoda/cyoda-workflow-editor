@@ -16,8 +16,6 @@
   "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",
   "pnpm": {
     "overrides": {
-      "react": "^18.3.1",
-      "react-dom": "^18.3.1",
       "form-data@>=4.0.0 <4.0.6": ">=4.0.6",
       "@babel/core@<7.29.6": "^7.29.6",
       "esbuild@>=0.27.0 <0.28.1": "0.28.1",

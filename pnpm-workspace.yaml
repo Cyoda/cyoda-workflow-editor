@@ -7,10 +7,10 @@ packages:
 minimumReleaseAge: 20160
 minimumReleaseAgeExclude:
   - "@cyoda/*"
-  - uuid
-  - "@playwright/test"
-  - playwright
-  - playwright-core
+  # Exception: these are security-patched transitive deps forced by pnpm.overrides
+  # (commit 7e9baf9). Their patched versions are <14 days old and their cooled
+  # predecessors are still vulnerable, so the cooldown cannot apply. Transitional —
+  # removed in Task 9 when the overrides are pruned and vite 8 / jsdom 29 supersede them.
   - form-data
   - esbuild
   - "@esbuild/*"
@@ -24,7 +24,7 @@ onlyBuiltDependencies:
 # Note: monaco-editor is 0.52.2; workflow-monaco devDep moves 0.50.0→0.52.2 (the one permitted change).
 catalog:
   "@changesets/cli": 2.31.0
-  "@playwright/test": 1.61.1
+  "@playwright/test": 1.60.0
   "@testing-library/react": 14.3.1
   "@types/node": 20.19.39
   "@types/react": 18.3.28
@@ -45,7 +45,7 @@ catalog:
   reactflow: 11.11.4
   tsup: 8.5.1
   typescript: 5.9.3
-  uuid: 14.0.1
+  uuid: 14.0.0
   vite: 6.4.3
   vitest: 3.2.6
   zod: 3.25.76
