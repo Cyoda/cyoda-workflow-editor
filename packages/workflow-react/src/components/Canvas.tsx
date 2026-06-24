@@ -1629,6 +1629,13 @@ function CanvasInner({
   // 11, never settles and pins the main thread (~65 dimension changes/sec on a
   // ~13-node graph). `baseNodes` only changes on real graph/layout/selection
   // changes, so the cycle is broken while handles still update when they should.
+  //
+  // Why dropping the per-`nodes` refresh is safe: node DOM size is PINNED via
+  // inline width/height/style from the layout `size` (see toRfNodes above), so a
+  // node's rendered dimensions never change from content reflow (font load,
+  // zoom) — only from a relayout, which already changes `baseNodes`. Container
+  // resizes are covered by `resizeKey`. So there is no dimension-only change
+  // this effect needs to react to beyond `baseNodes` + `resizeKey`.
   useEffect(() => {
     if (!layout) return;
     const rafId = requestAnimationFrame(() => {

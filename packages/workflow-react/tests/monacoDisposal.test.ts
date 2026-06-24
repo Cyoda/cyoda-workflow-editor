@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { installMonacoCancellationFilter } from "../src/components/monacoDisposal.js";
 
-// Dispatch a synthetic `unhandledrejection` and report whether a listener
-// suppressed it via preventDefault(). Mirrors how Monaco's benign "Canceled"
-// disposal rejections surface — and lets us assert suppression happens
-// regardless of timing (the old time-boxed window leaked on slower machines).
+// These tests cover the FILTER MATCHING LOGIC and that a cancelable
+// `unhandledrejection` is honored via preventDefault(). Real browser + Monaco
+// timing (a late disposal cancellation actually arriving as a suppressible
+// event) is covered by in-browser verification, not jsdom.
 function fireUnhandledRejection(reason: unknown): boolean {
   const e = new Event("unhandledrejection", { cancelable: true });
   Object.defineProperty(e, "reason", { value: reason, configurable: true });
@@ -13,15 +13,16 @@ function fireUnhandledRejection(reason: unknown): boolean {
 }
 
 describe("installMonacoCancellationFilter", () => {
-  it("suppresses Monaco 'Canceled' rejections (by error name)", () => {
+  it("suppresses Monaco's CancellationError (name === 'Canceled'), regardless of timing", () => {
     installMonacoCancellationFilter();
+    // No editor disposal is "in progress" — the old window-gated impl leaked here.
     expect(fireUnhandledRejection({ name: "Canceled", message: "Canceled" })).toBe(true);
   });
 
-  it("suppresses a 'Canceled'-prefixed reason even with no active dispose window", () => {
+  it("does NOT suppress a legitimate string rejection that starts with 'Canceled'", () => {
     installMonacoCancellationFilter();
-    // No editor disposal is "in progress" — the old window-gated impl would leak here.
-    expect(fireUnhandledRejection("Canceled: Canceled")).toBe(true);
+    // e.g. an app doing Promise.reject("Canceled by user") for flow control.
+    expect(fireUnhandledRejection("Canceled by user")).toBe(false);
   });
 
   it("does NOT suppress unrelated rejections", () => {

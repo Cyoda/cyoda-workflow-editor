@@ -11,10 +11,14 @@
 // Armed when a Monaco editor is created, so it is active before any disposal.
 let installed = false;
 
+// Monaco's CancellationError sets both `name` and `message` to exactly
+// "Canceled" (monaco-editor/.../cancellation). Match on that precise shape only
+// — deliberately NOT a loose String(reason).startsWith("Canceled"), which would
+// also swallow legitimate string rejections like Promise.reject("Canceled by
+// user") from the host app.
 function isMonacoCanceled(reason: unknown): boolean {
-  if (reason == null) return false;
-  const name = (reason as { name?: unknown }).name;
-  return name === "Canceled" || String(reason).startsWith("Canceled");
+  if (reason == null || typeof reason !== "object") return false;
+  return (reason as { name?: unknown }).name === "Canceled";
 }
 
 /**
