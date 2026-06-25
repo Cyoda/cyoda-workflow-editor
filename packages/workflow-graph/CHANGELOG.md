@@ -1,5 +1,14 @@
 # @cyoda/workflow-graph
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [944e62a]
+- Updated dependencies [944e62a]
+- Updated dependencies [58f2e77]
+  - @cyoda/workflow-core@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
