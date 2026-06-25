@@ -21,6 +21,7 @@ jobs:
       github.event_name != 'pull_request'
       || github.head_ref == 'staging'
       || github.base_ref == 'staging'
+      || github.base_ref == 'main'
       || startsWith(github.head_ref, 'release/')
       || startsWith(github.base_ref, 'release/')
     runs-on: ubuntu-latest
@@ -47,7 +48,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # `changeset status` exits 1 when packages changed since baseBranch (main)
+      # but no changesets are present — the correct "you forgot a changeset" gate
+      # on feature/staging PRs. On the Changesets "Version packages" branch that
+      # condition is a false positive (versions are bumped, changesets consumed),
+      # so skip the status check there while still running the rest of preflight.
       - name: Show Changesets status
+        if: github.head_ref != 'changeset-release/main'
         run: pnpm exec changeset status
 
       - name: Typecheck

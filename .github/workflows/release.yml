@@ -21,10 +21,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Mint a short-lived GitHub App token so the "Version packages" PR (and the
+      # branch it pushes) is authored by the app, not the built-in GITHUB_TOKEN.
+      # GitHub refuses to trigger workflows from GITHUB_TOKEN-authored events, so
+      # a token-authored Version PR never runs CI/preflight and can't satisfy the
+      # required checks on main. An app token sidesteps that loop-prevention.
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Check out repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+          persist-credentials: true
 
       - name: Set up pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
@@ -53,6 +67,6 @@ jobs:
           commit: Version packages
           title: Version packages
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

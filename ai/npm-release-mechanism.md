@@ -399,3 +399,41 @@ integration target. It refines the policy above:
 
 All original invariants still hold: CI-only publishing, publish-from-`main`,
 Changesets as the version authority, private packages never publish.
+
+⸻
+
+Why the "Version packages" PR needs a GitHub App token
+
+`main` branch protection requires the `validate` (CI) and `preflight`
+(Release Preflight) status checks. The Changesets action opens the
+"Version packages" PR (head branch `changeset-release/main`). If that PR is
+authored with the built-in `GITHUB_TOKEN`, GitHub's recursion guard refuses to
+trigger any workflow from it — CI and preflight land in `action_required` and
+never post a result, so the required checks can never be satisfied and the PR is
+permanently un-mergeable except by an admin override. That admin override is a
+recurring per-release stumble, not a fix.
+
+The fix (in `release.yml`):
+
+* `actions/create-github-app-token` mints a short-lived token from a GitHub App
+  (`secrets.RELEASE_APP_ID` + `secrets.RELEASE_APP_PRIVATE_KEY`).
+* That token is passed to `actions/checkout` and to the Changesets action's
+  `GITHUB_TOKEN` env. The Version PR is then authored by the app — a non-
+  `GITHUB_TOKEN` identity — so it triggers `validate` and `preflight` like any
+  human PR and merges with no admin.
+
+The GitHub App needs repository permissions **Contents: read & write** (push the
+`changeset-release/main` branch, create tags/releases) and **Pull requests: read
+& write** (open/update the Version PR), and must be installed on this repo. It
+does **not** publish to npm — that still uses `NPM_TOKEN` / trusted publishing —
+and it never pushes to `main` (the Version PR is still merged by a human).
+
+Companion change (in `release-preflight.yml`): the `preflight` job guard also
+runs on PRs whose base is `main` (so it runs on the Version PR), and the
+informational `changeset status` step is skipped when the head is
+`changeset-release/main`. On that branch every package is "changed since `main`"
+with the changesets already consumed, which would otherwise trip
+`changeset status`'s legitimate "packages changed but no changeset" exit-1 gate.
+
+If the app secrets are absent, `release.yml` fails at the token step — so the
+App must be created and its secrets added **before** this change reaches `main`.
