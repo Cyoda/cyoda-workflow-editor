@@ -416,7 +416,9 @@ recurring per-release stumble, not a fix.
 The fix (in `release.yml`):
 
 * `actions/create-github-app-token` mints a short-lived token from a GitHub App
-  (`secrets.RELEASE_APP_ID` + `secrets.RELEASE_APP_PRIVATE_KEY`).
+  (`secrets.RELEASE_APP_CLIENT_ID` + `secrets.RELEASE_APP_PRIVATE_KEY`). The
+  action's `app-id` input is deprecated in favour of `client-id`, so the app's
+  Client ID is used.
 * That token is passed to `actions/checkout` and to the Changesets action's
   `GITHUB_TOKEN` env. The Version PR is then authored by the app — a non-
   `GITHUB_TOKEN` identity — so it triggers `validate` and `preflight` like any
