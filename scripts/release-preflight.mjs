@@ -16,9 +16,9 @@ const privatePackages = [
   { name: "cyoda-workflow-editor", dir: "." },
   { name: "@cyoda/docs-embed-demo", dir: "apps/docs-embed-demo" },
 ];
-const repositoryUrl = "git+https://github.com/Cyoda-platform/cyoda-workflow-editor.git";
-const homepageUrl = "https://github.com/Cyoda-platform/cyoda-workflow-editor#readme";
-const bugsUrl = "https://github.com/Cyoda-platform/cyoda-workflow-editor/issues";
+const repositoryUrl = "git+https://github.com/Cyoda/cyoda-workflow-editor.git";
+const homepageUrl = "https://github.com/Cyoda/cyoda-workflow-editor#readme";
+const bugsUrl = "https://github.com/Cyoda/cyoda-workflow-editor/issues";
 
 function readJson(path) {
   return JSON.parse(readFileSync(resolve(rootDir, path), "utf8"));

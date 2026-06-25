@@ -5,12 +5,12 @@
   "description": "Cyoda Workflow Editor monorepo",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Cyoda-platform/cyoda-workflow-editor.git",
+    "url": "git+https://github.com/Cyoda/cyoda-workflow-editor.git",
     "directory": "."
   },
-  "homepage": "https://github.com/Cyoda-platform/cyoda-workflow-editor#readme",
+  "homepage": "https://github.com/Cyoda/cyoda-workflow-editor#readme",
   "bugs": {
-    "url": "https://github.com/Cyoda-platform/cyoda-workflow-editor/issues"
+    "url": "https://github.com/Cyoda/cyoda-workflow-editor/issues"
   },
   "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",

@@ -176,7 +176,7 @@ output regardless of what has been dragged or annotated.
 
 ## Documentation
 
-See the [repository README](https://github.com/Cyoda-platform/cyoda-workflow-editor#readme).
+See the [repository README](https://github.com/Cyoda/cyoda-workflow-editor#readme).
 
 ## License
 

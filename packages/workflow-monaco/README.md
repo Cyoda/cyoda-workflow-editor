@@ -82,7 +82,7 @@ the editor marks the save button as disabled.
 
 ## Documentation
 
-See the [repository README](https://github.com/Cyoda-platform/cyoda-workflow-editor#readme).
+See the [repository README](https://github.com/Cyoda/cyoda-workflow-editor#readme).
 
 ## License
 

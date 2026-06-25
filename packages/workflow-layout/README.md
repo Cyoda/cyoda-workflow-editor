@@ -49,7 +49,7 @@ to implement drag-and-persist layout:
 
 ## Documentation
 
-See the [repository README](https://github.com/Cyoda-platform/cyoda-workflow-editor#readme).
+See the [repository README](https://github.com/Cyoda/cyoda-workflow-editor#readme).
 
 ## License
 
