@@ -1,6 +1,8 @@
 import type { FunctionConfig } from "./criterion.js";
 
-export type Processor = ExternalizedProcessor | ScheduledProcessor;
+// As of the v0.8 major bump the `scheduled` processor type has been removed;
+// `externalized` is the only canonical processor type.
+export type Processor = ExternalizedProcessor;
 
 export type ExecutionMode =
   | "SYNC"
@@ -14,16 +16,6 @@ export interface ExternalizedProcessor {
   executionMode?: ExecutionMode;
   startNewTxOnDispatch?: boolean;
   config?: ExternalizedProcessorConfig;
-}
-
-export interface ScheduledProcessor {
-  type: "scheduled";
-  name: string;
-  config: {
-    delayMs: number;
-    transition: string;
-    timeoutMs?: number;
-  };
 }
 
 export interface ExternalizedProcessorConfig extends FunctionConfig {

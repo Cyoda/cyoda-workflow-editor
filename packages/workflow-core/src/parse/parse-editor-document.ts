@@ -24,7 +24,7 @@ const EditorDocumentSchema = z.object({
     .object({
       revision: z.number().int().nonnegative(),
       ids: z.unknown(),
-      workflowUi: z.record(z.unknown()),
+      workflowUi: z.record(z.string(), z.unknown()),
       lastValidJsonHash: z.string().optional(),
     })
     .passthrough(),

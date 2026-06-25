@@ -13,11 +13,12 @@
     "url": "https://github.com/Cyoda-platform/cyoda-workflow-editor/issues"
   },
   "license": "Apache-2.0",
-  "packageManager": "pnpm@9.15.9",
+  "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",
   "pnpm": {
     "overrides": {
-      "react": "^18.3.1",
-      "react-dom": "^18.3.1"
+      "react": "^19.0.0",
+      "react-dom": "^19.0.0",
+      "esbuild@>=0.27.0 <0.28.1": "0.28.1"
     }
   },
   "scripts": {
@@ -26,7 +27,7 @@
     "test:watch": "pnpm -r --filter=\"./packages/*\" run test:watch",
     "bench": "pnpm -r --filter=\"./packages/*\" run bench",
     "typecheck": "pnpm -r --filter=\"./packages/*\" run typecheck",
-    "lint": "eslint packages apps --ext .ts,.tsx",
+    "lint": "eslint packages apps",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "changeset": "changeset",
     "version-packages": "changeset version",
@@ -36,19 +37,21 @@
     "prerelease:exit": "changeset pre exit"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.31.0",
-    "@playwright/test": "^1.45.0",
-    "@types/node": "^20.11.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "@vitest/coverage-v8": "^1.6.0",
-    "eslint": "^8.57.0",
-    "prettier": "^3.2.5",
-    "tsup": "^8.0.2",
-    "typescript": "^5.4.5",
-    "vitest": "^1.6.0"
+    "@changesets/cli": "catalog:",
+    "@eslint/js": "catalog:",
+    "@playwright/test": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19"
   }
 }

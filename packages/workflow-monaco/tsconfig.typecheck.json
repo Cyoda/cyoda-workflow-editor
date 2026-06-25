@@ -1,16 +1,15 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "baseUrl": "../..",
     "rootDir": "../..",
     "paths": {
-      "@cyoda/workflow-core": ["packages/workflow-core/src/index.ts"],
-      "@cyoda/workflow-graph": ["packages/workflow-graph/src/index.ts"],
-      "@cyoda/workflow-layout": ["packages/workflow-layout/src/index.ts"],
-      "@cyoda/workflow-monaco": ["packages/workflow-monaco/src/index.ts"],
-      "@cyoda/workflow-react": ["packages/workflow-react/src/index.ts"],
-      "@cyoda/workflow-viewer": ["packages/workflow-viewer/src/index.ts"],
-      "@cyoda/workflow-viewer/theme": ["packages/workflow-viewer/src/theme/index.ts"]
+      "@cyoda/workflow-core": ["../../packages/workflow-core/src/index.ts"],
+      "@cyoda/workflow-graph": ["../../packages/workflow-graph/src/index.ts"],
+      "@cyoda/workflow-layout": ["../../packages/workflow-layout/src/index.ts"],
+      "@cyoda/workflow-monaco": ["../../packages/workflow-monaco/src/index.ts"],
+      "@cyoda/workflow-react": ["../../packages/workflow-react/src/index.ts"],
+      "@cyoda/workflow-viewer": ["../../packages/workflow-viewer/src/index.ts"],
+      "@cyoda/workflow-viewer/theme": ["../../packages/workflow-viewer/src/theme/index.ts"]
     }
   }
 }

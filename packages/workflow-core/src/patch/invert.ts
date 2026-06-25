@@ -113,14 +113,19 @@ export function invertPatch(
       };
     }
 
-    case "moveTransitionSource":
+    case "moveTransitionSource": {
+      const wf = findWorkflow(doc, patch.workflow);
+      const fromState = wf?.states[patch.fromState];
+      const toIndex = fromState?.transitions.findIndex((t) => t.name === patch.transitionName);
       return {
         op: "moveTransitionSource",
         workflow: patch.workflow,
         fromState: patch.toState,
         toState: patch.fromState,
         transitionName: patch.transitionName,
+        toIndex: toIndex !== undefined && toIndex >= 0 ? toIndex : undefined,
       };
+    }
 
     case "addProcessor":
       // Cannot know the minted UUID pre-apply. Use dispatchTransaction for exact undo.
@@ -129,11 +134,7 @@ export function invertPatch(
     case "updateProcessor": {
       const p = findProcessor(doc, patch.processorUuid);
       if (!p) return noop();
-      const prior: Partial<Processor> = {};
-      for (const key of Object.keys(patch.updates) as Array<keyof Processor>) {
-        (prior as Record<string, unknown>)[key] = (p as unknown as Record<string, unknown>)[key];
-      }
-      return { op: "updateProcessor", processorUuid: patch.processorUuid, updates: prior };
+      return { op: "updateProcessor", processorUuid: patch.processorUuid, updates: structuredClone(p) };
     }
 
     case "removeProcessor": {
@@ -233,6 +234,34 @@ export function invertPatch(
       const prior = doc.meta.workflowUi[patch.workflow]?.comments?.[patch.commentId];
       if (!prior) return noop();
       return { op: "addComment", workflow: patch.workflow, comment: structuredClone(prior) };
+    }
+
+    case "setTransitionBlockPosition": {
+      const ptr = doc.meta.ids.transitions[patch.transitionId];
+      if (!ptr) return noop();
+      const prior = doc.meta.workflowUi[ptr.workflow]?.transitionPositions?.[patch.transitionId];
+      if (!prior) {
+        return { op: "removeTransitionBlockPosition", transitionId: patch.transitionId };
+      }
+      return {
+        op: "setTransitionBlockPosition",
+        transitionId: patch.transitionId,
+        x: prior.x,
+        y: prior.y,
+      };
+    }
+
+    case "removeTransitionBlockPosition": {
+      const ptr = doc.meta.ids.transitions[patch.transitionId];
+      if (!ptr) return noop();
+      const prior = doc.meta.workflowUi[ptr.workflow]?.transitionPositions?.[patch.transitionId];
+      if (!prior) return noop();
+      return {
+        op: "setTransitionBlockPosition",
+        transitionId: patch.transitionId,
+        x: prior.x,
+        y: prior.y,
+      };
     }
   }
 }

@@ -22,18 +22,19 @@
     "@cyoda/workflow-monaco": "workspace:*",
     "@cyoda/workflow-react": "workspace:*",
     "@cyoda/workflow-viewer": "workspace:*",
-    "monaco-editor": "^0.52.2",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "reactflow": "^11.11.4"
+    "monaco-editor": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "reactflow": "catalog:"
   },
   "devDependencies": {
-    "@testing-library/react": "^14.2.0",
-    "@playwright/test": "^1.45.0",
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "@vitejs/plugin-react": "^4.3.0",
-    "jsdom": "^24.0.0",
-    "vite": "^6.4.2"
+    "@testing-library/dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@playwright/test": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
+    "vite": "catalog:"
   }
 }

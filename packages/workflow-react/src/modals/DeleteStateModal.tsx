@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { WorkflowEditorDocument } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, fonts, radii } from "../style/tokens.js";
 
 export interface DeleteStateModalProps {
   document: WorkflowEditorDocument;
@@ -44,12 +45,12 @@ export function DeleteStateModal({
   return (
     <ModalFrame onCancel={onCancel}>
       <h2 style={{ margin: 0, fontSize: 16 }}>{messages.confirmDelete.title}</h2>
-      <p style={{ margin: "12px 0", fontSize: 13, color: "#475569" }}>
+      <p style={{ margin: "12px 0", fontSize: 13, color: colors.textSecondary }}>
         {messages.confirmDelete.message}
       </p>
-      <div style={{ padding: 8, background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 4, fontSize: 13 }}>
+      <div style={{ padding: 8, background: colors.surfaceMuted, border: `1px solid ${colors.borderSubtle}`, borderRadius: radii.sm, fontSize: 13 }}>
         <strong>{stateCode}</strong>
-        <div style={{ color: "#475569" }}>
+        <div style={{ color: colors.textSecondary }}>
           {messages.confirmDelete.transitionsAffected}: {counts.outgoing + counts.incoming}
         </div>
       </div>
@@ -120,11 +121,13 @@ export function ModalFrame({
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "white",
-          borderRadius: 6,
+          borderRadius: radii.md,
           padding: 20,
           minWidth: 340,
           boxShadow: "0 10px 30px rgba(15,23,42,0.25)",
           outline: "none",
+          fontFamily: fonts.sans,
+          color: colors.textPrimary,
         }}
         data-testid="modal-frame"
       >
@@ -137,14 +140,14 @@ export function ModalFrame({
 const ghostBtn = {
   padding: "6px 12px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 13,
   cursor: "pointer",
 };
 const dangerBtn = {
   ...ghostBtn,
-  background: "#DC2626",
+  background: colors.danger,
   color: "white",
-  borderColor: "#DC2626",
+  borderColor: colors.danger,
 };

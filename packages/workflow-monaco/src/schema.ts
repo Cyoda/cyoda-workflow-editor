@@ -1,19 +1,17 @@
 import { ImportPayloadSchema } from "@cyoda/workflow-core";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import * as z from "zod";
 import type { JsonSchemaHandle, MonacoLike } from "./types.js";
 
 export const WORKFLOW_SCHEMA_URI = "https://cyoda.dev/schemas/workflow-import.schema.json";
 
 /**
  * JSON Schema generated from the Zod `ImportPayloadSchema` (spec §18.4).
- * [Inference] The spec says "derived from Zod"; this plan uses `zod-to-json-schema`
- * per the implementation plan — change the source here if the tool choice changes.
+ * Uses zod 4's native `z.toJSONSchema()` with the draft-7 target, which Monaco's
+ * JSON language service validates against. This avoids `zod-to-json-schema` which
+ * silently returns an empty definition when given a zod 4 schema at runtime.
  */
 export function workflowJsonSchema(): object {
-  return zodToJsonSchema(ImportPayloadSchema, {
-    name: "WorkflowImportPayload",
-    $refStrategy: "root",
-  });
+  return z.toJSONSchema(ImportPayloadSchema, { target: "draft-7" });
 }
 
 /**

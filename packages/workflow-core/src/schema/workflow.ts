@@ -3,6 +3,16 @@ import { CriterionSchema } from "./criterion.js";
 import { NameSchema } from "./name.js";
 import { ProcessorSchema } from "./processor.js";
 
+/**
+ * Transition-level scheduling (cyoda-go v0.8.0). A schema/SPI placeholder: a
+ * scheduled transition can be configured and imported, but the workflow engine
+ * does not yet execute it. The field does not exist in the v0.7 wire format.
+ */
+export const TransitionScheduleSchema = z.object({
+  delayMs: z.number().int().positive(),
+  timeoutMs: z.number().int().positive().optional(),
+});
+
 export const TransitionSchema = z.object({
   name: NameSchema,
   next: NameSchema,
@@ -10,10 +20,13 @@ export const TransitionSchema = z.object({
   disabled: z.boolean().default(false),
   criterion: CriterionSchema.optional(),
   processors: z.array(ProcessorSchema).optional(),
+  schedule: TransitionScheduleSchema.optional(),
 });
 
 export const StateSchema = z.object({
-  transitions: z.array(TransitionSchema),
+  // cyoda-go export serializes a transition-less state as `{}` (omits the
+  // `transitions` key). Default to `[]` so such exports parse. See issue #21.
+  transitions: z.array(TransitionSchema).default([]),
 });
 
 export const WorkflowSchema = z.object({
@@ -21,7 +34,10 @@ export const WorkflowSchema = z.object({
   name: NameSchema,
   desc: z.string().optional(),
   initialState: NameSchema,
-  active: z.boolean(),
+  // The server marks `active` optional in WorkflowConfigurationDto and import
+  // forces it true regardless; default to true so an export omitting it parses.
+  // See issue #23.
+  active: z.boolean().optional().default(true),
   criterion: CriterionSchema.optional(),
   states: z
     .record(NameSchema, StateSchema)

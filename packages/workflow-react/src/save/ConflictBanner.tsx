@@ -1,4 +1,5 @@
 import { useMessages } from "../i18n/context.js";
+import { colors, radii } from "../style/tokens.js";
 
 export interface ConflictBannerProps {
   onReload: () => void;
@@ -15,9 +16,9 @@ export function ConflictBanner({ onReload, onForceOverwrite }: ConflictBannerPro
     <div
       style={{
         padding: "10px 14px",
-        background: "#FEF3C7",
-        borderBottom: "1px solid #F59E0B",
-        color: "#78350F",
+        background: colors.warningBg,
+        borderBottom: `1px solid ${colors.warning}`,
+        color: colors.warning,
         fontSize: 13,
         display: "flex",
         alignItems: "center",
@@ -38,7 +39,7 @@ export function ConflictBanner({ onReload, onForceOverwrite }: ConflictBannerPro
       <button
         type="button"
         onClick={onForceOverwrite}
-        style={{ ...btn, background: "#DC2626", color: "white", borderColor: "#DC2626" }}
+        style={{ ...btn, background: colors.danger, color: "white", borderColor: colors.danger }}
         data-testid="conflict-force"
       >
         {messages.conflict.forceOverwrite}
@@ -50,8 +51,8 @@ export function ConflictBanner({ onReload, onForceOverwrite }: ConflictBannerPro
 const btn = {
   padding: "4px 10px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 12,
   cursor: "pointer",
 };

@@ -1,16 +1,34 @@
-import { outputWorkflow } from "../normalize/output.js";
+import {
+  type CyodaSchemaVersion,
+  getDialect,
+  LATEST_CYODA_VERSION,
+} from "../dialect/index.js";
 import type { WorkflowEditorDocument } from "../types/editor.js";
 import type { EntityIdentity } from "../types/session.js";
 import { prettyStringify } from "./stringify.js";
+
+interface SerializeOptions {
+  /** cyoda-go schema dialect to emit. Defaults to the document's recorded version, else latest. */
+  targetVersion?: CyodaSchemaVersion;
+}
+
+/** Render canonical workflows in the chosen dialect's wire shape. */
+function wireWorkflows(doc: WorkflowEditorDocument, options?: SerializeOptions) {
+  const version = options?.targetVersion ?? doc.meta.cyodaVersion ?? LATEST_CYODA_VERSION;
+  return getDialect(version).workflowsToWire(doc.session.workflows);
+}
 
 /**
  * Serialize an editor document as an ImportPayload JSON string.
  * Import payloads have keys ordered: importMode, workflows.
  */
-export function serializeImportPayload(doc: WorkflowEditorDocument): string {
+export function serializeImportPayload(
+  doc: WorkflowEditorDocument,
+  options?: SerializeOptions,
+): string {
   const payload = {
     importMode: doc.session.importMode,
-    workflows: doc.session.workflows.map(outputWorkflow),
+    workflows: wireWorkflows(doc, options),
   };
   return prettyStringify(payload);
 }
@@ -25,6 +43,7 @@ export function serializeImportPayload(doc: WorkflowEditorDocument): string {
 export function serializeExportPayload(
   doc: WorkflowEditorDocument,
   entity?: EntityIdentity,
+  options?: SerializeOptions,
 ): string {
   const e = entity ?? doc.session.entity;
   if (e == null) {
@@ -33,7 +52,7 @@ export function serializeExportPayload(
   const payload = {
     entityName: e.entityName,
     modelVersion: e.modelVersion,
-    workflows: doc.session.workflows.map(outputWorkflow),
+    workflows: wireWorkflows(doc, options),
   };
   return prettyStringify(payload);
 }
@@ -42,12 +61,15 @@ export function serializeExportPayload(
  * Serialize the full editor document (session + metadata) for in-app persistence.
  * Not for export to Cyoda.
  */
-export function serializeEditorDocument(doc: WorkflowEditorDocument): string {
+export function serializeEditorDocument(
+  doc: WorkflowEditorDocument,
+  options?: SerializeOptions,
+): string {
   return prettyStringify({
     session: {
       entity: doc.session.entity,
       importMode: doc.session.importMode,
-      workflows: doc.session.workflows.map(outputWorkflow),
+      workflows: wireWorkflows(doc, options),
     },
     meta: doc.meta,
   });

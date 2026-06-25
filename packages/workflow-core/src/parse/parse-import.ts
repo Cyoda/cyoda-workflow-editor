@@ -1,3 +1,4 @@
+import { getDialect, LATEST_CYODA_VERSION, type CyodaSchemaVersion } from "../dialect/index.js";
 import { assignSyntheticIds } from "../identity/assign.js";
 import { normalizeWorkflowInput } from "../normalize/input.js";
 import { ImportPayloadSchema } from "../schema/payload.js";
@@ -7,7 +8,6 @@ import type { ValidationIssue } from "../types/validation.js";
 import { validateSemantics } from "../validate/semantic.js";
 import { zodErrorToIssues } from "../validate/schema.js";
 import { ParseJsonError } from "./errors.js";
-import { normalizeOperatorAlias } from "./operator-alias.js";
 
 /** Maximum JSON string length accepted by the parser (5 MB). */
 export const MAX_JSON_BYTES = 5 * 1024 * 1024;
@@ -24,6 +24,12 @@ export interface ParseResult<T> {
   value?: T;
   document?: WorkflowEditorDocument;
   issues: ValidationIssue[];
+  /**
+   * Non-fatal notes from the dialect's `toCanonical` pass — e.g. a v0.7
+   * `scheduled` processor dropped during normalisation. Additive: callers that
+   * do not read it are unaffected. Omitted when there are no warnings.
+   */
+  warnings?: string[];
 }
 
 function parseJsonSafe(json: string): { ok: true; value: unknown } | { ok: false; err: string } {
@@ -62,7 +68,9 @@ function exceedsObjectDepth(value: unknown, limit: number): boolean {
 export function parseImportPayload(
   json: string,
   prior?: EditorMetadata,
+  options?: { sourceVersion?: CyodaSchemaVersion },
 ): ParseResult<ImportPayload> {
+  const sourceVersion = options?.sourceVersion ?? LATEST_CYODA_VERSION;
   if (json.length > MAX_JSON_BYTES) {
     throw new ParseJsonError(
       `Workflow JSON exceeds the maximum allowed size of ${MAX_JSON_BYTES / (1024 * 1024)} MB.`,
@@ -80,9 +88,12 @@ export function parseImportPayload(
     );
   }
 
-  let aliased: unknown;
+  let canonical: unknown;
+  let warnings: string[];
   try {
-    aliased = normalizeOperatorAlias(parsed.value);
+    const result = getDialect(sourceVersion).toCanonical(parsed.value);
+    canonical = result.value;
+    warnings = result.warnings;
   } catch (e) {
     return {
       ok: false,
@@ -96,9 +107,13 @@ export function parseImportPayload(
     };
   }
 
-  const schemaResult = ImportPayloadSchema.safeParse(coerceCanonicalDefaults(aliased));
+  const schemaResult = ImportPayloadSchema.safeParse(canonical);
   if (!schemaResult.success) {
-    return { ok: false, issues: zodErrorToIssues(schemaResult.error) };
+    return {
+      ok: false,
+      issues: zodErrorToIssues(schemaResult.error),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
   }
 
   const normalizedWorkflows = schemaResult.data.workflows.map(normalizeWorkflowInput);
@@ -109,6 +124,7 @@ export function parseImportPayload(
   };
 
   const meta = assignSyntheticIds(session, prior);
+  meta.cyodaVersion = sourceVersion;
   const document: WorkflowEditorDocument = { session, meta };
 
   const issues = validateSemantics(session, document);
@@ -119,59 +135,6 @@ export function parseImportPayload(
     value: { importMode: session.importMode, workflows: session.workflows },
     document,
     issues,
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
-}
-
-/**
- * Pre-schema coercion for canonical Cyoda workflow payloads that omit fields
- * the schema considers required with a known safe default.
- *
- * - Processor objects with a `name` but no `type` default to `"externalized"`.
- *   The `disabled` field on transitions is handled by `z.boolean().default(false)`
- *   directly in the schema.
- *
- * This runs before Zod validation on the raw parsed value so we can keep the
- * discriminated union schema unchanged and preserve round-trip semantics.
- */
-function coerceCanonicalDefaults(value: unknown): unknown {
-  if (!isObj(value)) return value;
-  const v = value as Record<string, unknown>;
-  if (!Array.isArray(v["workflows"])) return value;
-  return {
-    ...v,
-    workflows: v["workflows"].map((wf) => {
-      if (!isObj(wf)) return wf;
-      const w = wf as Record<string, unknown>;
-      if (!isObj(w["states"])) return wf;
-      const states = w["states"] as Record<string, unknown>;
-      const nextStates: Record<string, unknown> = {};
-      for (const [code, state] of Object.entries(states)) {
-        if (!isObj(state)) { nextStates[code] = state; continue; }
-        const s = state as Record<string, unknown>;
-        if (!Array.isArray(s["transitions"])) { nextStates[code] = state; continue; }
-        nextStates[code] = {
-          ...s,
-          transitions: s["transitions"].map((t) => {
-            if (!isObj(t)) return t;
-            const tx = t as Record<string, unknown>;
-            if (!Array.isArray(tx["processors"])) return t;
-            return {
-              ...tx,
-              processors: tx["processors"].map((p) => {
-                if (!isObj(p)) return p;
-                const proc = p as Record<string, unknown>;
-                if (typeof proc["type"] === "string") return p;
-                return { type: "externalized", ...proc };
-              }),
-            };
-          }),
-        };
-      }
-      return { ...w, states: nextStates };
-    }),
-  };
-}
-
-function isObj(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
 }

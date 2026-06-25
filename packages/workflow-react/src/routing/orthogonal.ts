@@ -34,6 +34,13 @@ export interface OrthogonalEdgeInput {
    * Positive shifts the mid-segment right (vertical paths) or down (horizontal paths).
    */
   parallelOffset?: number;
+  /**
+   * When set, overrides the computed mid-segment position.
+   * For bottom/top-exit edges (horizontal mid-segment) this is the Y of that segment.
+   * For left/right-exit edges (vertical mid-segment) this is the X of that segment.
+   * Clamping and obstacle nudging are bypassed when forcedMid is present.
+   */
+  forcedMid?: number;
 }
 
 export interface OrthogonalEdge {
@@ -47,7 +54,7 @@ export interface OrthogonalEdge {
 }
 
 const DEFAULT_TOLERANCE = 6;
-const DEFAULT_STUB = 16;
+const DEFAULT_STUB = 48;
 
 /**
  * Compute an orthogonal (polyline) edge path between two anchor points.
@@ -76,6 +83,7 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
     alignmentTolerance = DEFAULT_TOLERANCE,
     stubLength = DEFAULT_STUB,
     parallelOffset = 0,
+    forcedMid,
   } = input;
 
   if (routePoints && routePoints.length >= 2) {
@@ -142,12 +150,14 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
 
   if (sourceAxis === "vertical") {
     // mid segment is horizontal; parallelOffset shifts it up/down
-    let midY = (sStub.y + tStub.y) / 2 + parallelOffset;
-    // Clamp so the first and last segments always exit/enter along the handle normal.
-    if (sourceNormal.y > 0) midY = Math.max(midY, sStub.y);
-    else if (sourceNormal.y < 0) midY = Math.min(midY, sStub.y);
-    if (targetNormal.y > 0) midY = Math.max(midY, tStub.y);
-    else if (targetNormal.y < 0) midY = Math.min(midY, tStub.y);
+    let midY = forcedMid ?? ((sStub.y + tStub.y) / 2 + parallelOffset);
+    if (forcedMid === undefined) {
+      // Clamp so the first and last segments always exit/enter along the handle normal.
+      if (sourceNormal.y > 0) midY = Math.max(midY, sStub.y);
+      else if (sourceNormal.y < 0) midY = Math.min(midY, sStub.y);
+      if (targetNormal.y > 0) midY = Math.max(midY, tStub.y);
+      else if (targetNormal.y < 0) midY = Math.min(midY, tStub.y);
+    }
     // When facing normals conflict (e.g. bottom→top with insufficient space), the
     // target clamp re-violates the source constraint. Fall back to a staircase path
     // that routes through both explicit stubs so the source always exits correctly.
@@ -165,22 +175,28 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
         { x: tx, y: ty },
       ];
     } else {
-      midY = nudgeHorizontalLine(sStub.x, tStub.x, midY, obstacles);
+      if (forcedMid === undefined) midY = nudgeHorizontalLine(sStub.x, tStub.x, midY, obstacles);
       path = [
         { x: sx, y: sy },
         { x: sStub.x, y: midY },
         { x: tStub.x, y: midY },
+        // Route through the target stub so the last segment stays orthogonal
+        // when source and target normals are on different axes (e.g. bottom→left).
+        // simplify() collapses this to the original 4-point path when co-linear.
+        { x: tStub.x, y: tStub.y },
         { x: tx, y: ty },
       ];
     }
   } else {
     // mid segment is vertical; parallelOffset shifts it left/right
-    let midX = (sStub.x + tStub.x) / 2 + parallelOffset;
-    // Clamp so the first and last segments always exit/enter along the handle normal.
-    if (sourceNormal.x > 0) midX = Math.max(midX, sStub.x);
-    else if (sourceNormal.x < 0) midX = Math.min(midX, sStub.x);
-    if (targetNormal.x > 0) midX = Math.max(midX, tStub.x);
-    else if (targetNormal.x < 0) midX = Math.min(midX, tStub.x);
+    let midX = forcedMid ?? ((sStub.x + tStub.x) / 2 + parallelOffset);
+    if (forcedMid === undefined) {
+      // Clamp so the first and last segments always exit/enter along the handle normal.
+      if (sourceNormal.x > 0) midX = Math.max(midX, sStub.x);
+      else if (sourceNormal.x < 0) midX = Math.min(midX, sStub.x);
+      if (targetNormal.x > 0) midX = Math.max(midX, tStub.x);
+      else if (targetNormal.x < 0) midX = Math.min(midX, tStub.x);
+    }
     // When facing normals conflict (e.g. left→right with insufficient space), the
     // target clamp re-violates the source constraint. Fall back to a staircase path.
     const srcViolatedX =
@@ -197,11 +213,15 @@ export function orthogonalEdgePath(input: OrthogonalEdgeInput): OrthogonalEdge {
         { x: tx, y: ty },
       ];
     } else {
-      midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
+      if (forcedMid === undefined) midX = nudgeVerticalLine(sStub.y, tStub.y, midX, obstacles);
       path = [
         { x: sx, y: sy },
         { x: midX, y: sStub.y },
         { x: midX, y: tStub.y },
+        // Route through the target stub so the last segment stays orthogonal
+        // when source and target normals are on different axes (e.g. right→top).
+        // simplify() collapses this to the original 4-point path when co-linear.
+        { x: tStub.x, y: tStub.y },
         { x: tx, y: ty },
       ];
     }

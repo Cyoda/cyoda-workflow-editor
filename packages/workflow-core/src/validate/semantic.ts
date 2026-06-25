@@ -5,7 +5,9 @@ import {
 } from "../criteria/operators.js";
 import { validateJsonPathSubset } from "../criteria/jsonPathSubset.js";
 import { idFor as identityIdFor } from "../identity/id-for.js";
+import { NAME_MAX_LENGTH } from "../schema/name.js";
 import type { Criterion } from "../types/criterion.js";
+import { OPERATOR_TYPES, type OperatorType } from "../types/operator.js";
 import type { WorkflowEditorDocument } from "../types/editor.js";
 import type { WorkflowSession } from "../types/session.js";
 import type { ValidationIssue } from "../types/validation.js";
@@ -13,6 +15,37 @@ import type { Transition, Workflow } from "../types/workflow.js";
 import { isValidName, walkCriteria } from "./helpers.js";
 
 const LIFECYCLE_FIELDS = new Set(["state", "creationDate", "previousTransition"]);
+
+/**
+ * Operator warnings for a criterion's `operation` (issue #22).
+ * - Unknown operator (outside the editor's known catalogue): non-blocking
+ *   `operator-not-recognized` — preserved for round-trip, can't be validated.
+ * - Known but engine-unimplemented: existing `unsupported-operator` warning.
+ * Never an error: imports must always round-trip.
+ */
+function operatorWarnings(operation: string, where: CriterionLoc): ValidationIssue[] {
+  if (!OPERATOR_TYPES.has(operation as OperatorType)) {
+    return [
+      {
+        severity: "warning",
+        code: "operator-not-recognized",
+        message: `Operator "${operation}" is not in the editor's known operator set; it is preserved for round-trip but cannot be validated or edited (at ${describe(where)}).`,
+        detail: { operation },
+      },
+    ];
+  }
+  if (UNSUPPORTED_OPERATORS.has(operation as OperatorType)) {
+    return [
+      {
+        severity: "warning",
+        code: "unsupported-operator",
+        message: `Operator "${operation}" is not implemented by the engine (at ${describe(where)}).`,
+        detail: { operation },
+      },
+    ];
+  }
+  return [];
+}
 
 /**
  * Full semantic validation over a workflow session.
@@ -99,6 +132,7 @@ function validateWorkflow(
       message: `Workflow name "${wf.name}" is invalid.`,
     });
   }
+  issues.push(...nameLengthIssues(wf.name, `Workflow name "${wf.name}"`));
 
   for (const [stateCode, state] of Object.entries(wf.states)) {
     if (!isValidName(stateCode)) {
@@ -108,6 +142,7 @@ function validateWorkflow(
         message: `State code "${stateCode}" is invalid.`,
       });
     }
+    issues.push(...nameLengthIssues(stateCode, `State code "${stateCode}"`));
 
     // duplicate transition names within a state
     const transitionSeen = new Map<string, number>();
@@ -120,6 +155,7 @@ function validateWorkflow(
           message: `Transition name "${t.name}" is invalid.`,
         });
       }
+      issues.push(...nameLengthIssues(t.name, `Transition name "${t.name}"`));
       if (!(t.next in wf.states)) {
         issues.push({
           severity: "error",
@@ -140,13 +176,7 @@ function validateWorkflow(
               message: `Processor name "${p.name}" is invalid.`,
             });
           }
-          if (p.type === "scheduled" && p.config.transition.length === 0) {
-            issues.push({
-              severity: "error",
-              code: "scheduled-missing-target",
-              message: `Scheduled processor "${p.name}" has empty target transition.`,
-            });
-          }
+          issues.push(...nameLengthIssues(p.name, `Processor name "${p.name}"`));
           if (
             p.type === "externalized" &&
             p.startNewTxOnDispatch === true &&
@@ -196,22 +226,6 @@ function validateWorkflow(
           code: "disabled-transition-on-active-workflow",
           message: `Transition "${t.name}" is disabled in active workflow "${wf.name}".`,
         });
-      }
-
-      // scheduled-target-unresolved
-      if (t.processors) {
-        for (const p of t.processors) {
-          if (p.type === "scheduled") {
-            const names = collectTransitionNames(wf);
-            if (!names.has(p.config.transition)) {
-              issues.push({
-                severity: "warning",
-                code: "scheduled-target-unresolved",
-                message: `Scheduled processor "${p.name}" targets unknown transition "${p.config.transition}" in workflow.`,
-              });
-            }
-          }
-        }
       }
     }
     for (const [name, count] of transitionSeen) {
@@ -344,6 +358,7 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
             break;
           }
         }
+        issues.push(...operatorWarnings(criterion.operation, where));
         break;
       }
       case "lifecycle":
@@ -354,14 +369,7 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
             message: `Lifecycle criterion field "${criterion.field}" is invalid.`,
           });
         }
-        if (UNSUPPORTED_OPERATORS.has(criterion.operation)) {
-          issues.push({
-            severity: "warning",
-            code: "unsupported-operator",
-            message: `Operator "${criterion.operation}" is not implemented by the engine (at ${describe(where)}).`,
-            detail: { operation: criterion.operation },
-          });
-        }
+        issues.push(...operatorWarnings(criterion.operation, where));
         break;
       case "group":
         if (criterion.operator === "NOT") {
@@ -401,14 +409,7 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
           });
         }
 
-        if (UNSUPPORTED_OPERATORS.has(criterion.operation)) {
-          issues.push({
-            severity: "warning",
-            code: "unsupported-operator",
-            message: `Operator "${criterion.operation}" is not implemented by the engine (at ${describe(where)}).`,
-            detail: { operation: criterion.operation },
-          });
-        }
+        issues.push(...operatorWarnings(criterion.operation, where));
 
         if (criterion.operation === "BETWEEN" || criterion.operation === "BETWEEN_INCLUSIVE") {
           if (!Array.isArray(criterion.value) || criterion.value.length !== 2) {
@@ -561,12 +562,21 @@ function reachableAutoStates(wf: Workflow): Set<string> {
   return visited;
 }
 
-function collectTransitionNames(wf: Workflow): Set<string> {
-  const out = new Set<string>();
-  for (const state of Object.values(wf.states)) {
-    for (const t of state.transitions) out.add(t.name);
-  }
-  return out;
+/**
+ * cyoda-go v0.8.0 caps every name at {@link NAME_MAX_LENGTH} characters and
+ * rejects an over-long name with a 400. Mirror that as a blocking issue so the
+ * editor stops a save before it reaches the server.
+ */
+function nameLengthIssues(name: string, label: string): ValidationIssue[] {
+  if (name.length <= NAME_MAX_LENGTH) return [];
+  return [
+    {
+      severity: "error",
+      code: "name-too-long",
+      message: `${label} exceeds the ${NAME_MAX_LENGTH}-character limit (${name.length}).`,
+      detail: { length: name.length, max: NAME_MAX_LENGTH },
+    },
+  ];
 }
 
 type CriterionLoc =

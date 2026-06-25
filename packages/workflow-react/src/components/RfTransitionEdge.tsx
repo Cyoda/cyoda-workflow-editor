@@ -1,10 +1,13 @@
-import { memo, useContext } from "react";
+import { memo, useContext, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BaseEdge,
   EdgeLabelRenderer,
-  type Position,
+  Position,
   type EdgeProps,
+  useReactFlow,
 } from "reactflow";
+import type { Transition } from "@cyoda/workflow-core";
 import type { TransitionEdge } from "@cyoda/workflow-graph";
 import {
   badgesFor,
@@ -17,6 +20,7 @@ import {
 import { orthogonalEdgePath, type Rect } from "../routing/orthogonal.js";
 import { arrowMarkerId } from "./ArrowMarkers.js";
 import { HoverContext } from "./HoverContext.js";
+import { TransitionTooltip } from "./TransitionTooltip.js";
 
 export interface RfEdgeData {
   edge: TransitionEdge;
@@ -43,6 +47,17 @@ export interface RfEdgeData {
   liveTargetRect?: Rect;
   /** Lateral mid-segment offset when multiple edges share the same source/target pair. */
   parallelOffset?: number;
+  /** Pre-computed offsets applied to the label to resolve overlaps (slide along the segment). */
+  labelXOffset?: number;
+  labelYOffset?: number;
+  /** Full transition data for the tooltip popup. */
+  transition?: Transition;
+  /** Called when the user finishes dragging the label. Receives edge id and new flow-coordinate centre. */
+  onLabelDragEnd?: (edgeId: string, x: number, y: number) => void;
+  /** True when this label's mid-segment position is manually pinned by the user. */
+  isPinned?: boolean;
+  /** Overrides the computed mid-segment Y (horiz) or X (vert) for user-pinned positions. */
+  forcedMid?: number;
 }
 
 function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
@@ -57,8 +72,16 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     data,
     selected,
   } = props;
-  if (!data) return null;
   const { highlightSet } = useContext(HoverContext);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [localForcedMid, setLocalForcedMid] = useState<number | null>(null);
+  const isDraggingRef = useRef(false);
+  const didDragRef = useRef(false);
+  const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const rf = useReactFlow();
+
+  if (!data) return null;
   const dimmed = highlightSet !== null && !highlightSet.has(id);
   const { edge, targetIsTerminal, obstacles, parallelOffset } = data;
   const resolvedSourceX = data.liveSource?.x ?? sourceX;
@@ -66,6 +89,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
   const resolvedTargetX = data.liveTarget?.x ?? targetX;
   const resolvedTargetY = data.liveTarget?.y ?? targetY;
 
+  const effectiveForcedMid = localForcedMid ?? data.forcedMid;
   const { path, labelX, labelY } = orthogonalEdgePath({
     sourceX: resolvedSourceX,
     sourceY: resolvedSourceY,
@@ -73,10 +97,11 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
     targetY: resolvedTargetY,
     sourcePosition: data.liveSourcePosition ?? sourcePosition,
     targetPosition: data.liveTargetPosition ?? targetPosition,
+    forcedMid: effectiveForcedMid,
     sourceRect: data.liveSourceRect,
     targetRect: data.liveTargetRect,
     obstacles,
-    parallelOffset,
+    parallelOffset: effectiveForcedMid !== undefined ? 0 : parallelOffset,
   });
 
   const color = laneColor(edge, { targetIsTerminal });
@@ -110,7 +135,7 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
         <div
           style={{
             position: "absolute",
-            transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            transform: `translate(-50%, -50%) translate(${labelX + (data.labelXOffset ?? 0)}px, ${labelY + (data.labelYOffset ?? 0)}px)`,
             opacity: dimmed ? 0.15 : 1,
             transition: "opacity 0.15s ease",
             fontFamily: typography.fontFamily,
@@ -119,7 +144,10 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
             border: `1px solid ${workflowPalette.edgeLabel.border}`,
             borderRadius: geometry.labelPill.radius,
             padding: `${geometry.labelPill.paddingY}px ${geometry.labelPill.paddingX}px`,
-            boxShadow: "0 1px 2px rgba(15,23,42,0.08)",
+            boxShadow: data.isPinned
+              ? "0 1px 2px rgba(15,23,42,0.08), inset 0 0 0 1px rgba(99,102,241,0.3)"
+              : "0 1px 2px rgba(15,23,42,0.08)",
+            cursor: data.onLabelDragEnd ? (isDragging ? "grabbing" : "grab") : "default",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -130,6 +158,62 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           className="nodrag nopan"
           data-testid={`rf-edge-label-${edge.id}`}
           title={edge.summary.full !== edge.summary.display ? edge.summary.full : undefined}
+          onMouseEnter={data.transition ? (e) => setTooltipPos({ x: e.clientX, y: e.clientY }) : undefined}
+          onMouseMove={data.transition ? (e) => { setTooltipPos({ x: e.clientX, y: e.clientY }); } : undefined}
+          onMouseLeave={data.transition ? () => setTooltipPos(null) : undefined}
+          onPointerDown={data.onLabelDragEnd ? (e) => {
+            if (e.button !== 0) return;
+            e.stopPropagation();
+            e.preventDefault();
+            setTooltipPos(null);
+            const { x: vpX, y: vpY, zoom } = rf.getViewport();
+            const flowX = (e.clientX - vpX) / zoom;
+            const flowY = (e.clientY - vpY) / zoom;
+            const labelCX = labelX + (data.labelXOffset ?? 0);
+            const labelCY = labelY + (data.labelYOffset ?? 0);
+            dragOffsetRef.current = { x: flowX - labelCX, y: flowY - labelCY };
+            isDraggingRef.current = true;
+            didDragRef.current = false;
+            setIsDragging(true);
+            setLocalForcedMid(effectiveForcedMid ?? labelCY);
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+          } : undefined}
+          onPointerMove={data.onLabelDragEnd ? (e) => {
+            if (!isDraggingRef.current) return;
+            e.stopPropagation();
+            didDragRef.current = true;
+            const { x: vpX, y: vpY, zoom } = rf.getViewport();
+            const newFlowX = (e.clientX - vpX) / zoom;
+            const newFlowY = (e.clientY - vpY) / zoom;
+            const effSrcPos = data.liveSourcePosition ?? sourcePosition;
+            const isHorizMid = effSrcPos === Position.Bottom || effSrcPos === Position.Top;
+            setLocalForcedMid(isHorizMid
+              ? newFlowY - dragOffsetRef.current.y
+              : newFlowX - dragOffsetRef.current.x);
+          } : undefined}
+          onPointerUp={data.onLabelDragEnd ? (e) => {
+            if (!isDraggingRef.current) return;
+            e.stopPropagation();
+            isDraggingRef.current = false;
+            setIsDragging(false);
+            setLocalForcedMid(null);
+            if (!didDragRef.current) return;
+            const { x: vpX, y: vpY, zoom } = rf.getViewport();
+            const finalX = (e.clientX - vpX) / zoom - dragOffsetRef.current.x;
+            const finalY = (e.clientY - vpY) / zoom - dragOffsetRef.current.y;
+            data.onLabelDragEnd!(id, finalX, finalY);
+          } : undefined}
+          onPointerCancel={data.onLabelDragEnd ? () => {
+            isDraggingRef.current = false;
+            setIsDragging(false);
+            setLocalForcedMid(null);
+          } : undefined}
+          onClick={data.onLabelDragEnd ? (e) => {
+            if (didDragRef.current) {
+              e.stopPropagation();
+              didDragRef.current = false;
+            }
+          } : undefined}
         >
           <div
             style={{
@@ -175,6 +259,10 @@ function RfTransitionEdgeImpl(props: EdgeProps<RfEdgeData>) {
           )}
         </div>
       </EdgeLabelRenderer>
+      {tooltipPos && data.transition && createPortal(
+        <TransitionTooltip transition={data.transition} x={tooltipPos.x} y={tooltipPos.y} />,
+        document.body,
+      )}
     </>
   );
 }

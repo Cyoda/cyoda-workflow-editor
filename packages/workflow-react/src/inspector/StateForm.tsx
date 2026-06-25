@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { DomainPatch, State, ValidationIssue, Workflow } from "@cyoda/workflow-core";
 import { NAME_REGEX } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, radii } from "../style/tokens.js";
 import { FieldGroup, TextField } from "./fields.js";
 
 export function StateForm({
@@ -53,12 +54,13 @@ export function StateForm({
       <TextField
         label={messages.inspector.name}
         value={stateCode}
+        entityKey={`${workflow.name}:${stateCode}`}
         disabled={disabled}
         onCommit={handleRename}
         testId="inspector-state-name"
       />
       {renameError && (
-        <div role="alert" style={{ color: "#B91C1C", fontSize: 12 }}>
+        <div role="alert" style={{ color: colors.danger, fontSize: 12 }}>
           {renameError}
         </div>
       )}
@@ -66,10 +68,10 @@ export function StateForm({
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {isInitial && <StateBadge color="#15803d" bg="#f0fdf4" label="Initial" />}
           {isTerminal && <StateBadge color="#0369a1" bg="#eff6ff" label="Terminal" />}
-          {isUnreachable && <StateBadge color="#b45309" bg="#fffbeb" label="Unreachable" />}
+          {isUnreachable && <StateBadge color={colors.warning} bg={colors.warningBg} label="Unreachable" />}
         </div>
       )}
-      <div style={{ fontSize: 12, color: "#475569" }}>
+      <div style={{ fontSize: 12, color: colors.textSecondary }}>
         {outgoing} outgoing · {incoming} incoming
       </div>
       {!isInitial && !disabled && (
@@ -92,11 +94,11 @@ export function StateForm({
               role="alert"
               style={{
                 padding: "4px 8px",
-                background: issue.severity === "error" ? "#FEF2F2" : "#FFFBEB",
-                border: `1px solid ${issue.severity === "error" ? "#FCA5A5" : "#FCD34D"}`,
-                borderRadius: 4,
+                background: issue.severity === "error" ? colors.dangerBg : colors.warningBg,
+                border: `1px solid ${issue.severity === "error" ? colors.dangerBorder : colors.warningBorder}`,
+                borderRadius: radii.sm,
                 fontSize: 12,
-                color: issue.severity === "error" ? "#B91C1C" : "#B45309",
+                color: issue.severity === "error" ? colors.danger : colors.warning,
               }}
             >
               {issue.message}
@@ -156,8 +158,8 @@ const ghostBtn = {
   alignSelf: "flex-start" as const,
   padding: "5px 10px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 13,
   cursor: "pointer",
 };
@@ -165,10 +167,10 @@ const ghostBtn = {
 const dangerBtn = {
   alignSelf: "flex-start" as const,
   padding: "6px 10px",
-  background: "#FEF2F2",
-  border: "1px solid #FCA5A5",
-  color: "#B91C1C",
-  borderRadius: 4,
+  background: colors.dangerBg,
+  border: `1px solid ${colors.dangerBorder}`,
+  color: colors.danger,
+  borderRadius: radii.sm,
   fontSize: 13,
   cursor: "pointer",
 };

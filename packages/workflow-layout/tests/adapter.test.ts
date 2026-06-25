@@ -138,6 +138,68 @@ const branching = {
   ],
 };
 
+/**
+ * NDA fixture: SENT branches to SIGNED, EXPIRED, DECLINED, REVOKED. SIGNED
+ * has its own edges to EXPIRED and REVOKED (classified as loopback since
+ * both are already reached directly from SENT), and DECLINED loops back to
+ * SENT. SIGNED shares a same-level link with both EXPIRED and REVOKED.
+ */
+const ndaWorkflow = {
+  importMode: "MERGE",
+  workflows: [
+    {
+      version: "1.0",
+      name: "wf",
+      initialState: "DRAFT",
+      active: true,
+      states: {
+        DRAFT: {
+          transitions: [
+            { name: "start_validation", next: "VALIDATING", manual: false, disabled: false },
+          ],
+        },
+        VALIDATING: {
+          transitions: [
+            { name: "check_validation", next: "ERRORED", manual: false, disabled: false },
+          ],
+        },
+        ERRORED: {
+          transitions: [
+            { name: "proceed", next: "VALIDATED", manual: false, disabled: false },
+            { name: "retry_validation", next: "VALIDATING", manual: true, disabled: false },
+          ],
+        },
+        VALIDATED: {
+          transitions: [
+            { name: "send_nda", next: "SENT", manual: false, disabled: false },
+          ],
+        },
+        SENT: {
+          transitions: [
+            { name: "sign_nda", next: "SIGNED", manual: true, disabled: false },
+            { name: "expire_sent_nda", next: "EXPIRED", manual: false, disabled: false },
+            { name: "decline_nda", next: "DECLINED", manual: true, disabled: false },
+            { name: "revoke_sent_nda", next: "REVOKED", manual: true, disabled: false },
+          ],
+        },
+        DECLINED: {
+          transitions: [
+            { name: "correct_acceptance", next: "SENT", manual: true, disabled: false },
+          ],
+        },
+        SIGNED: {
+          transitions: [
+            { name: "revoke_nda", next: "REVOKED", manual: true, disabled: false },
+            { name: "expire_signed_nda", next: "EXPIRED", manual: false, disabled: false },
+          ],
+        },
+        EXPIRED: { transitions: [] },
+        REVOKED: { transitions: [] },
+      },
+    },
+  ],
+};
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function round(n: number) { return Math.round(n); }
@@ -288,5 +350,26 @@ describe("regression: branching graph", () => {
     expect(result.positions.get(startNode.id)!.y).toBeLessThan(
       result.positions.get(endNode.id)!.y,
     );
+  });
+});
+
+describe("regression: sibling reordering for same-level links", () => {
+  test("SIGNED sits between its same-level-linked siblings EXPIRED and REVOKED", async () => {
+    const graph = project(ndaWorkflow);
+    const result = await layoutGraph(graph, { preset: "configuratorReadable" });
+    const snap = posSnapshot(result.positions, ["SIGNED", "EXPIRED", "REVOKED", "DECLINED"], graph);
+    const signedX = (snap.SIGNED as { x: number }).x;
+    const expiredX = (snap.EXPIRED as { x: number }).x;
+    const revokedX = (snap.REVOKED as { x: number }).x;
+    const declinedX = (snap.DECLINED as { x: number }).x;
+
+    const linkedXs = [expiredX, revokedX];
+    expect(signedX).toBeGreaterThan(Math.min(...linkedXs));
+    expect(signedX).toBeLessThan(Math.max(...linkedXs));
+
+    // DECLINED has no same-level links and should sit outside that span.
+    const spanMin = Math.min(signedX, ...linkedXs);
+    const spanMax = Math.max(signedX, ...linkedXs);
+    expect(declinedX < spanMin || declinedX > spanMax).toBe(true);
   });
 });

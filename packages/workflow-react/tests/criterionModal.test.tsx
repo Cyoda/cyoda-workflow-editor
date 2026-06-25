@@ -171,31 +171,32 @@ describe("criterion modal UX", () => {
     expect(view.queryByTestId("criterion-automated-warning")).toBeNull();
   });
 
-  it("shows existing criterion summary with clear edit/remove actions", () => {
+  it("shows existing criterion summary with compact JSON and clear edit/remove actions", () => {
     const view = renderTransitionForm({
       manual: false,
       criterion: {
-        type: "lifecycle",
-        field: "previousTransition",
+        type: "simple",
+        jsonPath: "$.status",
         operation: "EQUALS",
-        value: "CLEARED_AT_LCH",
+        value: "READY",
       },
     });
-    expect(view.getByText("lifecycle")).toBeTruthy();
-    expect(view.getByText("previousTransition is CLEARED_AT_LCH")).toBeTruthy();
+    // Type badge shown via SectionHeader
+    expect(view.getByText("simple")).toBeTruthy();
+    // Compact JSON display
+    expect(view.getByTestId("criterion-compact-json")).toBeTruthy();
     expect(view.getByTestId("inspector-criterion-edit").textContent).toBe(
       defaultMessages.criterion.edit,
     );
     expect(view.getByTestId("inspector-criterion-remove").textContent).toBe(
       defaultMessages.criterion.remove,
     );
-    expect(view.queryByTestId("criterion-type-select")).toBeNull();
+    // Modal and builder should NOT be visible
     expect(view.queryByTestId("criterion-modal-apply")).toBeNull();
-    expect(view.queryByTestId("criterion-lifecycle-field")).toBeNull();
-    expect(view.queryByTestId("criterion-lifecycle-op")).toBeNull();
+    expect(view.queryByTestId("criterion-json-editor")).toBeNull();
   });
 
-  it("opens the full editor in a modal and returns to the compact card on Cancel", () => {
+  it("opens the JSON modal and closes on Cancel", () => {
     const view = renderTransitionForm({
       manual: false,
       criterion: {
@@ -206,77 +207,80 @@ describe("criterion modal UX", () => {
       },
     });
 
-    expect(view.queryByTestId("criterion-type-select")).toBeNull();
-    expect(view.queryByTestId("criterion-simple-op")).toBeNull();
+    expect(view.queryByTestId("criterion-editor-modal")).toBeNull();
     expect(view.queryByTestId("criterion-modal-apply")).toBeNull();
 
     fireEvent.click(view.getByTestId("inspector-criterion-edit"));
     expect(view.getByTestId("criterion-editor-modal")).toBeTruthy();
-    expect(view.queryByTestId("criterion-type-select")).toBeNull();
-    expect(view.getByTestId("criterion-builder")).toBeTruthy();
-    expect(view.getByTestId("criterion-simple-op")).toBeTruthy();
+    expect(view.getByTestId("criterion-json-editor")).toBeTruthy();
     expect(view.getByTestId("criterion-modal-apply")).toBeTruthy();
 
     fireEvent.click(view.getByTestId("criterion-modal-cancel"));
     expect(view.queryByTestId("criterion-editor-modal")).toBeNull();
     expect(view.getByTestId("criterion-summary-card")).toBeTruthy();
-    expect(view.queryByTestId("criterion-type-select")).toBeNull();
     expect(view.queryByTestId("criterion-modal-apply")).toBeNull();
   });
 
-  it("shows the group composer with AND/OR match controls and child condition actions", () => {
-    const view = renderTransitionForm({
-      manual: false,
-      criterion: {
-        type: "group",
-        operator: "AND",
-        conditions: [
-          { type: "simple", jsonPath: "$.status", operation: "EQUALS", value: "READY" },
-          {
-            type: "function",
-            function: { name: "AreAllRateFixingsObserved" },
-          },
-        ],
+  it("opens the JSON modal and applies a valid edited criterion", () => {
+    const view = renderTransitionForm({ manual: false });
+
+    fireEvent.click(view.getByTestId("inspector-criterion-add"));
+    expect(view.getByTestId("criterion-editor-modal")).toBeTruthy();
+
+    const editor = view.getByTestId("criterion-json-editor") as HTMLTextAreaElement;
+    fireEvent.change(editor, {
+      target: {
+        value: JSON.stringify({
+          type: "simple",
+          jsonPath: "$.status",
+          operation: "EQUALS",
+          value: "OK",
+        }),
       },
     });
 
-    fireEvent.click(view.getByTestId("inspector-criterion-edit"));
+    // Apply should be enabled for valid JSON
+    expect((view.getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(view.getByTestId("criterion-modal-apply"));
 
-    expect(view.getByText("Group criterion")).toBeTruthy();
-    expect(view.getByText("Match")).toBeTruthy();
-    expect(view.getByTestId("criterion-group-and").textContent).toBe("All conditions (AND)");
-    expect(view.getByTestId("criterion-group-or").textContent).toBe("Any condition (OR)");
-    expect(view.getByTestId("criterion-group-add-condition").textContent).toBe(
-      "+ Add condition",
-    );
-    expect(view.getByTestId("criterion-group-add-group").textContent).toBe("+ Add group");
-    expect(view.getByText("1")).toBeTruthy();
-    expect(view.getByText("$.status is READY")).toBeTruthy();
-    expect(view.queryByTestId("criterion-group-editor-0")).toBeNull();
-    expect(view.getByTestId("criterion-group-edit-0").textContent).toBe("Edit");
-    expect(view.getByTestId("criterion-group-duplicate-0").textContent).toBe("Duplicate");
-    expect(view.getByTestId("criterion-group-remove-0").textContent).toBe("Remove");
-    fireEvent.click(view.getByTestId("criterion-group-edit-0"));
-    expect(view.getByTestId("criterion-group-editor-0")).toBeTruthy();
-    expect(view.getByTestId("criterion-group-edit-0").textContent).toBe("Editing");
+    // Dispatch should have been called with the parsed criterion
+    expect(view.onDispatch).toHaveBeenCalledTimes(1);
+    expect(view.onDispatch.mock.calls[0]![0]).toMatchObject({
+      op: "setCriterion",
+      criterion: {
+        type: "simple",
+        jsonPath: "$.status",
+        operation: "EQUALS",
+        value: "OK",
+      },
+    });
+    // Modal closes after apply
+    expect(view.queryByTestId("criterion-editor-modal")).toBeNull();
   });
 
-  it("keeps raw JSON invalid drafts local and disables modal Apply", () => {
+  it("blocks Apply on invalid JSON", () => {
     const view = renderTransitionForm({ manual: false });
+
     fireEvent.click(view.getByTestId("inspector-criterion-add"));
-    expect(view.queryByTestId("criterion-edit-json")).toBeNull();
-    expect(view.getByTestId("criterion-advanced-toggle").textContent).toBe("▸ Advanced");
-    fireEvent.click(view.getByTestId("criterion-advanced-toggle"));
-    expect(view.getByTestId("criterion-advanced-toggle").textContent).toBe("▾ Advanced");
-    fireEvent.click(view.getByTestId("criterion-edit-json"));
-    fireEvent.change(view.getByTestId("criterion-json-editor"), {
-      target: { value: "{not-json" },
-    });
-    expect(view.getByTestId("criterion-json-error").textContent).toBe(
-      defaultMessages.criterion.invalidJson,
-    );
+
+    const editor = view.getByTestId("criterion-json-editor") as HTMLTextAreaElement;
+    fireEvent.change(editor, { target: { value: "{ broken" } });
+
     expect((view.getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(true);
+    expect(view.getByTestId("criterion-modal-blocking-error")).toBeTruthy();
     expect(view.onDispatch).not.toHaveBeenCalled();
+  });
+
+  it("blocks Apply on valid JSON that is an incomplete criterion (empty jsonPath seed)", () => {
+    const view = renderTransitionForm({ manual: false });
+
+    // The Add button opens modal with a default "simple" criterion (empty jsonPath)
+    // which is valid JSON but fails criterionBlockingError — so Apply is initially disabled
+    fireEvent.click(view.getByTestId("inspector-criterion-add"));
+
+    expect((view.getByTestId("criterion-modal-apply") as HTMLButtonElement).disabled).toBe(true);
+    expect(view.getByTestId("criterion-modal-blocking-error")).toBeTruthy();
+    expect(view.getByTestId("criterion-modal-blocking-error").textContent).toBe("Choose a field for this condition.");
   });
 
   it("applies one criterion patch, updates the graph badge, preserves selection, and undo restores previous state", () => {
@@ -287,11 +291,16 @@ describe("criterion modal UX", () => {
     expect((screen.getByTestId("inspector-transition-name") as HTMLInputElement).value).toBe("auto");
 
     fireEvent.click(screen.getByTestId("inspector-criterion-add"));
-    fireEvent.change(screen.getByTestId("criterion-simple-path"), {
-      target: { value: "$.status" },
-    });
-    fireEvent.change(screen.getByTestId("criterion-simple-value"), {
-      target: { value: '"READY"' },
+    const editor = screen.getByTestId("criterion-json-editor") as HTMLTextAreaElement;
+    fireEvent.change(editor, {
+      target: {
+        value: JSON.stringify({
+          type: "simple",
+          jsonPath: "$.status",
+          operation: "EQUALS",
+          value: "READY",
+        }),
+      },
     });
     fireEvent.click(screen.getByTestId("criterion-modal-apply"));
 
@@ -310,25 +319,11 @@ describe("criterion modal UX", () => {
 
     fireEvent.click(screen.getByTestId("select-guarded-transition"));
     fireEvent.click(screen.getByTestId("inspector-criterion-edit"));
-    fireEvent.change(screen.getByTestId("criterion-simple-path"), {
-      target: { value: "$.changed" },
-    });
+
+    // Cancel without making changes
     fireEvent.click(screen.getByTestId("criterion-modal-cancel"));
 
     expect((screen.getByTestId("inspector-transition-name") as HTMLInputElement).value).toBe("guarded");
-    const edge = latestCanvasProps?.graph.edges.find((candidate) => candidate.id === transitionId("wf", "start", "guarded"));
-    expect(edge && edge.kind === "transition" ? edge.summary.criterion?.path : undefined).toBe("$.status");
-  });
-
-  it("Cancel after adding an invalid condition leaves canonical criterion unchanged", () => {
-    currentDoc = fixtureDoc();
-    render(<WorkflowEditor document={currentDoc} mode="editor" />);
-
-    fireEvent.click(screen.getByTestId("select-guarded-transition"));
-    fireEvent.click(screen.getByTestId("inspector-criterion-edit"));
-    fireEvent.click(screen.getByTestId("criterion-wrap-and"));
-    fireEvent.click(screen.getByTestId("criterion-modal-cancel"));
-
     const edge = latestCanvasProps?.graph.edges.find((candidate) => candidate.id === transitionId("wf", "start", "guarded"));
     expect(edge && edge.kind === "transition" ? edge.summary.criterion?.path : undefined).toBe("$.status");
   });

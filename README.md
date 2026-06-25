@@ -256,6 +256,11 @@ export function EditorPage() {
 - Toggle `manual` and `disabled` flags.
 - Reorder within source state.
 - Delete with `removeTransition` inverse for clean undo.
+- `transitions[].schedule` (`delayMs`, optional `timeoutMs`) is part of the
+  canonical model as of cyoda-go v0.8 and round-trips through the editor. It is a
+  schema/SPI placeholder — **configurable but not yet executed by the cyoda-go
+  runtime** (firing a scheduled transition returns 400). A dedicated
+  transition-inspector control for it is a pending follow-up.
 
 **Criteria** (on each transition)
 - Add / edit / delete criterion.
@@ -272,15 +277,15 @@ export function EditorPage() {
 - Add / edit / delete / duplicate / reorder processors.
 - Compact summary rows open a focused modal editor; Apply commits one patch
   and Cancel discards local edits.
-- Supported processor types are the OpenAPI-documented lowercase literals
-  `externalized` and `scheduled`.
+- The only supported processor type is the OpenAPI-documented lowercase literal
+  `externalized`. (The `scheduled` type was removed in the `workflow-core` v0.8
+  major bump — it modelled an unsupported v0.7 platform hack and is no longer
+  accepted by cyoda-go.)
 - Externalized processor editing covers `executionMode`
   (`SYNC`, `ASYNC_SAME_TX`, `ASYNC_NEW_TX`, `COMMIT_BEFORE_DISPATCH`),
   `startNewTxOnDispatch`, `attachEntity`, `responseTimeoutMs`,
   `calculationNodesTags` as a comma-separated string, `retryPolicy`,
   free-form string `context`, `asyncResult`, and `crossoverToAsyncMs`.
-- Scheduled processor editing uses duration inputs for `delayMs` and
-  optional `timeoutMs`, plus a structured `transition` selector/input.
 - Arbitrary custom processor config JSON is intentionally not supported;
   unknown keys are stripped to match the documented contract.
 
@@ -518,17 +523,17 @@ pnpm lint       # ESLint across packages + apps
 pnpm bench      # micro-benchmarks for core parse/validate/serialize/patch
 ```
 
-Current test counts (all green):
+Current test counts:
 
 | Package | Tests |
 |---|---:|
-| `workflow-core` | 63 |
+| `workflow-core` | 169 |
 | `workflow-graph` | 13 |
-| `workflow-viewer` | 8 |
-| `workflow-layout` | 24 |
-| `workflow-react` | 66 |
+| `workflow-viewer` | 16 |
+| `workflow-layout` | 14 |
+| `workflow-react` | 236 |
 | `workflow-monaco` | 12 |
-| **Total** | **186** |
+| **Total** | **460** |
 
 Perf budgets (M1-class CPU, `pnpm bench`; budgets match `packages/workflow-core/tests/perf/bench.bench.ts`):
 

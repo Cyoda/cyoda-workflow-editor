@@ -1,7 +1,13 @@
 import { z } from "zod";
 import type { Criterion } from "../types/criterion.js";
 import { NameSchema } from "./name.js";
-import { OperatorEnum } from "./operator.js";
+
+// Operators are NOT constrained to the curated `OperatorEnum` here: cyoda-go's
+// criterion DSL accepts a broader operator set than the editor's engine-verified
+// catalogue, and a stored workflow using one of those must still round-trip.
+// Any operator outside the known set is surfaced as a non-blocking
+// `operator-not-recognized` warning by the semantic validator. See issue #22.
+const OperatorParseSchema = z.string().min(1);
 
 export const FunctionConfigSchema = z.object({
   attachEntity: z.boolean().optional(),
@@ -14,21 +20,21 @@ export const FunctionConfigSchema = z.object({
 export const SimpleCriterionSchema = z.object({
   type: z.literal("simple"),
   jsonPath: z.string().min(1),
-  operation: OperatorEnum,
+  operation: OperatorParseSchema,
   value: z.unknown().optional(),
 });
 
 export const LifecycleCriterionSchema = z.object({
   type: z.literal("lifecycle"),
   field: z.enum(["state", "creationDate", "previousTransition"]),
-  operation: OperatorEnum,
+  operation: OperatorParseSchema,
   value: z.unknown().optional(),
 });
 
 export const ArrayCriterionSchema = z.object({
   type: z.literal("array"),
   jsonPath: z.string().min(1),
-  operation: OperatorEnum,
+  operation: OperatorParseSchema,
   value: z.array(z.string()),
 });
 

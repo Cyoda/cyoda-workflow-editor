@@ -7,14 +7,15 @@ export const colors = {
   surface: "white",
   surfaceMuted: "#F8FAFC",
   textPrimary: "#0F172A",
-  textSecondary: "#475569",
+  textSecondary: "#334155",
   textTertiary: "#64748B",
-  primary: "#0F172A",
+  primary: "#2563EB",
+  primaryHover: "#1D4ED8",
   primaryText: "white",
-  danger: "#B91C1C",
+  danger: "#DC2626",
   dangerBg: "#FEF2F2",
   dangerBorder: "#FCA5A5",
-  warning: "#B45309",
+  warning: "#D97706",
   warningBg: "#FFFBEB",
   warningBorder: "#FCD34D",
   info: "#1D4ED8",
@@ -23,6 +24,11 @@ export const colors = {
 };
 
 export const radii = { sm: 4, md: 6, lg: 8, pill: 999 };
+
+export const fonts = {
+  sans: "'Inter', system-ui, sans-serif",
+  mono: "'JetBrains Mono', ui-monospace, monospace",
+};
 
 export const btnStyle: CSSProperties = {
   padding: "4px 10px",

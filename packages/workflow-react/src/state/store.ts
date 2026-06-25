@@ -77,6 +77,10 @@ function summarize(patch: DomainPatch): string {
       return `Update comment`;
     case "removeComment":
       return `Remove comment`;
+    case "setTransitionBlockPosition":
+      return `Move transition label`;
+    case "removeTransitionBlockPosition":
+      return `Reset transition label`;
   }
 }
 
@@ -103,10 +107,14 @@ function computeExactInverse(
     if (newUUID) return { op: "removeTransition", transitionUuid: newUUID };
   }
   if (patch.op === "addProcessor") {
-    const priorUUIDs = new Set(Object.keys(prePatchDoc.meta.ids.processors));
-    const newUUID = Object.keys(postPatchDoc.meta.ids.processors).find(
-      (uuid) => !priorUUIDs.has(uuid),
-    );
+    const preOrdered = Object.entries(prePatchDoc.meta.ids.processors)
+      .filter(([, ptr]) => ptr.transitionUuid === patch.transitionUuid)
+      .map(([uuid]) => uuid);
+    const idx = patch.index ?? preOrdered.length;
+    const postOrdered = Object.entries(postPatchDoc.meta.ids.processors)
+      .filter(([, ptr]) => ptr.transitionUuid === patch.transitionUuid)
+      .map(([uuid]) => uuid);
+    const newUUID = postOrdered[idx];
     if (newUUID) return { op: "removeProcessor", processorUuid: newUUID };
   }
   return invertPatch(prePatchDoc, patch);
@@ -158,7 +166,9 @@ export function useEditorStore(
       patches: tx.patches,
       inverses: tx.inverses,
       summary: tx.summary,
-      selectionAfter: (tx.selectionAfter as Selection | null | undefined) ?? null,
+      ...(tx.selectionAfter !== undefined
+        ? { selectionAfter: tx.selectionAfter as Selection | null }
+        : {}),
     };
     const undoStack = [...current.undoStack, entry].slice(-MAX_UNDO);
     const nextSelection =

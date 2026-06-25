@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
   DomainPatch,
   EdgeAnchor,
@@ -6,11 +6,13 @@ import type {
   HostRef,
   Processor,
   Transition,
+  TransitionSchedule,
   ValidationIssue,
   Workflow,
 } from "@cyoda/workflow-core";
 import { NAME_REGEX } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, radii } from "../style/tokens.js";
 import { CheckboxField, CustomSelectInput, FieldGroup, SelectField, TextField } from "./fields.js";
 import { CriterionSection } from "./CriterionForm.js";
 import {
@@ -53,6 +55,23 @@ export function TransitionForm({
     | null
   >(null);
 
+  const [scheduleDelayDraft, setScheduleDelayDraft] = useState<string>(
+    transition.schedule?.delayMs !== undefined ? String(transition.schedule.delayMs) : "",
+  );
+  const [scheduleTimeoutDraft, setScheduleTimeoutDraft] = useState<string>(
+    transition.schedule?.timeoutMs !== undefined ? String(transition.schedule.timeoutMs) : "",
+  );
+  const prevTransitionUuidRef = useRef(transitionUuid);
+  if (prevTransitionUuidRef.current !== transitionUuid) {
+    prevTransitionUuidRef.current = transitionUuid;
+    setScheduleDelayDraft(
+      transition.schedule?.delayMs !== undefined ? String(transition.schedule.delayMs) : "",
+    );
+    setScheduleTimeoutDraft(
+      transition.schedule?.timeoutMs !== undefined ? String(transition.schedule.timeoutMs) : "",
+    );
+  }
+
   const update = (updates: Partial<Transition>) =>
     onDispatch({ op: "updateTransition", transitionUuid, updates });
 
@@ -92,6 +111,28 @@ export function TransitionForm({
       transitionUuid,
       toIndex,
     });
+  };
+
+  const commitScheduleDelay = (raw: string) => {
+    const parsed = Number(raw.trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) return;
+    const next: TransitionSchedule = { ...transition.schedule, delayMs: parsed };
+    update({ schedule: next });
+  };
+
+  const commitScheduleTimeout = (raw: string) => {
+    const trimmed = raw.trim();
+    if (trimmed.length === 0) {
+      if (transition.schedule?.timeoutMs !== undefined) {
+        const { timeoutMs: _removed, ...rest } = transition.schedule;
+        update({ schedule: rest });
+      }
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isInteger(parsed) || parsed <= 0) return;
+    const next: TransitionSchedule = { ...transition.schedule, delayMs: transition.schedule?.delayMs ?? 1, timeoutMs: parsed };
+    update({ schedule: next });
   };
 
   const allStateNames = Object.keys(workflow.states);
@@ -138,12 +179,13 @@ export function TransitionForm({
         <TextField
           label={messages.inspector.name}
           value={transition.name}
+          entityKey={transitionUuid}
           disabled={disabled}
           onCommit={handleRename}
           testId="inspector-transition-name"
         />
         {renameError && (
-          <div role="alert" style={{ color: "#B91C1C", fontSize: 12 }}>
+          <div role="alert" style={{ color: colors.danger, fontSize: 12 }}>
             {renameError}
           </div>
         )}
@@ -227,7 +269,7 @@ export function TransitionForm({
           <p
             style={{
               fontSize: 11,
-              color: "#64748B",
+              color: colors.textTertiary,
               margin: 0,
               lineHeight: 1.4,
             }}
@@ -237,7 +279,7 @@ export function TransitionForm({
           </p>
         </div>
 
-        <hr style={{ border: "none", borderTop: "1px solid #E2E8F0", margin: 0 }} />
+        <hr style={{ border: "none", borderTop: `1px solid ${colors.borderSubtle}`, margin: 0 }} />
 
         <button
           type="button"
@@ -249,7 +291,7 @@ export function TransitionForm({
           Delete transition
         </button>
 
-        <hr style={{ border: "none", borderTop: "1px solid #E2E8F0", margin: 0 }} />
+        <hr style={{ border: "none", borderTop: `1px solid ${colors.borderSubtle}`, margin: 0 }} />
 
         {/* Inline validation issues */}
         {issues && issues.length > 0 && (
@@ -260,11 +302,11 @@ export function TransitionForm({
                 role="alert"
                 style={{
                   padding: "4px 8px",
-                  background: issue.severity === "error" ? "#FEF2F2" : "#FFFBEB",
-                  border: `1px solid ${issue.severity === "error" ? "#FCA5A5" : "#FCD34D"}`,
-                  borderRadius: 4,
+                  background: issue.severity === "error" ? colors.dangerBg : colors.warningBg,
+                  border: `1px solid ${issue.severity === "error" ? colors.dangerBorder : colors.warningBorder}`,
+                  borderRadius: radii.sm,
                   fontSize: 12,
-                  color: issue.severity === "error" ? "#B91C1C" : "#B45309",
+                  color: issue.severity === "error" ? colors.danger : colors.warning,
                 }}
               >
                 {issue.message}
@@ -289,6 +331,87 @@ export function TransitionForm({
           onDispatch={onDispatch}
           onSelectionChange={onSelectionChange}
         />
+      </TransitionSection>
+
+      <TransitionSection
+        title="Scheduled transition"
+        testId="inspector-transition-schedule-section"
+      >
+        <label
+          style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8, fontSize: 12, color: colors.textSecondary, cursor: "pointer" }}
+        >
+          <input
+            type="checkbox"
+            checked={transition.schedule !== undefined}
+            disabled={disabled}
+            data-testid="inspector-transition-schedule-enabled"
+            onChange={(e) => {
+              if (e.target.checked) {
+                setScheduleDelayDraft("1");
+                setScheduleTimeoutDraft("");
+                update({ schedule: { delayMs: 1 } });
+              } else {
+                setScheduleDelayDraft("");
+                setScheduleTimeoutDraft("");
+                update({ schedule: undefined });
+              }
+            }}
+          />
+          <span>Enable schedule</span>
+        </label>
+
+        {transition.schedule !== undefined && (
+          <>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary }}>
+              <span style={{ fontWeight: 500 }}>Delay (ms)</span>
+              <input
+                type="text"
+                value={scheduleDelayDraft}
+                disabled={disabled}
+                data-testid="inspector-transition-schedule-delay"
+                style={scheduleInputStyle}
+                onChange={(e) => setScheduleDelayDraft(e.target.value)}
+                onBlur={(e) => commitScheduleDelay(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+              />
+            </label>
+
+            <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary }}>
+              <span style={{ fontWeight: 500 }}>Timeout (ms)</span>
+              <input
+                type="text"
+                value={scheduleTimeoutDraft}
+                disabled={disabled}
+                data-testid="inspector-transition-schedule-timeout"
+                style={scheduleInputStyle}
+                onChange={(e) => setScheduleTimeoutDraft(e.target.value)}
+                onBlur={(e) => commitScheduleTimeout(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                }}
+              />
+            </label>
+          </>
+        )}
+
+        <p
+          style={{
+            margin: 0,
+            padding: "6px 8px",
+            fontSize: 12,
+            color: colors.warning,
+            background: colors.warningBg,
+            border: `1px solid ${colors.warningBorder}`,
+            borderRadius: radii.sm,
+            lineHeight: 1.45,
+          }}
+          data-testid="inspector-transition-schedule-notice"
+        >
+          Scheduled transitions can be configured but are not yet executed by the workflow engine.
+          Firing a scheduled transition currently returns 400 BAD_REQUEST.
+        </p>
       </TransitionSection>
 
       <TransitionSection
@@ -404,7 +527,6 @@ export function TransitionForm({
       {processorModal && (
         <ProcessorEditorModal
           title={processorModal.mode === "add" ? "Add processor" : "Edit processor"}
-          workflow={workflow}
           initialProcessor={
             processorModal.mode === "edit"
               ? processors[processorModal.processorIndex]
@@ -454,7 +576,7 @@ const transitionSectionStyle = {
   flexDirection: "column" as const,
   gap: 8,
   paddingTop: 12,
-  borderTop: "1px solid #E2E8F0",
+  borderTop: `1px solid ${colors.borderSubtle}`,
 };
 
 const sectionHeaderStyle = {
@@ -462,23 +584,23 @@ const sectionHeaderStyle = {
   fontWeight: 600,
   letterSpacing: "0.08em",
   textTransform: "uppercase" as const,
-  color: "#475569",
+  color: colors.textSecondary,
 };
 
 const ghostBtn = {
   padding: "4px 8px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 12,
   cursor: "pointer",
 };
 
 const dangerBtn = {
   ...ghostBtn,
-  background: "#FEF2F2",
-  borderColor: "#FCA5A5",
-  color: "#B91C1C",
+  background: colors.dangerBg,
+  borderColor: colors.dangerBorder,
+  color: colors.danger,
 };
 
 const processorRowStyle = {
@@ -486,8 +608,8 @@ const processorRowStyle = {
   flexDirection: "column" as const,
   gap: 10,
   padding: 10,
-  border: "1px solid #CBD5E1",
-  borderRadius: 6,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.md,
   background: "white",
 };
 
@@ -495,36 +617,44 @@ const processorTypeChipStyle = {
   fontSize: 11,
   padding: "2px 6px",
   borderRadius: 999,
-  background: "#E2E8F0",
-  color: "#334155",
+  background: colors.borderSubtle,
+  color: colors.textSecondary,
   textTransform: "lowercase" as const,
 };
 
 const processorOrderStyle = {
   fontSize: 12,
   fontWeight: 600,
-  color: "#475569",
+  color: colors.textSecondary,
   minWidth: 18,
 };
 
 const summaryTextStyle = {
   margin: 0,
   fontSize: 12,
-  color: "#475569",
+  color: colors.textSecondary,
   lineHeight: 1.45,
 };
 
 const processorHelperStyle = {
   margin: 0,
   fontSize: 12,
-  color: "#64748B",
+  color: colors.textTertiary,
 };
 
 const emptyProcessorStateStyle = {
   padding: 10,
-  border: "1px dashed #CBD5E1",
-  borderRadius: 6,
-  background: "#F8FAFC",
+  border: `1px dashed ${colors.border}`,
+  borderRadius: radii.md,
+  background: colors.surfaceMuted,
+};
+
+const scheduleInputStyle = {
+  padding: "4px 8px",
+  fontSize: 12,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
+  background: "white",
 };
 
 function AnchorSelect({
@@ -559,7 +689,7 @@ function AnchorSelect({
   ] as const;
 
   return (
-    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: "#334155" }}>
+    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary }}>
       <span style={{ fontWeight: 500 }}>{label}</span>
       <CustomSelectInput
         value={value ?? ""}

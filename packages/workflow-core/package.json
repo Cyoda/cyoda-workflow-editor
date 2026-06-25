@@ -41,12 +41,11 @@
     "bench": "vitest bench --run"
   },
   "dependencies": {
-    "immer": "^10.0.4",
-    "uuid": "^14.0.0",
-    "zod": "^3.23.0"
+    "immer": "catalog:",
+    "uuid": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@types/uuid": "^9.0.8",
-    "fast-check": "^3.19.0"
+    "fast-check": "catalog:"
   }
 }

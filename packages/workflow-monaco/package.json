@@ -41,13 +41,13 @@
   },
   "dependencies": {
     "@cyoda/workflow-core": "workspace:*",
-    "jsonc-parser": "^3.2.1",
-    "zod-to-json-schema": "^3.22.5"
+    "jsonc-parser": "catalog:",
+    "zod": "catalog:"
   },
   "peerDependencies": {
-    "monaco-editor": ">=0.45 <0.53",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "monaco-editor": ">=0.45 <0.56",
+    "react": "^18.3.1 || ^19.0.0",
+    "react-dom": "^18.3.1 || ^19.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -58,10 +58,10 @@
     }
   },
   "devDependencies": {
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "monaco-editor": "^0.50.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "monaco-editor": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:"
   }
 }

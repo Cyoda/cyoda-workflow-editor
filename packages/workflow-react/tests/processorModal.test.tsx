@@ -200,69 +200,10 @@ describe("processor modal UX", () => {
     );
   });
 
-  it("adds a scheduled processor using duration inputs", () => {
-    const { onDispatch, transitionUuid } = renderTransitionForm();
-
-    fireEvent.click(screen.getByTestId("inspector-add-processor"));
-    fireEvent.change(screen.getByTestId("processor-type-select"), {
-      target: { value: "scheduled" },
-    });
-    fireEvent.change(screen.getByTestId("processor-name-input"), {
-      target: { value: "schedule-finish" },
-    });
-    fireEvent.change(screen.getByTestId("processor-scheduled-delay-amount"), {
-      target: { value: "5" },
-    });
-    fireEvent.change(screen.getByTestId("processor-scheduled-delay-unit"), {
-      target: { value: "minutes" },
-    });
-    fireEvent.change(screen.getByTestId("processor-scheduled-transition"), {
-      target: { value: "finish" },
-    });
-    fireEvent.change(screen.getByTestId("processor-scheduled-timeout-amount"), {
-      target: { value: "30" },
-    });
-    fireEvent.change(screen.getByTestId("processor-scheduled-timeout-unit"), {
-      target: { value: "seconds" },
-    });
-    fireEvent.click(screen.getByTestId("processor-modal-apply"));
-
-    expect(onDispatch).toHaveBeenCalledTimes(1);
-    expect(onDispatch).toHaveBeenCalledWith({
-      op: "addProcessor",
-      transitionUuid,
-      processor: {
-        type: "scheduled",
-        name: "schedule-finish",
-        config: {
-          delayMs: 300000,
-          transition: "finish",
-          timeoutMs: 30000,
-        },
-      },
-    });
-  });
-
-  it("scheduled transition field is required", () => {
-    const { onDispatch } = renderTransitionForm();
-
-    fireEvent.click(screen.getByTestId("inspector-add-processor"));
-    fireEvent.change(screen.getByTestId("processor-type-select"), {
-      target: { value: "scheduled" },
-    });
-    fireEvent.change(screen.getByTestId("processor-name-input"), {
-      target: { value: "schedule-finish" },
-    });
-    fireEvent.click(screen.getByTestId("processor-modal-apply"));
-
-    expect(onDispatch).not.toHaveBeenCalled();
-    expect(screen.getByTestId("processor-modal-error")).toBeTruthy();
-  });
-
   it("supports delete, duplicate, and reorder actions from the summary rows", () => {
     const { onDispatch, transitionUuid, processorUuids } = renderTransitionForm([
       { type: "externalized", name: "notify", executionMode: "SYNC", config: {} },
-      { type: "scheduled", name: "schedule-finish", config: { delayMs: 1000, transition: "finish" } },
+      { type: "externalized", name: "enrich", executionMode: "ASYNC_NEW_TX" },
     ]);
 
     fireEvent.click(screen.getByTestId("processor-delete-0"));

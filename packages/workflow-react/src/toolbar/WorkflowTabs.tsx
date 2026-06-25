@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Workflow } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { VersionBadge } from "./VersionBadge.js";
 
 export interface WorkflowTabsProps {
   workflows: Workflow[];
@@ -10,6 +11,9 @@ export interface WorkflowTabsProps {
   onClose?: (name: string) => void;
   onRename?: (from: string, to: string) => void;
   readOnly: boolean;
+  dialectVersion?: string;
+  supportedVersions?: readonly string[];
+  onVersionChange?: (version: string) => void;
 }
 
 /**
@@ -24,6 +28,9 @@ export function WorkflowTabs({
   onClose,
   onRename,
   readOnly,
+  dialectVersion,
+  supportedVersions,
+  onVersionChange,
 }: WorkflowTabsProps) {
   const messages = useMessages();
   const [editingTab, setEditingTab] = useState<string | null>(null);
@@ -60,7 +67,8 @@ export function WorkflowTabs({
         display: "flex",
         alignItems: "center",
         gap: 4,
-        padding: "6px 12px",
+        padding: "0 12px",
+        height: 36,
         borderBottom: "1px solid #E2E8F0",
         background: "#F8FAFC",
         overflowX: "auto",
@@ -150,17 +158,33 @@ export function WorkflowTabs({
           type="button"
           onClick={onAdd}
           style={{
-            padding: "4px 8px",
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            padding: "4px 10px",
             background: "white",
-            border: "1px solid #CBD5E1",
-            borderRadius: 4,
-            fontSize: 12,
+            color: "#2563EB",
+            border: "1px solid #2563EB",
+            borderRadius: 5,
+            fontSize: 13,
+            fontWeight: 500,
             cursor: "pointer",
           }}
           data-testid="tab-add"
         >
           + {messages.toolbar.addWorkflow}
         </button>
+      )}
+      {dialectVersion && (
+        <>
+          <div style={{ flex: 1 }} />
+          <VersionBadge
+            version={dialectVersion}
+            supportedVersions={supportedVersions ?? []}
+            readOnly={readOnly}
+            onVersionChange={onVersionChange}
+          />
+        </>
       )}
     </nav>
   );

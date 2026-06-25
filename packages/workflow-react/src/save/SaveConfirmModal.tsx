@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ImportMode, WorkflowEditorDocument } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
+import { colors, fonts, radii } from "../style/tokens.js";
 import { ModalFrame } from "../modals/DeleteStateModal.js";
 
 export interface SaveConfirmModalProps {
@@ -40,17 +41,17 @@ export function SaveConfirmModal({
   return (
     <ModalFrame onCancel={onCancel}>
       <h2 style={{ margin: 0, fontSize: 16 }}>{messages.saveConfirm.title}</h2>
-      <p style={{ margin: "12px 0", fontSize: 13, color: "#475569" }}>
+      <p style={{ margin: "12px 0", fontSize: 13, color: colors.textSecondary }}>
         {messages.saveConfirm.modeLabel}: <strong>{mode}</strong>
       </p>
       {diffSummary && (
         <pre
           style={{
-            fontFamily: "ui-monospace, SFMono-Regular, Consolas, monospace",
-            background: "#F8FAFC",
-            border: "1px solid #E2E8F0",
+            fontFamily: fonts.mono,
+            background: colors.surfaceMuted,
+            border: `1px solid ${colors.borderSubtle}`,
             padding: 8,
-            borderRadius: 4,
+            borderRadius: radii.sm,
             fontSize: 12,
             margin: "8px 0",
             maxHeight: 160,
@@ -111,20 +112,20 @@ const checkRow = {
   alignItems: "center",
   gap: 8,
   fontSize: 13,
-  color: "#1E293B",
+  color: colors.textPrimary,
   margin: "8px 0",
 };
 const ghostBtn = {
   padding: "6px 12px",
   background: "white",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   fontSize: 13,
   cursor: "pointer",
 };
 const primaryBtn = {
   ...ghostBtn,
-  background: "#0F172A",
+  background: colors.primary,
   color: "white",
-  borderColor: "#0F172A",
+  borderColor: colors.primary,
 };

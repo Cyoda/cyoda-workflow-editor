@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { colors, radii } from "../style/tokens.js";
 
 type SelectOptionItem<T extends string> = { value: T; label: string };
 type SelectOptionGroup<T extends string> = { groupLabel: string; options: ReadonlyArray<SelectOptionItem<T>> };
@@ -14,6 +15,8 @@ export function TextField({
   disabled,
   placeholder,
   testId,
+  entityKey,
+  multiline,
 }: {
   label: string;
   value: string;
@@ -21,31 +24,56 @@ export function TextField({
   disabled?: boolean;
   placeholder?: string;
   testId?: string;
+  /**
+   * Identity of the entity being edited (e.g. a stable UUID). When this
+   * changes, the draft resets to `value` even if `value` itself is
+   * unchanged, so a different entity that happens to share the same
+   * current value doesn't inherit a stale, uncommitted draft.
+   */
+  entityKey?: string;
+  multiline?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
-
-  useEffect(() => {
+  const syncKey = entityKey ?? value;
+  const syncedKeyRef = useRef(syncKey);
+  if (syncKey !== syncedKeyRef.current) {
+    syncedKeyRef.current = syncKey;
     setDraft(value);
-  }, [value]);
+  }
 
   return (
     <label style={rowStyle}>
       <span style={labelStyle}>{label}</span>
-      <input
-        type="text"
-        value={draft}
-        disabled={disabled}
-        placeholder={placeholder}
-        data-testid={testId}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={(e: ChangeEvent<HTMLInputElement>) => {
-          if (draft !== value) onCommit(e.target.value);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-        }}
-        style={inputStyle}
-      />
+      {multiline ? (
+        <textarea
+          value={draft}
+          disabled={disabled}
+          placeholder={placeholder}
+          data-testid={testId}
+          rows={3}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e: ChangeEvent<HTMLTextAreaElement>) => {
+            if (draft !== value) onCommit(e.target.value);
+          }}
+          style={{ ...inputStyle, resize: "vertical", lineHeight: 1.5 }}
+        />
+      ) : (
+        <input
+          type="text"
+          value={draft}
+          disabled={disabled}
+          placeholder={placeholder}
+          data-testid={testId}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={(e: ChangeEvent<HTMLInputElement>) => {
+            if (draft !== value) onCommit(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          }}
+          style={inputStyle}
+        />
+      )}
     </label>
   );
 }
@@ -247,8 +275,8 @@ export function CustomSelectInput<T extends string>({
             zIndex: 200,
             marginTop: 2,
             background: "white",
-            border: "1px solid #CBD5E1",
-            borderRadius: 4,
+            border: `1px solid ${colors.border}`,
+            borderRadius: radii.sm,
             boxShadow: "0 4px 12px rgba(15,23,42,0.12)",
             overflow: "hidden",
             maxHeight: 280,
@@ -265,9 +293,9 @@ export function CustomSelectInput<T extends string>({
                   fontWeight: 600,
                   letterSpacing: "0.06em",
                   textTransform: "uppercase",
-                  color: "#94A3B8",
-                  background: "#F8FAFC",
-                  borderTop: i > 0 ? "1px solid #E2E8F0" : undefined,
+                  color: colors.textTertiary,
+                  background: colors.surfaceMuted,
+                  borderTop: i > 0 ? `1px solid ${colors.borderSubtle}` : undefined,
                 }}
               >
                 {item.label}
@@ -290,11 +318,11 @@ export function CustomSelectInput<T extends string>({
                   cursor: "pointer",
                   background:
                     highlightedIndex === item.flatIndex
-                      ? "#F1F5F9"
+                      ? colors.surfaceMuted
                       : item.value === value
-                        ? "#EFF6FF"
+                        ? colors.infoBg
                         : "white",
-                  color: item.value === value ? "#1D4ED8" : "#0F172A",
+                  color: item.value === value ? colors.info : colors.textPrimary,
                 }}
               >
                 {item.label}
@@ -310,7 +338,7 @@ export function CustomSelectInput<T extends string>({
 export function FieldGroup({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <header style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#475569" }}>
+      <header style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.textSecondary }}>
         {title}
       </header>
       {children}
@@ -326,7 +354,7 @@ const rowStyle = {
 
 const labelStyle = {
   fontSize: 12,
-  color: "#475569",
+  color: colors.textSecondary,
   marginBottom: 2,
 };
 
@@ -335,12 +363,12 @@ const inputStyle = {
   fontSize: 13,
   fontFamily: "inherit",
   color: "inherit",
-  border: "1px solid #CBD5E1",
-  borderRadius: 4,
+  border: `1px solid ${colors.border}`,
+  borderRadius: radii.sm,
   background: "white",
 };
 
-const chevronBg = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpolyline points='2,4 6,8 10,4' fill='none' stroke='%23475569' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`;
+const chevronBg = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpolyline points='2,4 6,8 10,4' fill='none' stroke='%23334155' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`;
 
 const selectTriggerStyle = {
   ...inputStyle,

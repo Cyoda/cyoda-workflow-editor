@@ -121,6 +121,24 @@ describe("useSaveFlow", () => {
     expect(call[2]).toEqual({ concurrencyToken: null });
   });
 
+  it("ignores a second confirmSave while the first save is still in flight", () => {
+    const api = mockApi();
+    api.importSpy.mockImplementation(() => new Promise(() => {}));
+    const onSaved = vi.fn();
+    const doc = fixtureWithEntity();
+
+    const { result } = renderHook(() =>
+      useSaveFlow({ api, document: doc, concurrencyToken: "t1", onSaved }),
+    );
+
+    act(() => {
+      void result.current.confirmSave();
+      void result.current.confirmSave();
+    });
+
+    expect(api.importSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects save when session has no entity identity", async () => {
     const api = mockApi();
     const res = parseImportPayload(

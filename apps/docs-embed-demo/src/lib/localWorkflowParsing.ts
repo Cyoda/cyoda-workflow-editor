@@ -70,7 +70,7 @@ export function parseLocalWorkflowFile(text: string): {
     };
   } catch (error) {
     if (error instanceof ParseJsonError) {
-      throw new Error(error.message);
+      throw new Error(error.message, { cause: error });
     }
     throw error;
   }

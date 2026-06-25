@@ -201,7 +201,7 @@ vi.mock("reactflow", () => {
     Handle: () => null,
     ConnectionMode: { Loose: "loose" },
     Position,
-    useReactFlow: () => ({ fitView, setViewport }),
+    useReactFlow: () => ({ fitView, setViewport, getNodes: () => rfCallbacks.latestNodes ?? [] }),
     useUpdateNodeInternals: () => vi.fn(),
   };
 });
@@ -252,6 +252,18 @@ function transitionUuid(
     throw new Error(`Transition UUID not found for ${workflow}:${stateCode}`);
   }
   return entry[0];
+}
+
+// Returns the UUIDs of every transition declared on a state, in declaration
+// order (assignForWorkflow assigns IDs by iterating state.transitions).
+function transitionUuidsForState(
+  doc: WorkflowEditorDocument,
+  workflow: string,
+  stateCode: string,
+): string[] {
+  return Object.entries(doc.meta.ids.transitions)
+    .filter(([, ptr]) => ptr.workflow === workflow && ptr.state === stateCode)
+    .map(([uuid]) => uuid);
 }
 
 function buildLayout(doc: WorkflowEditorDocument): LayoutResult {
@@ -334,6 +346,32 @@ const DENSE_TRANSITIONS = JSON.stringify({
           transitions: [{ name: "to_end", next: "end", manual: false, disabled: false }],
         },
         end: { transitions: [] },
+      },
+    },
+  ],
+});
+
+const FOUR_WAY_SPLIT = JSON.stringify({
+  importMode: "MERGE",
+  workflows: [
+    {
+      version: "1.0",
+      name: "wf",
+      initialState: "sent",
+      active: true,
+      states: {
+        sent: {
+          transitions: [
+            { name: "to_signed", next: "signed", manual: false, disabled: false },
+            { name: "to_declined", next: "declined", manual: false, disabled: false },
+            { name: "to_expired", next: "expired", manual: false, disabled: false },
+            { name: "to_revoked", next: "revoked", manual: false, disabled: false },
+          ],
+        },
+        signed: { transitions: [] },
+        declined: { transitions: [] },
+        expired: { transitions: [] },
+        revoked: { transitions: [] },
       },
     },
   ],
@@ -604,8 +642,50 @@ describe("auto handle routing", () => {
       rfCallbacks.latestEdges?.find((edge) => edge.id === toBusyLeft)?.targetHandle,
     ];
     expect(new Set(incomingHandles)).toEqual(new Set(["top-left", "top-right"]));
-    // end is a terminal state; since busy and end share the same x-centre, terminal routing assigns "left"
-    expect(rfCallbacks.latestEdges?.find((edge) => edge.id === toEnd)?.sourceHandle).toBe("left");
+    // end is a terminal state directly below busy; bottom→top entry is preferred
+    // over side-routing when the terminal sits in a row below its source.
+    const toEndEdge = rfCallbacks.latestEdges?.find((edge) => edge.id === toEnd);
+    expect(toEndEdge?.sourceHandle).toBe("bottom");
+    expect(toEndEdge?.targetHandle).toBe("top");
+  });
+
+  it("spreads four outgoing transitions from one side so the outermost targets exit toward them", async () => {
+    const doc = fixture(FOUR_WAY_SPLIT);
+    const sentId = stateUuid(doc, "wf", "sent");
+    const signedId = stateUuid(doc, "wf", "signed");
+    const declinedId = stateUuid(doc, "wf", "declined");
+    const expiredId = stateUuid(doc, "wf", "expired");
+    const revokedId = stateUuid(doc, "wf", "revoked");
+    const [toSigned, toDeclined, toExpired, toRevoked] = transitionUuidsForState(doc, "wf", "sent");
+
+    vi.mocked(layoutGraph).mockResolvedValue({
+      positions: new Map([
+        [sentId, { id: sentId, x: 400, y: 80, width: 160, height: 60 }],
+        [signedId, { id: signedId, x: 80, y: 320, width: 160, height: 60 }],
+        [declinedId, { id: declinedId, x: 300, y: 320, width: 160, height: 60 }],
+        [expiredId, { id: expiredId, x: 520, y: 320, width: 160, height: 60 }],
+        [revokedId, { id: revokedId, x: 740, y: 320, width: 160, height: 60 }],
+      ]),
+      edges: new Map(),
+      width: 1000,
+      height: 460,
+      preset: "configuratorReadable",
+    });
+
+    render(<WorkflowEditor document={doc} />);
+
+    await waitFor(() => expect(rfCallbacks.latestEdges).toBeDefined());
+
+    const sourceHandle = (id: string) =>
+      rfCallbacks.latestEdges?.find((edge) => edge.id === id)?.sourceHandle;
+
+    // Sorted left-to-right by target x: signed, declined, expired, revoked.
+    // The two outermost targets wrap onto the adjacent side toward them
+    // (left/right) instead of crowding the bottom edge.
+    expect(sourceHandle(toSigned)).toBe("left-bottom");
+    expect(sourceHandle(toDeclined)).toBe("bottom-left");
+    expect(sourceHandle(toExpired)).toBe("bottom-right");
+    expect(sourceHandle(toRevoked)).toBe("right-bottom");
   });
 
   it("routes the reverse leg of a bidirectional pair on a different corridor", async () => {
@@ -672,7 +752,7 @@ describe("auto handle routing", () => {
     expect(loopEdge?.targetHandle).toBe("top-right");
 
     const loopPath = screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d");
-    expect(loopPath).toBe("M 280 236.8 L 340 236.8 L 340 160 L 235.2 160 L 235.2 220");
+    expect(loopPath).toBe("M 280 236.8 L 372 236.8 L 372 128 L 235.2 128 L 235.2 220");
   });
 
   it("updates a normal transition into a visible self-loop when retargeted to its own state", async () => {
@@ -705,7 +785,7 @@ describe("auto handle routing", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d")).toBe(
-        "M 260 116.8 L 320 116.8 L 320 40 L 215.2 40 L 215.2 100",
+        "M 260 116.8 L 352 116.8 L 352 8 L 215.2 8 L 215.2 100",
       );
     });
   });
@@ -747,7 +827,7 @@ describe("auto handle routing", () => {
       expect(loopEdge?.sourceHandle).toBe("right-top");
       expect(loopEdge?.targetHandle).toBe("top-right");
       expect(screen.getByTestId(`rf-edge-path-${loopId}`).getAttribute("d")).toBe(
-        "M 280 236.8 L 340 236.8 L 340 160 L 235.2 160 L 235.2 220",
+        "M 280 236.8 L 372 236.8 L 372 128 L 235.2 128 L 235.2 220",
       );
     });
   });
@@ -770,7 +850,13 @@ describe("node drag — position persistence", () => {
       />,
     );
 
-    await waitFor(() => expect(rfCallbacks.onNodeDragStop).toBeDefined());
+    await waitFor(() => {
+      // Wait for the drag handler AND for the layout to have populated nodes —
+      // handleNodeDragStop snapshots rf.getNodes(), so firing before nodes load
+      // yields an empty allPositions and persists nothing (flaky in CI timing).
+      expect(rfCallbacks.onNodeDragStop).toBeDefined();
+      expect(rfCallbacks.latestNodes?.length ?? 0).toBeGreaterThan(0);
+    });
 
     await act(async () => {
       rfCallbacks.onNodeDragStop?.(null, {
@@ -789,7 +875,7 @@ describe("node drag — position persistence", () => {
       expect(vi.mocked(layoutGraph)).toHaveBeenLastCalledWith(
         expect.anything(),
         expect.objectContaining({
-          pinned: [expect.objectContaining({ id: startId, x: 250, y: 150 })],
+          pinned: expect.arrayContaining([expect.objectContaining({ id: startId, x: 250, y: 150 })]),
         }),
       );
     });
@@ -803,7 +889,13 @@ describe("node drag — position persistence", () => {
 
     render(<WorkflowEditor document={doc} localStorageKey="test-drag-layout" />);
 
-    await waitFor(() => expect(rfCallbacks.onNodeDragStop).toBeDefined());
+    await waitFor(() => {
+      // Wait for the drag handler AND for the layout to have populated nodes —
+      // handleNodeDragStop snapshots rf.getNodes(), so firing before nodes load
+      // yields an empty allPositions and persists nothing (flaky in CI timing).
+      expect(rfCallbacks.onNodeDragStop).toBeDefined();
+      expect(rfCallbacks.latestNodes?.length ?? 0).toBeGreaterThan(0);
+    });
 
     await act(async () => {
       rfCallbacks.onNodeDragStop?.(null, {

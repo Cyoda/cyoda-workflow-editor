@@ -6,9 +6,12 @@ import {
   type EdgeAnchor,
   type EdgeAnchorPair,
   type EditorViewport,
-  type EntityFieldHintProvider,
   type PatchTransaction,
   invertPatch,
+  LATEST_CYODA_VERSION,
+  SUPPORTED_CYODA_VERSIONS,
+  parseImportPayload,
+  serializeImportPayload,
   PatchConflictError,
   type Workflow,
   type WorkflowEditorDocument,
@@ -27,12 +30,15 @@ import type { EditorMode, Selection } from "../state/types.js";
 import { Canvas } from "./Canvas.js";
 import { resolveConnection, type PendingConnect } from "./resolveConnection.js";
 import { Inspector } from "../inspector/Inspector.js";
+import { CriterionMonacoProvider } from "../inspector/CriterionMonacoContext.js";
 import { Toolbar, type IssueSeverity } from "../toolbar/Toolbar.js";
 import { IssuesDrawer } from "../toolbar/IssuesDrawer.js";
 import { WorkflowTabs } from "../toolbar/WorkflowTabs.js";
 import { DeleteStateModal } from "../modals/DeleteStateModal.js";
 import { DragConnectModal } from "../modals/DragConnectModal.js";
 import { AddStateModal } from "../modals/AddStateModal.js";
+import { HelpModal } from "../modals/HelpModal.js";
+import { VersionSwitchModal } from "../modals/VersionSwitchModal.js";
 import { CommentNode } from "./CommentNode.js";
 import type { RfEdgeData } from "./RfTransitionEdge.js";
 import {
@@ -77,6 +83,8 @@ export interface WorkflowEditorProps {
   layoutMetadata?: WorkflowUiMeta;
   /** Called whenever layout positions or other editor-only metadata change. */
   onLayoutMetadataChange?: (meta: WorkflowUiMeta) => void;
+  /** Called with the full per-workflow UI map whenever any layout changes — use this for file-based persistence. */
+  onWorkflowUiChange?: (workflowUi: Record<string, WorkflowUiMeta>) => void;
   /**
    * localStorage key prefix for layout persistence. Defaults to
    * "cyoda-editor-layout". Pass `null` to disable localStorage persistence.
@@ -90,11 +98,6 @@ export interface WorkflowEditorProps {
   jsonEditor?: WorkflowJsonEditorConfig | null;
   /** Reports JSON parse/schema/apply status for host UX. */
   onJsonStatusChange?: (status: JsonEditStatus) => void;
-  /**
-   * Optional model-schema autocomplete source for criterion jsonPath inputs.
-   * When omitted, jsonPath inputs render as plain free-text fields.
-   */
-  hintProvider?: EntityFieldHintProvider;
   /**
    * Show developer-oriented affordances (raw JSON tab in the inspector and
    * other diagnostics). Defaults to `false` so SMEs/BAs see a clean view.
@@ -126,7 +129,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  // Monaco's EditContext-based editor exposes its editable surface as a
+  // role="textbox" <div> — not a <textarea> or contentEditable element — so the
+  // checks above miss it, and a Backspace/Delete inside the criterion JSON modal
+  // would otherwise escape to the canvas delete shortcut and remove the whole
+  // transition. Treat any ARIA textbox, or anything inside a Monaco editor, as a
+  // typing target.
+  return target.closest('[role="textbox"], .monaco-editor') !== null;
 }
 
 function defaultNewWorkflow(existing: string[]): Workflow {
@@ -158,12 +168,12 @@ export function WorkflowEditor({
   toolbarEnd,
   layoutMetadata: externalLayoutMeta,
   onLayoutMetadataChange,
+  onWorkflowUiChange,
   localStorageKey = "cyoda-editor-layout",
   enableJsonEditor = false,
   jsonEditorPlacement = "tab",
   jsonEditor = null,
   onJsonStatusChange,
-  hintProvider,
   developerMode = false,
 }: WorkflowEditorProps) {
   const mergedMessages = useMemo(() => mergeMessages(messages), [messages]);
@@ -197,16 +207,27 @@ export function WorkflowEditor({
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const [pendingConnect, setPendingConnect] = useState<PendingConnect | null>(null);
   const [pendingAddState, setPendingAddState] = useState<PendingAddState | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [reconnectError, setReconnectError] = useState<string | null>(null);
   const [layoutKey, setLayoutKey] = useState(0);
   const [activeSurface, setActiveSurface] = useState<WorkflowEditorActiveSurface>("graph");
   const [jsonStatus, setJsonStatus] = useState<JsonEditStatus>({ status: "idle" });
   const [openIssueSeverity, setOpenIssueSeverity] = useState<IssueSeverity | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+
+  interface PendingVersionSwitch {
+    targetVersion: string;
+    document: WorkflowEditorDocument;
+    warnings: string[];
+  }
+  const [pendingVersionSwitch, setPendingVersionSwitch] = useState<PendingVersionSwitch | null>(null);
   const selectionRef = useRef<Selection>(state.selection);
   const documentStateRef = useRef(state.document);
   const activeWorkflowRef = useRef(state.activeWorkflow);
   const pendingSelectionRestoreRef = useRef<Selection>(null);
+  // Populated by Canvas with a function returning a viewport-centred,
+  // non-overlapping position for toolbar/keyboard-added states (issue #20).
+  const newStatePositionRef = useRef<(() => { x: number; y: number } | null) | null>(null);
 
   useEffect(() => {
     selectionRef.current = state.selection;
@@ -221,9 +242,8 @@ export function WorkflowEditor({
     onChange?.(state.document);
   }, [state.document, onChange]);
 
-  // Persist layout/comments to localStorage whenever workflowUi changes.
+  // Persist layout/comments to localStorage and notify host whenever workflowUi changes.
   useEffect(() => {
-    if (localStorageKey === null) return;
     try {
       const toStore: Record<string, WorkflowUiMeta> = {};
       for (const [wfName, ui] of Object.entries(state.document.meta.workflowUi)) {
@@ -231,15 +251,18 @@ export function WorkflowEditor({
           toStore[wfName] = ui;
         }
       }
-      if (Object.keys(toStore).length > 0) {
-        localStorage.setItem(localStorageKey, JSON.stringify(toStore));
-      } else {
-        localStorage.removeItem(localStorageKey);
+      if (localStorageKey !== null) {
+        if (Object.keys(toStore).length > 0) {
+          localStorage.setItem(localStorageKey, JSON.stringify(toStore));
+        } else {
+          localStorage.removeItem(localStorageKey);
+        }
       }
+      onWorkflowUiChange?.(toStore);
     } catch {
       // Ignore storage quota or SSR errors.
     }
-  }, [state.document.meta.workflowUi, localStorageKey]);
+  }, [state.document.meta.workflowUi, localStorageKey, onWorkflowUiChange]);
 
   // Notify host of layout changes.
   useEffect(() => {
@@ -248,11 +271,8 @@ export function WorkflowEditor({
     if (ui) onLayoutMetadataChange(ui);
   }, [state.document.meta.workflowUi, state.activeWorkflow, onLayoutMetadataChange]);
 
-  useEffect(() => {
-    const handler = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
-  }, []);
+  // No longer using the Web Fullscreen API — it is unreliable in Tauri's WKWebView.
+  // Fullscreen is simulated via CSS (position:fixed / inset:0) instead.
 
   const handleInspectorResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -271,11 +291,7 @@ export function WorkflowEditor({
   }, [inspectorWidth]);
 
   const handleToggleFullscreen = useCallback(() => {
-    if (!document.fullscreenElement) {
-      editorContainerRef.current?.requestFullscreen();
-    } else {
-      document.exitFullscreen();
-    }
+    setIsFullscreen((v) => !v);
   }, []);
 
   const readOnly = state.mode === "viewer";
@@ -352,19 +368,31 @@ export function WorkflowEditor({
   const saveDisabled = readOnly || derived.errorCount > 0 || saveBlockedByJson;
 
   const handleNodeDragStop = useCallback(
-    (nodeId: string, x: number, y: number) => {
-      const ptr = state.document.meta.ids.states[nodeId];
-      if (!ptr) return;
-      actions.dispatch({
-        op: "setNodePosition",
-        workflow: ptr.workflow,
-        stateCode: ptr.state,
-        x,
-        y,
-        pinned: true,
-      });
+    (nodeId: string, _x: number, _y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
+      const ids = state.document.meta.ids.states;
+      const patches: DomainPatch[] = [];
+      for (const { id, x, y } of allPositions) {
+        const ptr = ids[id];
+        if (!ptr) continue;
+        patches.push({ op: "setNodePosition", workflow: ptr.workflow, stateCode: ptr.state, x, y, ...(id === nodeId ? { pinned: true } : {}) });
+      }
+      if (patches.length === 0) return;
+      // Clear stored transition positions for edges connected to the moved node.
+      const workflow = state.document.meta.ids.states[nodeId]?.workflow;
+      if (workflow) {
+        const stored = state.document.meta.workflowUi[workflow]?.transitionPositions ?? {};
+        for (const edge of derived.graph.edges) {
+          if (edge.kind !== "transition" || edge.workflow !== workflow) continue;
+          if (edge.sourceId !== nodeId && edge.targetId !== nodeId) continue;
+          if (stored[edge.id]) {
+            patches.push({ op: "removeTransitionBlockPosition", transitionId: edge.id });
+          }
+        }
+      }
+      const inverses = patches.map((p) => invertPatch(state.document, p));
+      actions.dispatchTransaction({ patches, inverses, summary: "Move state" });
     },
-    [state.document.meta.ids.states, actions],
+    [state.document, derived.graph, actions],
   );
 
   const handleAutoLayout = useCallback(() => {
@@ -373,9 +401,12 @@ export function WorkflowEditor({
     // Clear all pinned positions so ELK can arrange everything from scratch.
     const workflowUi = { ...state.document.meta.workflowUi };
     const current = workflowUi[workflow] ?? {};
-    workflowUi[workflow] = { ...current, layout: undefined };
+    workflowUi[workflow] = { ...current, layout: undefined, edgeAnchors: undefined, transitionPositions: undefined };
     actions.silentReplace(
-      { session: state.document.session, meta: { ...state.document.meta, workflowUi } },
+      {
+        session: state.document.session,
+        meta: { ...state.document.meta, workflowUi, revision: state.document.meta.revision + 1 },
+      },
       { preserveEditorState: true },
     );
     // Bump layoutKey to force Canvas to re-run ELK.
@@ -383,7 +414,10 @@ export function WorkflowEditor({
   }, [state.activeWorkflow, state.document, actions]);
 
   const openAddStateModal = useCallback((position?: { x: number; y: number }) => {
-    setPendingAddState(position ? { position } : {});
+    // For toolbar/keyboard adds (no explicit position) fall back to the centre
+    // of the visible viewport so the new state lands in view (issue #20).
+    const resolved = position ?? newStatePositionRef.current?.() ?? undefined;
+    setPendingAddState(resolved ? { position: resolved } : {});
   }, []);
 
   // Build pinned nodes from workflowUi layout metadata for the active workflow.
@@ -399,18 +433,68 @@ export function WorkflowEditor({
     for (const [uuid, ptr] of Object.entries(state.document.meta.ids.states)) {
       if (ptr.workflow === workflow) codeToUuid.set(ptr.state, uuid);
     }
-    return Object.entries(layoutNodes)
+    const result = Object.entries(layoutNodes)
       .map(([stateCode, pos]) => {
         const id = codeToUuid.get(stateCode);
         return id ? { id, x: pos.x, y: pos.y } : null;
       })
       .filter((p): p is PinnedNode => p !== null);
+    return result;
   }, [
     state.activeWorkflow,
     state.document.meta.ids.states,
     state.document.meta.workflowUi,
     externalLayoutMeta,
   ]);
+
+  const transitionPositions = useMemo(() => {
+    const workflow = state.activeWorkflow;
+    if (!workflow) return undefined;
+    return state.document.meta.workflowUi[workflow]?.transitionPositions;
+  }, [state.activeWorkflow, state.document.meta.workflowUi]);
+
+  const handleTransitionLabelDragEnd = useCallback(
+    (edgeId: string, x: number, y: number) => {
+      actions.dispatchTransaction({
+        summary: "Move transition label",
+        patches: [{ op: "setTransitionBlockPosition", transitionId: edgeId, x, y }],
+        inverses: [{ op: "removeTransitionBlockPosition", transitionId: edgeId }],
+      });
+    },
+    [actions],
+  );
+
+  const handleVersionChange = useCallback(
+    (targetVersion: string) => {
+      const wireJson = serializeImportPayload(state.document);
+      const result = parseImportPayload(wireJson, state.document.meta, { sourceVersion: targetVersion });
+      if (!result.ok || !result.document) return;
+      const docWithVersion: WorkflowEditorDocument = {
+        ...result.document,
+        meta: { ...result.document.meta, cyodaVersion: targetVersion },
+      };
+      // Detect lossiness by comparing wire output before and after the version
+      // switch. parseImportPayload warnings only cover toCanonical-phase drops
+      // (e.g. scheduled processors); serialization-phase drops (e.g. v0.7
+      // omitting transitions[].schedule) are invisible to warnings but visible
+      // in the serialized output.
+      const beforeJson = wireJson;
+      const afterJson = serializeImportPayload(docWithVersion);
+      const parseWarnings = result.warnings ?? [];
+      const isLossy = beforeJson !== afterJson || parseWarnings.length > 0;
+      const warnings: string[] = parseWarnings.length > 0
+        ? parseWarnings
+        : isLossy
+          ? ["Some fields supported in the current version are not present in the target version and will be removed."]
+          : [];
+      if (isLossy) {
+        setPendingVersionSwitch({ targetVersion, document: docWithVersion, warnings });
+      } else {
+        actions.silentReplace(docWithVersion, { preserveEditorState: true });
+      }
+    },
+    [state.document, actions],
+  );
 
   const requestDeleteState = (workflow: string, stateCode: string) => {
     setPendingDelete({ workflow, stateCode });
@@ -531,7 +615,7 @@ export function WorkflowEditor({
     [pendingAddState, state.activeWorkflow, actions],
   );
 
-  const anyModalOpen = pendingDelete !== null || pendingConnect !== null || pendingAddState !== null;
+  const anyModalOpen = pendingDelete !== null || pendingConnect !== null || pendingAddState !== null || helpOpen;
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -567,6 +651,10 @@ export function WorkflowEditor({
       if (!readOnly && !mod && e.key === "a") {
         e.preventDefault();
         openAddStateModal();
+        return;
+      }
+      if (e.key === "Escape" && isFullscreen) {
+        setIsFullscreen(false);
         return;
       }
       if (e.key === "Escape" && (state.selection || inspectorOpen)) {
@@ -708,11 +796,14 @@ export function WorkflowEditor({
     >
       <Canvas
         graph={derived.graph}
+        document={state.document}
         issues={derived.issues}
         activeWorkflow={state.activeWorkflow}
         selection={state.selection}
         layoutOptions={effectiveLayoutOptions}
         savedViewport={savedViewport}
+        transitionPositions={transitionPositions}
+        onTransitionLabelDragEnd={handleTransitionLabelDragEnd}
         onSelectionChange={handleSelectionChange}
         onViewportChange={handleViewportChange}
         onConnect={handleConnect}
@@ -728,6 +819,7 @@ export function WorkflowEditor({
           if (edge) dispatch({ op: "removeTransition", transitionUuid: edge.id });
         }}
         onPaneDoubleClick={handlePaneDoubleClick}
+        newStatePositionRef={newStatePositionRef}
         onNodeDragStop={!readOnly ? handleNodeDragStop : undefined}
         layoutKey={layoutKey}
         readOnly={readOnly}
@@ -741,6 +833,8 @@ export function WorkflowEditor({
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
         resizeKey={inspectorVisible ? 1 : 0}
+        onHelp={() => setHelpOpen(true)}
+        helpLabel={mergedMessages.toolbar.help}
       />
       {reconnectError && (
         <div
@@ -813,6 +907,7 @@ export function WorkflowEditor({
   ) : null;
 
   return (
+    <CriterionMonacoProvider value={jsonEditor?.monaco ?? null}>
     <I18nContext.Provider value={mergedMessages}>
      <EditorConfigContext.Provider value={editorConfig}>
       <div
@@ -826,6 +921,7 @@ export function WorkflowEditor({
           outline: "none",
           background: "white",
           ...(layout === "fullWidth" ? { width: "100%", minHeight: 0 } : null),
+          ...(isFullscreen ? { position: "fixed", inset: 0, zIndex: 9999, height: "100vh", width: "100vw" } : null),
         }}
         data-surface={surface}
         data-layout={layout}
@@ -834,46 +930,17 @@ export function WorkflowEditor({
         onKeyDown={handleKeyDown}
         tabIndex={-1}
       >
-        {chrome?.toolbar !== false && (
-          <div style={{ position: "relative" }}>
-            <Toolbar
-              derived={derived}
-              readOnly={readOnly}
-              saveDisabled={saveDisabled}
-              showSaveButton={showSaveButton}
-              openIssueSeverity={openIssueSeverity}
-              onSave={onSave ? () => onSave(state.document) : undefined}
-              onIssueBadgeClick={(severity) =>
-                setOpenIssueSeverity((prev) => (prev === severity ? null : severity))
-              }
-              toolbarStart={toolbarStart}
-              toolbarCenter={toolbarCenter}
-              toolbarEnd={toolbarEnd}
-            />
-            <IssuesDrawer
-              open={openIssueSeverity !== null}
-              severity={openIssueSeverity ?? "error"}
-              issues={derived.issues}
-              document={state.document}
-              onClose={() => setOpenIssueSeverity(null)}
-              onJumpTo={(selection) => {
-                handleSelectionChange(selection);
-              }}
-            />
-          </div>
-        )}
         {chrome?.tabs !== false && showTabs && (
           <WorkflowTabs
             workflows={workflows}
             activeWorkflow={state.activeWorkflow}
             readOnly={readOnly}
             onSelect={actions.setActiveWorkflow}
-            onAdd={() =>
-              dispatch({
-                op: "addWorkflow",
-                workflow: defaultNewWorkflow(workflows.map((w) => w.name)),
-              })
-            }
+            onAdd={() => {
+              const newWorkflow = defaultNewWorkflow(workflows.map((w) => w.name));
+              dispatch({ op: "addWorkflow", workflow: newWorkflow });
+              actions.setActiveWorkflow(newWorkflow.name);
+            }}
             onClose={(name) => dispatch({ op: "removeWorkflow", workflow: name })}
             onRename={(from, to) => {
               actions.dispatchTransaction({
@@ -884,6 +951,9 @@ export function WorkflowEditor({
               });
               actions.setActiveWorkflow(to);
             }}
+            dialectVersion={`v${state.document.meta.cyodaVersion ?? LATEST_CYODA_VERSION}`}
+            supportedVersions={SUPPORTED_CYODA_VERSIONS}
+            onVersionChange={handleVersionChange}
           />
         )}
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -894,7 +964,8 @@ export function WorkflowEditor({
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  padding: "6px 12px",
+                  padding: "0 12px",
+                  height: 36,
                   borderBottom: "1px solid #E2E8F0",
                   background: "white",
                 }}
@@ -929,10 +1000,10 @@ export function WorkflowEditor({
                       gap: 5,
                       padding: "4px 10px",
                       background: "white",
-                      color: "#0F172A",
-                      border: "1px solid #CBD5E1",
+                      color: "#2563EB",
+                      border: "1px solid #2563EB",
                       borderRadius: 5,
-                      fontSize: 12,
+                      fontSize: 13,
                       fontWeight: 500,
                       cursor: "pointer",
                     }}
@@ -1017,7 +1088,6 @@ export function WorkflowEditor({
                 onClose={() => handleSelectionChange(null)}
                 onRequestDeleteState={requestDeleteState}
                 width={inspectorWidth}
-                {...(hintProvider ? { hintProvider } : {})}
               />
             </>
           )}
@@ -1051,9 +1121,51 @@ export function WorkflowEditor({
             onCancel={() => setPendingConnect(null)}
           />
         )}
+        {helpOpen && <HelpModal onCancel={() => setHelpOpen(false)} />}
+        {pendingVersionSwitch && (
+          <VersionSwitchModal
+            fromVersion={`v${state.document.meta.cyodaVersion ?? LATEST_CYODA_VERSION}`}
+            toVersion={`v${pendingVersionSwitch.targetVersion}`}
+            warnings={pendingVersionSwitch.warnings}
+            onConfirm={() => {
+              actions.silentReplace(pendingVersionSwitch.document, { preserveEditorState: true });
+              setPendingVersionSwitch(null);
+            }}
+            onCancel={() => setPendingVersionSwitch(null)}
+          />
+        )}
+        {chrome?.toolbar !== false && (
+          <div style={{ position: "relative" }}>
+            <Toolbar
+              derived={derived}
+              readOnly={readOnly}
+              saveDisabled={saveDisabled}
+              showSaveButton={showSaveButton}
+              openIssueSeverity={openIssueSeverity}
+              onSave={onSave ? () => onSave(state.document) : undefined}
+              onIssueBadgeClick={(severity) =>
+                setOpenIssueSeverity((prev) => (prev === severity ? null : severity))
+              }
+              toolbarStart={toolbarStart}
+              toolbarCenter={toolbarCenter}
+              toolbarEnd={toolbarEnd}
+            />
+            <IssuesDrawer
+              open={openIssueSeverity !== null}
+              severity={openIssueSeverity ?? "error"}
+              issues={derived.issues}
+              document={state.document}
+              onClose={() => setOpenIssueSeverity(null)}
+              onJumpTo={(selection) => {
+                handleSelectionChange(selection);
+              }}
+            />
+          </div>
+        )}
       </div>
      </EditorConfigContext.Provider>
     </I18nContext.Provider>
+    </CriterionMonacoProvider>
   );
 }
 
@@ -1274,7 +1386,7 @@ function SurfaceTab({
       type="button"
       onClick={onClick}
       style={{
-        padding: "6px 12px",
+        padding: "4px 10px",
         borderRadius: 999,
         border: `1px solid ${active ? "#0F172A" : "#CBD5E1"}`,
         background: active ? "#0F172A" : "white",

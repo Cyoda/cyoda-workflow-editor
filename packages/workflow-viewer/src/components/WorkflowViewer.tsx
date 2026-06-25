@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { WorkflowEditorDocument } from "@cyoda/workflow-core";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Transition, WorkflowEditorDocument } from "@cyoda/workflow-core";
 import type {
   GraphDocument,
   GraphNode,
@@ -8,14 +8,31 @@ import type {
   WorkflowInspection,
 } from "@cyoda/workflow-graph";
 import { computeHighlightSet, inspectGraphFocus, projectToGraph } from "@cyoda/workflow-graph";
-import { simpleLayout, nudgeLabels, type LayoutResult, type NodePosition } from "../layout.js";
+import { simpleLayout, type LayoutResult, type NodePosition } from "../layout.js";
 import { usePanZoom } from "../hooks/usePanZoom.js";
 import { Defs } from "./Defs.js";
 import { StartMarker } from "./StartMarker.js";
 import { StateNodeView } from "./StateNode.js";
 import { EdgePath, computeEdgeGeometry } from "./EdgePath.js";
 import { EdgeLabel } from "./EdgeLabel.js";
-import { workflowPalette } from "../theme/tokens.js";
+import { geometry, workflowPalette } from "../theme/tokens.js";
+import { routeEdges, distributeLabels } from "@cyoda/workflow-layout";
+import { badgesFor } from "../theme/badges.js";
+import { TransitionTooltip } from "./TransitionTooltip.js";
+
+// Mirrors Canvas.tsx measureLabelText — uses Canvas 2D for accurate uppercase width.
+let _ctx: CanvasRenderingContext2D | null | undefined;
+function measureLabelText(text: string): number {
+  if (_ctx === undefined) {
+    try {
+      const cvs = document.createElement("canvas");
+      _ctx = cvs.getContext("2d");
+      if (_ctx) _ctx.font = '700 9px -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif';
+    } catch { _ctx = null; }
+  }
+  if (!_ctx) return text.length * 6;
+  return _ctx.measureText(text.toUpperCase()).width + text.length * 0.36;
+}
 
 export interface WorkflowViewerProps {
   graph?: GraphDocument;
@@ -42,6 +59,8 @@ export interface WorkflowViewerProps {
   /** Render the synthetic start-marker badge produced by graph projection. */
   showStartMarker?: boolean;
   className?: string;
+  /** Dialect version string to display (e.g. "v0.8"). Omit to hide the badge. */
+  dialectVersion?: string;
 }
 
 export type WorkflowViewerSurface = "website" | "ops-console";
@@ -71,6 +90,7 @@ export function WorkflowViewer({
   onInspect,
   showStartMarker = false,
   className,
+  dialectVersion,
 }: WorkflowViewerProps) {
   const graph = useMemo(() => {
     if (graphInput) return graphInput;
@@ -90,14 +110,81 @@ export function WorkflowViewer({
     layoutMode ??
     (typeof layout === "string" ? layout : undefined) ??
     "embedded";
-  const effectiveLayout = useMemo(
-    () => normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? simpleLayout(visibleGraph),
-    [graphLayout, visibleGraph],
+
+  // When no pre-computed layout is supplied, run layoutGraph (same engine as
+  // the editor) so the viewer always shows the same arrangement.
+  // layoutGraph is loaded dynamically so the viewer can render immediately
+  // with simpleLayout while the async result loads.
+  const [computedLayout, setComputedLayout] = useState<LayoutResult | null>(
+    graphLayout ? normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? null : null,
   );
+  useEffect(() => {
+    if (graphLayout) {
+      setComputedLayout(normalizeLayoutForVisibleGraph(graphLayout, visibleGraph) ?? null);
+      return;
+    }
+    let cancelled = false;
+    import("@cyoda/workflow-layout").then(({ layoutGraph }) =>
+      layoutGraph(visibleGraph, { preset: "configuratorReadable", orientation: "vertical" })
+    ).then(
+      (result) => {
+        if (!cancelled) setComputedLayout(result as unknown as LayoutResult);
+      },
+    ).catch(() => {
+      // layoutGraph unavailable — simpleLayout fallback stays in place
+    });
+    return () => { cancelled = true; };
+  }, [graphLayout, visibleGraph]);
+
+  const effectiveLayout = computedLayout ?? simpleLayout(visibleGraph);
+
+  // Compute actual node bounds for a symmetric viewBox padding regardless of
+  // ELK's internal padding (which is larger at the bottom than the top).
+  const contentBounds = useMemo(() => {
+    const PAD = 24;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const pos of effectiveLayout.positions.values()) {
+      minX = Math.min(minX, pos.x);
+      minY = Math.min(minY, pos.y);
+      maxX = Math.max(maxX, pos.x + pos.width);
+      maxY = Math.max(maxY, pos.y + pos.height);
+    }
+    if (!isFinite(minX)) return { x: -PAD, y: -PAD, w: PAD * 2, h: PAD * 2 };
+    return { x: minX - PAD, y: minY - PAD, w: maxX - minX + PAD * 2, h: maxY - minY + PAD * 2 };
+  }, [effectiveLayout]);
+
   const pan = usePanZoom();
   const [internalSelection, setInternalSelection] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const selection = selectedId ?? internalSelection;
+
+  // Tooltip state
+  const [tooltipEdgeId, setTooltipEdgeId] = useState<string | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Build map from edge UUID → Transition for tooltip.
+  // Use edge.sourceId → stateCode (via meta.ids.states) + edge.summary.full to find the transition.
+  const transitionDataMap = useMemo(() => {
+    if (!document) return new Map<string, Transition>();
+    const stateCodeByUuid = new Map<string, string>();
+    for (const [uuid, ptr] of Object.entries(document.meta.ids.states)) {
+      stateCodeByUuid.set(uuid, ptr.state);
+    }
+    const map = new Map<string, Transition>();
+    for (const edge of visibleGraph.edges) {
+      if (edge.kind !== "transition") continue;
+      const stateCode = stateCodeByUuid.get(edge.sourceId);
+      if (!stateCode) continue;
+      const wf = document.session.workflows.find(w => w.name === edge.workflow);
+      if (!wf) continue;
+      const state = wf.states[stateCode];
+      if (!state) continue;
+      const t = state.transitions.find(tr => tr.name === edge.summary.full);
+      if (t) map.set(edge.id, t);
+    }
+    return map;
+  }, [document, visibleGraph]);
 
   const stateNodes = useMemo(
     () => visibleGraph.nodes.filter((n): n is StateNode => n.kind === "state"),
@@ -114,38 +201,100 @@ export function WorkflowViewer({
     [visibleGraph.edges],
   );
 
-  // Dev-mode hint when the fallback renderer is used on a branching graph.
-  useEffect(() => {
-    if (process.env.NODE_ENV === "production" || graphLayout) return;
-    const sourceCounts = new Map<string, number>();
-    for (const e of graph.edges) {
-      if (e.kind !== "transition") continue;
-      sourceCounts.set(e.sourceId, (sourceCounts.get(e.sourceId) ?? 0) + 1);
+  // Terminal node IDs — needed by the shared router for terminal-side handles.
+  const terminalIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of visibleGraph.nodes) {
+      if (n.kind === "state" && (n.role === "terminal" || n.role === "initial-terminal")) {
+        ids.add(n.id);
+      }
     }
-    if ([...sourceCounts.values()].some((n) => n > 1)) {
-      console.warn(
-        "[WorkflowViewer] Rendering without an ELK layout — branching graphs may not look polished. " +
-          "Pass a layout from `layoutGraph()` (@cyoda/workflow-layout) for best results.",
-      );
-    }
-  }, [graphLayout, visibleGraph.edges]);
+    return ids;
+  }, [visibleGraph.nodes]);
 
-  // Pre-compute fallback label positions with collision avoidance.
-  // Only used when effectiveLayout has no .edges (the ELK path already provides label coords).
-  const fallbackLabelPositions = useMemo(() => {
-    if (effectiveLayout.edges) return null;
-    const CHAR_W = 6.5;
-    const PILL_H = 24;
-    const items = transitionEdges.flatMap((edge) => {
-      const source = effectiveLayout.positions.get(edge.sourceId);
-      const target = effectiveLayout.positions.get(edge.targetId);
-      if (!source || !target) return [];
-      const { midX, midY } = computeEdgeGeometry(edge, source, target);
-      const pillW = Math.max(40, edge.summary.display.length * CHAR_W + 12);
-      return [{ id: edge.id, midX, midY, pillW, pillH: PILL_H }];
-    });
-    return nudgeLabels(items);
-  }, [effectiveLayout, transitionEdges]);
+  // Compute edge paths using the same orthogonal router as the editor canvas.
+  // Falls back to ELK pre-computed routes when available, otherwise runs the
+  // shared router so edge paths are identical to the editor.
+  const computedEdgePaths = useMemo(() => {
+    if (effectiveLayout.edges && effectiveLayout.edges.size > 0) return null;
+    return routeEdges(transitionEdges, effectiveLayout.positions, "vertical", terminalIds);
+  }, [effectiveLayout, transitionEdges, terminalIds]);
+
+  // Distribute labels using the same algorithm as the editor:
+  // - horizontal-segment labels (bottom/top exit) → spread in X
+  // - vertical-segment labels (left/right exit)   → spread in Y
+  // - cross-axis pass clears remaining H vs V conflicts
+  const distributedLabelPositions = useMemo(() => {
+    const LABEL_PX = geometry.labelPill.paddingX;
+    // Match Canvas.tsx exactly: 9px font + 2×3px padding + 2×1px border = 22; badge row = 18
+    const LABEL_H_BASE = 22;
+    const BADGE_ROW = 18;
+    const LABEL_GAP = 4;
+
+    type Slot = { edgeId: string; cx: number; cy: number; w: number; h: number; isHoriz: boolean };
+    const slots: Slot[] = [];
+
+    for (const edge of transitionEdges) {
+      if (edge.isSelf) continue;
+      const routerPath = computedEdgePaths?.get(edge.id);
+      const elkRoute = effectiveLayout.edges?.get(edge.id);
+      let cx: number, cy: number, isHoriz: boolean;
+      if (routerPath) {
+        cx = routerPath.labelX; cy = routerPath.labelY; isHoriz = routerPath.isHorizSegment;
+      } else if (elkRoute) {
+        cx = elkRoute.labelX; cy = elkRoute.labelY; isHoriz = false;
+      } else {
+        const src = effectiveLayout.positions.get(edge.sourceId);
+        const tgt = effectiveLayout.positions.get(edge.targetId);
+        if (!src || !tgt) continue;
+        const g = computeEdgeGeometry(edge, src, tgt);
+        cx = g.midX; cy = g.midY; isHoriz = Math.abs(src.y - tgt.y) < src.height * 0.75;
+      }
+      const badges = badgesFor(edge.summary, { manual: edge.manual, disabled: edge.disabled });
+      const w = Math.max(40, measureLabelText(edge.summary.display) + 2 * LABEL_PX + 2);
+      const h = LABEL_H_BASE + (badges.length > 0 ? BADGE_ROW : 0);
+      slots.push({ edgeId: edge.id, cx, cy, w, h, isHoriz });
+    }
+
+    const xOffsets = distributeLabels(
+      slots.filter(s => s.isHoriz).map(s => ({ edgeId: s.edgeId, main: s.cx, mainSize: s.w, cross: s.cy, crossSize: s.h })),
+      LABEL_GAP,
+    );
+    const yOffsets = distributeLabels(
+      slots.filter(s => !s.isHoriz).map(s => ({ edgeId: s.edgeId, main: s.cy, mainSize: s.h, cross: s.cx, crossSize: s.w })),
+      LABEL_GAP,
+    );
+
+    // Cross-axis pass: push horizontal labels clear of vertical label columns.
+    const horizSlots = slots.filter(s => s.isHoriz);
+    const vertSlots  = slots.filter(s => !s.isHoriz);
+    for (let pass = 0; pass < 3; pass++) {
+      let changed = false;
+      for (const h of horizSlots) {
+        let hx = h.cx + (xOffsets.get(h.edgeId) ?? 0);
+        const hyLo = h.cy - h.h / 2, hyHi = h.cy + h.h / 2;
+        for (const v of vertSlots) {
+          const vy = v.cy + (yOffsets.get(v.edgeId) ?? 0);
+          if (hyHi <= vy - v.h / 2 || hyLo >= vy + v.h / 2) continue;
+          const vxLo = v.cx - v.w / 2, vxHi = v.cx + v.w / 2;
+          if (hx + h.w / 2 <= vxLo || hx - h.w / 2 >= vxHi) continue;
+          hx = hx < v.cx ? vxLo - h.w / 2 - LABEL_GAP : vxHi + h.w / 2 + LABEL_GAP;
+          changed = true;
+        }
+        xOffsets.set(h.edgeId, hx - h.cx);
+      }
+      if (!changed) break;
+    }
+
+    const result = new Map<string, { midX: number; midY: number }>();
+    for (const s of slots) {
+      result.set(s.edgeId, {
+        midX: s.cx + (xOffsets.get(s.edgeId) ?? 0),
+        midY: s.cy + (yOffsets.get(s.edgeId) ?? 0),
+      });
+    }
+    return result;
+  }, [computedEdgePaths, effectiveLayout, transitionEdges]);
 
   const focusId = hovered ?? selection;
   const highlightSet = useMemo(() => {
@@ -188,11 +337,35 @@ export function WorkflowViewer({
     }
   };
 
+  const tooltipTransition = tooltipEdgeId ? transitionDataMap.get(tooltipEdgeId) : undefined;
+
   return (
+    <div ref={containerRef} style={{ position: "relative", width, height, display: "inline-block" }}>
+      {dialectVersion && (
+        <div
+          data-testid="viewer-version-badge"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            padding: "3px 9px",
+            background: "#F1F5F9",
+            color: "#64748B",
+            border: "1px solid #E2E8F0",
+            borderRadius: 4,
+            fontSize: 12,
+            fontWeight: 600,
+            pointerEvents: "none",
+            zIndex: 1,
+          }}
+        >
+          {dialectVersion}
+        </div>
+      )}
     <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${effectiveLayout.width} ${effectiveLayout.height}`}
+      width="100%"
+      height="100%"
+      viewBox={`${contentBounds.x} ${contentBounds.y} ${contentBounds.w} ${contentBounds.h}`}
       preserveAspectRatio="xMidYMid meet"
       onClick={handleBackgroundClick}
       onWheel={pan.onWheel}
@@ -222,7 +395,9 @@ export function WorkflowViewer({
           const target = effectiveLayout.positions.get(edge.targetId);
           if (!source || !target) return null;
           const targetNode = stateById.get(edge.targetId);
-          const route = effectiveLayout.edges?.get(edge.id);
+          const elkRoute = effectiveLayout.edges?.get(edge.id);
+          const routerPath = computedEdgePaths?.get(edge.id);
+          const route = elkRoute;
           const isEdgeSelected = selection === edge.id;
           const isHighlighted = highlightSet?.has(edge.id) ?? false;
           const isDimmed = anythingFocused && !isHighlighted;
@@ -233,6 +408,7 @@ export function WorkflowViewer({
               source={source}
               target={target}
               route={route}
+              overridePath={routerPath?.d}
               targetIsTerminal={
                 targetNode?.role === "terminal" ||
                 targetNode?.role === "initial-terminal"
@@ -252,23 +428,25 @@ export function WorkflowViewer({
           const source = effectiveLayout.positions.get(edge.sourceId);
           const target = effectiveLayout.positions.get(edge.targetId);
           if (!source || !target) return null;
-          const route = effectiveLayout.edges?.get(edge.id);
-          // ELK path: use pre-placed label coords from the route.
-          // Fallback path: use nudge-adjusted positions (collision-free).
-          const labelPos = route
-            ? { midX: route.labelX, midY: route.labelY }
-            : (fallbackLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target));
+          const labelPos = distributedLabelPositions?.get(edge.id) ?? computeEdgeGeometry(edge, source, target);
           const isHighlighted = highlightSet?.has(edge.id) ?? false;
           const isDimmed = anythingFocused && !isHighlighted;
+          const hasTooltipData = transitionDataMap.has(edge.id);
           return (
             <EdgeLabel
               key={`label-${edge.id}`}
               edge={edge}
               x={labelPos.midX}
               y={labelPos.midY}
-              width={route?.labelWidth}
-              height={route?.labelHeight}
               dimmed={isDimmed}
+              onMouseEnter={hasTooltipData ? (e) => {
+                setTooltipPos({ x: e.clientX, y: e.clientY });
+                setTooltipEdgeId(edge.id);
+              } : undefined}
+              onMouseLeave={hasTooltipData ? () => {
+                setTooltipEdgeId(null);
+                setTooltipPos(null);
+              } : undefined}
             />
           );
         })}
@@ -284,6 +462,14 @@ export function WorkflowViewer({
         }))}
       </g>
     </svg>
+    {tooltipTransition && tooltipPos && (
+      <TransitionTooltip
+        transition={tooltipTransition}
+        x={tooltipPos.x}
+        y={tooltipPos.y}
+      />
+    )}
+    </div>
   );
 }
 

@@ -123,15 +123,15 @@ export function LayoutShowcasePage() {
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h2>Viewer fallback</h2>
-              <p className="muted-text">`WorkflowViewer` with its built-in `simpleLayout` fallback.</p>
+              <h2>Simple fallback layout</h2>
+              <p className="muted-text">BFS-layered `simpleLayout` — fixed gaps, no tree optimisation.</p>
             </div>
             <p className="selection-note">
               Canvas size: <code>{fallback.width} x {fallback.height}</code>
             </p>
           </div>
           <div className="viewer-card viewer-card--medium">
-            <WorkflowViewer graph={graph} />
+            <WorkflowViewer graph={graph} layout={fallback} />
           </div>
         </section>
 

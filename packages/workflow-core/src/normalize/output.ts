@@ -4,14 +4,26 @@ import type {
   ExternalizedProcessorConfig,
   Processor,
 } from "../types/processor.js";
-import type { Transition, Workflow } from "../types/workflow.js";
+import type { Transition, TransitionSchedule, Workflow } from "../types/workflow.js";
 
 /**
  * Output normalization (spec §8.2) — deterministic shaping for serialization.
  * Returns plain objects in the exact keys the serializer will emit.
  */
 
-export function outputWorkflow(w: Workflow): Record<string, unknown> {
+/**
+ * Per-version output options.
+ * - `schedule`: emit `transitions[].schedule` (cyoda-go v0.8.0). Defaults to
+ *   `false` so the v0.7 wire format (which has no such field) is unchanged.
+ */
+export interface OutputOptions {
+  schedule?: boolean;
+}
+
+export function outputWorkflow(
+  w: Workflow,
+  options?: OutputOptions,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {
     version: w.version,
     name: w.name,
@@ -20,19 +32,25 @@ export function outputWorkflow(w: Workflow): Record<string, unknown> {
   out["initialState"] = w.initialState;
   out["active"] = w.active;
   if (w.criterion !== undefined) out["criterion"] = outputCriterion(w.criterion);
-  out["states"] = outputStates(w.states);
+  out["states"] = outputStates(w.states, options);
   return out;
 }
 
-function outputStates(states: Workflow["states"]): Record<string, unknown> {
+function outputStates(
+  states: Workflow["states"],
+  options?: OutputOptions,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [code, state] of Object.entries(states)) {
-    out[code] = { transitions: state.transitions.map(outputTransition) };
+    out[code] = { transitions: state.transitions.map((t) => outputTransition(t, options)) };
   }
   return out;
 }
 
-export function outputTransition(t: Transition): Record<string, unknown> {
+export function outputTransition(
+  t: Transition,
+  options?: OutputOptions,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {
     name: t.name,
     next: t.next,
@@ -43,6 +61,15 @@ export function outputTransition(t: Transition): Record<string, unknown> {
   if (t.processors !== undefined && t.processors.length > 0) {
     out["processors"] = t.processors.map(outputProcessor);
   }
+  if (options?.schedule && t.schedule !== undefined) {
+    out["schedule"] = outputSchedule(t.schedule);
+  }
+  return out;
+}
+
+function outputSchedule(s: TransitionSchedule): Record<string, unknown> {
+  const out: Record<string, unknown> = { delayMs: s.delayMs };
+  if (s.timeoutMs !== undefined) out["timeoutMs"] = s.timeoutMs;
   return out;
 }
 
@@ -104,23 +131,8 @@ export function outputCriterion(c: Criterion): Record<string, unknown> {
 }
 
 export function outputProcessor(p: Processor): Record<string, unknown> {
-  if (p.type === "externalized") return outputExternalizedProcessor(p);
-  return {
-    type: "scheduled",
-    name: p.name,
-    config: outputScheduledConfig(p.config),
-  };
-}
-
-function outputScheduledConfig(
-  cfg: { delayMs: number; transition: string; timeoutMs?: number },
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {
-    delayMs: cfg.delayMs,
-    transition: cfg.transition,
-  };
-  if (cfg.timeoutMs !== undefined) out["timeoutMs"] = cfg.timeoutMs;
-  return out;
+  // `externalized` is the only processor type since the v0.8 major bump.
+  return outputExternalizedProcessor(p);
 }
 
 function outputExternalizedProcessor(p: ExternalizedProcessor): Record<string, unknown> {

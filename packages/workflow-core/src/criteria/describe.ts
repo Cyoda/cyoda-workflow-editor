@@ -1,4 +1,4 @@
-import type { Criterion } from "../types/criterion.js";
+import type { Criterion, OperatorValue } from "../types/criterion.js";
 import type { OperatorType } from "../types/operator.js";
 
 const OPERATOR_SYMBOL: Readonly<Partial<Record<OperatorType, string>>> = {
@@ -31,7 +31,7 @@ export function describeCriterion(c: Criterion): string {
   }
 }
 
-function describeBinary(lhs: string, op: OperatorType, value: unknown): string {
+function describeBinary(lhs: string, op: OperatorValue, value: unknown): string {
   if (op === "IS_NULL") return `${lhs} IS NULL`;
   if (op === "NOT_NULL") return `${lhs} IS NOT NULL`;
   if (op === "IS_CHANGED") return `${lhs} CHANGED`;
@@ -43,7 +43,8 @@ function describeBinary(lhs: string, op: OperatorType, value: unknown): string {
     }
     return `${lhs} ${op} ${formatValue(value)}`;
   }
-  const symbol = OPERATOR_SYMBOL[op] ?? op;
+  // Unknown operators (outside the curated set) fall back to the raw string.
+  const symbol = OPERATOR_SYMBOL[op as OperatorType] ?? op;
   return `${lhs} ${symbol} ${formatValue(value)}`;
 }
 

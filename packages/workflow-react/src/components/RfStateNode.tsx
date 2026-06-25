@@ -104,7 +104,6 @@ function RfStateNodeImpl({ data, selected, id }: NodeProps<RfStateNodeData>) {
       }}
       data-testid={`rf-state-${node.stateCode}`}
       aria-label={`${category} state: ${node.stateCode}`}
-      title={`${category} · ${node.stateCode}`}
       onMouseEnter={() => setShowAnchors(true)}
       onMouseLeave={() => setShowAnchors(false)}
     >

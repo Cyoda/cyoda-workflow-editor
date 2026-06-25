@@ -1,3 +1,4 @@
+import { getDialect, LATEST_CYODA_VERSION, type CyodaSchemaVersion } from "../dialect/index.js";
 import { assignSyntheticIds } from "../identity/assign.js";
 import { normalizeWorkflowInput } from "../normalize/input.js";
 import { ExportPayloadSchema } from "../schema/payload.js";
@@ -6,13 +7,14 @@ import type { ExportPayload, WorkflowSession } from "../types/session.js";
 import { validateSemantics } from "../validate/semantic.js";
 import { zodErrorToIssues } from "../validate/schema.js";
 import { ParseJsonError } from "./errors.js";
-import { normalizeOperatorAlias } from "./operator-alias.js";
 import type { ParseResult } from "./parse-import.js";
 
 export function parseExportPayload(
   json: string,
   prior?: EditorMetadata,
+  options?: { sourceVersion?: CyodaSchemaVersion },
 ): ParseResult<ExportPayload> {
+  const sourceVersion = options?.sourceVersion ?? LATEST_CYODA_VERSION;
   let parsed: unknown;
   try {
     parsed = JSON.parse(json);
@@ -20,9 +22,12 @@ export function parseExportPayload(
     throw new ParseJsonError(`Invalid JSON: ${(e as Error).message}`);
   }
 
-  let aliased: unknown;
+  let canonical: unknown;
+  let warnings: string[];
   try {
-    aliased = normalizeOperatorAlias(parsed);
+    const result = getDialect(sourceVersion).toCanonical(parsed);
+    canonical = result.value;
+    warnings = result.warnings;
   } catch (e) {
     return {
       ok: false,
@@ -36,9 +41,13 @@ export function parseExportPayload(
     };
   }
 
-  const schemaResult = ExportPayloadSchema.safeParse(aliased);
+  const schemaResult = ExportPayloadSchema.safeParse(canonical);
   if (!schemaResult.success) {
-    return { ok: false, issues: zodErrorToIssues(schemaResult.error) };
+    return {
+      ok: false,
+      issues: zodErrorToIssues(schemaResult.error),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
   }
 
   const normalizedWorkflows = schemaResult.data.workflows.map(normalizeWorkflowInput);
@@ -52,6 +61,7 @@ export function parseExportPayload(
   };
 
   const meta = assignSyntheticIds(session, prior);
+  meta.cyodaVersion = sourceVersion;
   const document: WorkflowEditorDocument = { session, meta };
 
   const issues = validateSemantics(session, document);
@@ -66,5 +76,6 @@ export function parseExportPayload(
     },
     document,
     issues,
+    ...(warnings.length > 0 ? { warnings } : {}),
   };
 }

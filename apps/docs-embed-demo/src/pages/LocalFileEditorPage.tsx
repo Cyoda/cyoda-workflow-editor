@@ -303,6 +303,11 @@ export function LocalFileEditorPage() {
         </div>
       ) : (
         <div className="local-file-editor__workspace">
+          <div className="local-file-editor__toolbar local-file-editor__toolbar--top">
+            {toolbarStart}
+            {toolbarCenter}
+            {toolbarEnd}
+          </div>
           <div className="local-file-editor__editor-shell" data-testid="local-file-editor-shell">
             <WorkflowEditor
               document={document}
@@ -322,9 +327,6 @@ export function LocalFileEditorPage() {
                 requestSave();
               }}
               showSaveButton={false}
-              toolbarStart={toolbarStart}
-              toolbarCenter={toolbarCenter}
-              toolbarEnd={toolbarEnd}
               developerMode={true}
             />
           </div>

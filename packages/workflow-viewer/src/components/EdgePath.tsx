@@ -9,6 +9,8 @@ interface Props {
   target: NodePosition;
   /** Pre-computed polyline from the layout engine (ELK). Overrides center-to-center heuristic. */
   route?: EdgeRoute;
+  /** SVG path `d` string from the shared orthogonal router — takes priority over computeEdgeGeometry. */
+  overridePath?: string;
   targetIsTerminal: boolean;
   highlighted: boolean;
   dimmed: boolean;
@@ -36,45 +38,89 @@ export function polylineToPath(points: { x: number; y: number }[]): string {
 }
 
 /**
- * Compute a simple orthogonal-ish path between two node centres. Self-loops
- * are rendered as a right-side arc; parallel siblings are offset laterally
- * based on parallelIndex to avoid overlap.
+ * Compute an orthogonal path between two node positions.
+ *
+ * Forward edges (source above target): Z-shape — exits bottom-centre,
+ * turns at the midpoint Y, arrives top-centre. Clean horizontal crossing
+ * segment replaces the old diagonal bezier.
+ *
+ * Back-edges / same-level (source below or beside target): wrap around the
+ * side that keeps the arc away from the main flow.
+ *
+ * Self-loops: right-side rectangular arc.
+ *
+ * Parallel edges are spread by offsetting the mid-segment laterally.
  */
 export function computeEdgeGeometry(
   edge: TransitionEdge,
   source: NodePosition,
   target: NodePosition,
 ): EdgeGeometry {
-  // Default ports: source exits from bottom-centre, target enters at top-centre.
-  // simpleLayout always produces top-down BFS layers so this avoids the arrowhead
-  // landing under the target node (which happens when both ends are at node centre).
+  const STUB = 16;
+  const SIDE_MARGIN = 32;
+
+  // Self-loop: rectangular arc on the right side.
+  if (edge.isSelf) {
+    const rightX = source.x + source.width;
+    const topY = source.y + source.height / 3;
+    const bottomY = source.y + (source.height * 2) / 3;
+    const loopX = rightX + SIDE_MARGIN;
+    const d = `M ${rightX} ${topY} L ${loopX} ${topY} L ${loopX} ${bottomY} L ${rightX} ${bottomY}`;
+    return { d, midX: loopX, midY: (topY + bottomY) / 2 };
+  }
+
   const sx = source.x + source.width / 2;
   const sy = source.y + source.height;
   const tx = target.x + target.width / 2;
   const ty = target.y;
 
-  if (edge.isSelf) {
-    const rightX = source.x + source.width;
-    const topY = source.y + source.height / 3;
-    const bottomY = source.y + (source.height * 2) / 3;
-    const loopX = rightX + 28;
-    const d = `M ${rightX} ${topY} C ${loopX} ${topY}, ${loopX} ${bottomY}, ${rightX} ${bottomY}`;
-    return { d, midX: loopX, midY: (topY + bottomY) / 2 };
+  // Parallel offset — stagger mid-segment so overlapping edges spread out.
+  const offsetStep = 20;
+  const half = Math.floor(edge.parallelGroupSize / 2);
+  const parallelOffset = (edge.parallelIndex - half) * offsetStep;
+
+  const srcCX = source.x + source.width / 2;
+  const tgtCX = target.x + target.width / 2;
+
+  // Same-level nodes: source and target are at the same vertical layer.
+  // Route going-right edges BELOW the nodes and going-left edges ABOVE so
+  // bidirectional pairs naturally separate without needing a shared offset.
+  const sameLevel = Math.abs(source.y - target.y) < source.height * 0.75;
+  if (sameLevel) {
+    const goingRight = srcCX < tgtCX;
+    if (goingRight) {
+      // Arc below: exit source bottom → dip down → enter target bottom
+      const arcY = Math.max(source.y + source.height, target.y + target.height) + SIDE_MARGIN + Math.abs(parallelOffset);
+      const d = `M ${sx} ${sy} L ${sx} ${arcY} L ${tx} ${arcY} L ${tx} ${target.y + target.height}`;
+      return { d, midX: (sx + tx) / 2, midY: arcY };
+    } else {
+      // Arc above: exit source top → rise up → enter target top
+      const arcY = Math.min(source.y, target.y) - SIDE_MARGIN - Math.abs(parallelOffset);
+      const d = `M ${sx} ${source.y} L ${sx} ${arcY} L ${tx} ${arcY} L ${tx} ${target.y}`;
+      return { d, midX: (sx + tx) / 2, midY: arcY };
+    }
   }
 
-  // Lateral offset for parallel edges: stagger by parallelIndex around the
-  // midpoint. 0 → centred, 1 → +offset, 2 → -offset, etc.
-  const offsetStep = 18;
-  const half = Math.floor(edge.parallelGroupSize / 2);
-  const signed = edge.parallelIndex - half;
-  const offset = signed * offsetStep;
+  // True back-edge: source is below target — wrap around the side determined
+  // by relative X position.
+  const isBackEdge = source.y > target.y;
+  if (isBackEdge) {
+    const wrapLeft = srcCX <= tgtCX;
+    if (wrapLeft) {
+      const loopX = Math.min(source.x, target.x) - SIDE_MARGIN - Math.abs(parallelOffset);
+      const d = `M ${sx} ${sy} L ${sx} ${sy + STUB} L ${loopX} ${sy + STUB} L ${loopX} ${ty - STUB} L ${tx} ${ty - STUB} L ${tx} ${ty}`;
+      return { d, midX: loopX, midY: (sy + ty) / 2 };
+    } else {
+      const loopX = Math.max(source.x + source.width, target.x + target.width) + SIDE_MARGIN + Math.abs(parallelOffset);
+      const d = `M ${sx} ${sy} L ${sx} ${sy + STUB} L ${loopX} ${sy + STUB} L ${loopX} ${ty - STUB} L ${tx} ${ty - STUB} L ${tx} ${ty}`;
+      return { d, midX: loopX, midY: (sy + ty) / 2 };
+    }
+  }
 
-  const mx = (sx + tx) / 2 + offset;
-  const my = (sy + ty) / 2;
-
-  // Simple cubic curve so parallel siblings don't overlap.
-  const d = `M ${sx} ${sy} Q ${mx} ${my}, ${tx} ${ty}`;
-  return { d, midX: mx, midY: my };
+  // Forward edge: Z-shape with horizontal mid-segment.
+  const midY = (sy + ty) / 2 + parallelOffset;
+  const d = `M ${sx} ${sy} L ${sx} ${midY} L ${tx} ${midY} L ${tx} ${ty}`;
+  return { d, midX: (sx + tx) / 2, midY };
 }
 
 export function EdgePath({
@@ -82,6 +128,7 @@ export function EdgePath({
   source,
   target,
   route,
+  overridePath,
   targetIsTerminal,
   highlighted,
   dimmed,
@@ -93,9 +140,10 @@ export function EdgePath({
   const color = laneColor(edge, { targetIsTerminal });
   const dash = laneDashArray(edge);
   const d =
-    route && route.points.length >= 2
+    overridePath ??
+    (route && route.points.length >= 2
       ? polylineToPath(route.points)
-      : computeEdgeGeometry(edge, source, target).d;
+      : computeEdgeGeometry(edge, source, target).d);
 
   const strokeWidth =
     selected || highlighted

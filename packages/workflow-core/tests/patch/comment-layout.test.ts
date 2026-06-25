@@ -236,3 +236,23 @@ describe("cleanupWorkflowUi on replaceSession", () => {
     expect(comment?.attachedTo?.kind).toBe("free");
   });
 });
+
+describe("renameState preserves layout position", () => {
+  test("layout entry moves from the old state code to the new one", () => {
+    let doc = applyPatch(baseDoc(), {
+      op: "setNodePosition",
+      workflow: "wf",
+      stateCode: "a",
+      x: 100,
+      y: 200,
+      pinned: true,
+    });
+    doc = applyPatch(doc, { op: "renameState", workflow: "wf", from: "a", to: "start" });
+    expect(doc.meta.workflowUi["wf"]?.layout?.nodes?.["a"]).toBeUndefined();
+    expect(doc.meta.workflowUi["wf"]?.layout?.nodes?.["start"]).toEqual({
+      x: 100,
+      y: 200,
+      pinned: true,
+    });
+  });
+});

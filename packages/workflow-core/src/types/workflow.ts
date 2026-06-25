@@ -18,6 +18,15 @@ export interface State {
   transitions: Transition[];
 }
 
+/**
+ * Transition-level scheduling (cyoda-go v0.8.0) — a schema/SPI placeholder; the
+ * workflow engine does not yet execute scheduled transitions.
+ */
+export interface TransitionSchedule {
+  delayMs: number;
+  timeoutMs?: number;
+}
+
 export interface Transition {
   name: TransitionName;
   next: StateCode;
@@ -25,4 +34,5 @@ export interface Transition {
   disabled: boolean;
   criterion?: Criterion;
   processors?: Processor[];
+  schedule?: TransitionSchedule;
 }

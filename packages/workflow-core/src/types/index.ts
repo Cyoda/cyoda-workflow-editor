@@ -2,6 +2,7 @@ export type { OperatorType, JsonValue } from "./operator.js";
 export { OPERATOR_TYPES } from "./operator.js";
 export type {
   Criterion,
+  OperatorValue,
   SimpleCriterion,
   GroupCriterion,
   FunctionCriterion,
@@ -12,11 +13,17 @@ export type {
 export type {
   Processor,
   ExternalizedProcessor,
-  ScheduledProcessor,
   ExecutionMode,
   ExternalizedProcessorConfig,
 } from "./processor.js";
-export type { StateCode, TransitionName, Workflow, State, Transition } from "./workflow.js";
+export type {
+  StateCode,
+  TransitionName,
+  Workflow,
+  State,
+  Transition,
+  TransitionSchedule,
+} from "./workflow.js";
 export type {
   WorkflowSession,
   EntityIdentity,
@@ -45,9 +52,7 @@ export type { PatchTransaction } from "./transaction.js";
 export { PatchConflictError } from "./transaction.js";
 export type {
   ConcurrencyToken,
-  EntityFieldHintProvider,
   ExportResult,
-  FieldHint,
   ImportResult,
   SaveStatus,
   WorkflowApi,

@@ -98,7 +98,7 @@ export function ViewerPlaygroundPage() {
           </div>
           {graph ? (
             <div className="viewer-card viewer-card--playground">
-              <WorkflowViewer graph={graph} onSelectionChange={setSelectedGraphId} />
+              <WorkflowViewer graph={graph} document={renderState.document ?? undefined} onSelectionChange={setSelectedGraphId} />
             </div>
           ) : (
             <div className="status-card status-card--error">

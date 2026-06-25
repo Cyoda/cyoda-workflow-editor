@@ -27,6 +27,8 @@ export function applyPatch(
   if (patch.op === "addComment") return applyAddComment(doc, patch);
   if (patch.op === "updateComment") return applyUpdateComment(doc, patch);
   if (patch.op === "removeComment") return applyRemoveComment(doc, patch);
+  if (patch.op === "setTransitionBlockPosition") return applySetTransitionBlockPosition(doc, patch);
+  if (patch.op === "removeTransitionBlockPosition") return applyRemoveTransitionBlockPosition(doc, patch);
 
   const nextSession = produce(doc.session, (d) => {
     // Cast to break immer's WritableDraft recursion over the deeply-nested
@@ -144,7 +146,11 @@ export function applyPatch(
           );
         }
         const [transition] = fromState.transitions.splice(idx, 1);
-        if (transition) toState.transitions.push(transition);
+        if (transition) {
+          const insertAt = patch.toIndex ?? toState.transitions.length;
+          const clamped = Math.max(0, Math.min(insertAt, toState.transitions.length));
+          toState.transitions.splice(clamped, 0, transition);
+        }
         return;
       }
       case "addProcessor": {
@@ -165,9 +171,8 @@ export function applyPatch(
         const wf = draft.workflows.find((w) => w.name === procLoc.workflow);
         const state = wf?.states[procLoc.state];
         const transition = state?.transitions[procLoc.transitionIndex];
-        const processor = transition?.processors?.[procLoc.processorIndex];
-        if (!processor) return;
-        Object.assign(processor, patch.updates);
+        if (!transition?.processors?.[procLoc.processorIndex]) return;
+        transition.processors[procLoc.processorIndex] = patch.updates;
         return;
       }
       case "removeProcessor": {
@@ -233,7 +238,11 @@ export function applyPatch(
 
   const nextMeta = assignSyntheticIds(nextSession, doc.meta);
   preserveMovedTransitionUuid(doc, patch, nextSession, nextMeta);
-  const cleanedWorkflowUi = cleanupWorkflowUi(nextMeta.workflowUi, nextSession, nextMeta);
+  const workflowUiAfterRename =
+    patch.op === "renameState" && patch.from !== patch.to
+      ? renameStateInWorkflowUi(nextMeta.workflowUi, patch.workflow, patch.from, patch.to)
+      : nextMeta.workflowUi;
+  const cleanedWorkflowUi = cleanupWorkflowUi(workflowUiAfterRename, nextSession, nextMeta);
   return {
     session: nextSession,
     meta: { ...nextMeta, workflowUi: cleanedWorkflowUi, revision: doc.meta.revision + 1 },
@@ -329,7 +338,7 @@ function applyResetLayout(
 ): WorkflowEditorDocument {
   const workflowUi = { ...doc.meta.workflowUi };
   const current = workflowUi[patch.workflow] ?? {};
-  workflowUi[patch.workflow] = { ...current, layout: undefined };
+  workflowUi[patch.workflow] = { ...current, layout: undefined, transitionPositions: undefined };
   return {
     session: doc.session,
     meta: { ...doc.meta, workflowUi, revision: doc.meta.revision + 1 },
@@ -378,6 +387,47 @@ function applyRemoveComment(
   workflowUi[patch.workflow] = {
     ...current,
     comments: Object.keys(comments).length > 0 ? comments : undefined,
+  };
+  return {
+    session: doc.session,
+    meta: { ...doc.meta, workflowUi, revision: doc.meta.revision + 1 },
+  };
+}
+
+function applySetTransitionBlockPosition(
+  doc: WorkflowEditorDocument,
+  patch: Extract<DomainPatch, { op: "setTransitionBlockPosition" }>,
+): WorkflowEditorDocument {
+  const ptr = doc.meta.ids.transitions[patch.transitionId];
+  if (!ptr) return { ...doc, meta: { ...doc.meta, revision: doc.meta.revision + 1 } };
+
+  const workflowUi = { ...doc.meta.workflowUi };
+  const current = workflowUi[ptr.workflow] ?? {};
+  const transitionPositions = {
+    ...(current.transitionPositions ?? {}),
+    [patch.transitionId]: { x: patch.x, y: patch.y },
+  };
+  workflowUi[ptr.workflow] = { ...current, transitionPositions };
+  return {
+    session: doc.session,
+    meta: { ...doc.meta, workflowUi, revision: doc.meta.revision + 1 },
+  };
+}
+
+function applyRemoveTransitionBlockPosition(
+  doc: WorkflowEditorDocument,
+  patch: Extract<DomainPatch, { op: "removeTransitionBlockPosition" }>,
+): WorkflowEditorDocument {
+  const ptr = doc.meta.ids.transitions[patch.transitionId];
+  if (!ptr) return { ...doc, meta: { ...doc.meta, revision: doc.meta.revision + 1 } };
+
+  const workflowUi = { ...doc.meta.workflowUi };
+  const current = workflowUi[ptr.workflow] ?? {};
+  const transitionPositions = { ...(current.transitionPositions ?? {}) };
+  delete transitionPositions[patch.transitionId];
+  workflowUi[ptr.workflow] = {
+    ...current,
+    transitionPositions: Object.keys(transitionPositions).length > 0 ? transitionPositions : undefined,
   };
   return {
     session: doc.session,
@@ -524,6 +574,30 @@ function locateProcessor(
 }
 
 /**
+ * Carry a state's saved layout position over to its new name on rename.
+ * Without this, cleanupWorkflowUi drops the `from` entry (it's no longer a
+ * valid state code) and the renamed node falls back to a freshly computed
+ * layout position, looking like the manual arrangement was "forgotten".
+ */
+function renameStateInWorkflowUi(
+  workflowUi: Record<string, WorkflowUiMeta>,
+  workflow: string,
+  from: string,
+  to: string,
+): Record<string, WorkflowUiMeta> {
+  const ui = workflowUi[workflow];
+  const nodes = ui?.layout?.nodes;
+  if (!nodes || !(from in nodes) || to in nodes) return workflowUi;
+
+  const nextNodes = { ...nodes, [to]: nodes[from]! };
+  delete nextNodes[from];
+  return {
+    ...workflowUi,
+    [workflow]: { ...ui, layout: { ...ui.layout, nodes: nextNodes } },
+  };
+}
+
+/**
  * Remove stale layout positions and comments that reference states/transitions
  * no longer present in the session (e.g. after a replaceSession from a JSON edit).
  */
@@ -599,7 +673,18 @@ function cleanupWorkflowUi(
       edgeAnchors = Object.keys(cleanAnchors).length > 0 ? cleanAnchors : undefined;
     }
 
-    result[wfName] = { ...ui, layout, comments, edgeAnchors };
+    let transitionPositions = ui.transitionPositions;
+    if (transitionPositions && meta) {
+      const validTransitionIds = validTransitionIdsByWorkflow.get(wfName) ?? new Set<string>();
+      const cleanPositions = Object.fromEntries(
+        Object.entries(transitionPositions).filter(([transitionUuid]) =>
+          validTransitionIds.has(transitionUuid),
+        ),
+      );
+      transitionPositions = Object.keys(cleanPositions).length > 0 ? cleanPositions : undefined;
+    }
+
+    result[wfName] = { ...ui, layout, comments, edgeAnchors, transitionPositions };
   }
 
   return result;

@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
-  EditorLike,
   LiftResult,
-  MonacoLike,
-  TextModelLike,
+  WorkflowJsonEditorInstance,
+  WorkflowJsonMonacoRuntime,
 } from "@cyoda/workflow-monaco";
 import {
   attachCursorSelectionBridge,
@@ -18,56 +17,15 @@ import type {
 } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
 import type { Selection } from "../state/types.js";
-
-// Monaco's editor.dispose() cancels internal async operations which produce
-// "Canceled" unhandled promise rejections. This is a Monaco-internal issue
-// that surfaces in React StrictMode's double-invoke cleanup. We suppress it
-// via a module-level handler (so it survives React's effect lifecycle) that
-// is only active during the brief disposal window.
-let _monacoDisposalCount = 0;
-if (typeof window !== "undefined") {
-  window.addEventListener("unhandledrejection", (e) => {
-    if (
-      _monacoDisposalCount > 0 &&
-      (e.reason?.name === "Canceled" || String(e.reason).startsWith("Canceled"))
-    ) {
-      e.preventDefault();
-    }
-  });
-}
+import { installMonacoCancellationFilter } from "./monacoDisposal.js";
+export type {
+  MonacoUriLike,
+  WorkflowJsonModelLike,
+  WorkflowJsonEditorInstance,
+  WorkflowJsonMonacoRuntime,
+} from "@cyoda/workflow-monaco";
 
 export type JsonEditStatus = LiftResult | { status: "idle" };
-
-export interface MonacoUriLike {
-  toString(): string;
-}
-
-export interface WorkflowJsonModelLike extends TextModelLike {
-  dispose(): void;
-}
-
-export interface WorkflowJsonEditorInstance extends EditorLike {
-  dispose(): void;
-  layout?: () => void;
-  updateOptions?: (options: Record<string, unknown>) => void;
-}
-
-export interface WorkflowJsonMonacoRuntime extends MonacoLike {
-  Uri: {
-    parse(value: string): MonacoUriLike;
-  };
-  editor: MonacoLike["editor"] & {
-    createModel(
-      value: string,
-      language?: string,
-      uri?: MonacoUriLike,
-    ): WorkflowJsonModelLike;
-    create(
-      element: HTMLElement,
-      options: Record<string, unknown>,
-    ): WorkflowJsonEditorInstance;
-  };
-}
 
 export interface WorkflowJsonEditorConfig {
   monaco: WorkflowJsonMonacoRuntime;
@@ -151,6 +109,7 @@ export function WorkflowJsonEditor({
     });
 
     editorRef.current = editor;
+    installMonacoCancellationFilter();
     schemaHandleRef.current = registerWorkflowSchema(monaco);
     controllerRef.current = attachWorkflowJsonController({
       monaco,
@@ -176,9 +135,6 @@ export function WorkflowJsonEditor({
     controllerRef.current.renderIssues(issuesRef.current, documentRef.current);
 
     return () => {
-      _monacoDisposalCount++;
-      window.setTimeout(() => { _monacoDisposalCount--; }, 100);
-
       cursorBridgeRef.current?.dispose();
       cursorBridgeRef.current = null;
       controllerRef.current?.dispose();

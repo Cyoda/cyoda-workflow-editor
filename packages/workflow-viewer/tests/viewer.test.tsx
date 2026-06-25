@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { parseImportPayload } from "@cyoda/workflow-core";
-import { projectToGraph } from "@cyoda/workflow-graph";
+import { projectToGraph, type TransitionEdge } from "@cyoda/workflow-graph";
 import { WorkflowViewer } from "../src/index.js";
 import { computeEdgeGeometry } from "../src/components/EdgePath.js";
 import { nudgeLabels } from "../src/layout.js";
@@ -128,11 +128,15 @@ describe("WorkflowViewer", () => {
     render(<WorkflowViewer graph={graph} />);
 
     const node = screen.getByTestId("state-node-draft");
-    const rects = node.querySelectorAll("rect");
-    expect(rects).toHaveLength(3);
-    expect(rects[0]?.getAttribute("stroke")).toBe("#FDA4AF");
-    expect(rects[2]?.getAttribute("stroke")).toBe("#059669");
-    expect(rects[2]?.getAttribute("stroke-dasharray")).toBe("3 3");
+    // Nodes now render via foreignObject + HTML. Check the outer div border
+    // color and the inner ring div's dashed border.
+    const outerDiv = node.querySelector("foreignObject > div") as HTMLElement | null;
+    // jsdom normalises hex colours to rgb() — #FDA4AF → rgb(253, 164, 175).
+    expect(outerDiv?.style.border).toContain("rgb(253, 164, 175)");
+    const innerRingDiv = node.querySelector('[style*="dashed"]') as HTMLElement | null;
+    expect(innerRingDiv).not.toBeNull();
+    // #059669 → rgb(5, 150, 105)
+    expect(innerRingDiv?.style.border).toContain("rgb(5, 150, 105)");
   });
 
   test("can explicitly render a start marker when enabled", () => {
@@ -279,9 +283,9 @@ describe("WorkflowViewer", () => {
     });
 
     const { container } = render(<WorkflowViewer graph={graph} />);
-    const texts = Array.from(container.querySelectorAll("text")).map((n) => n.textContent);
-    expect(texts).toContain("process");
-    expect(texts).toContain("enrich");
+    // Labels and badges now render via foreignObject + HTML — check textContent.
+    expect(container.textContent).toContain("process");
+    expect(container.textContent).toContain("enrich");
   });
 
   test("accepts an external selection and surfaces changes", () => {
@@ -340,9 +344,10 @@ describe("WorkflowViewer", () => {
       />,
     );
 
-    const rect = screen.getByTestId("state-node-wide").querySelector("rect");
-    expect(rect?.getAttribute("width")).toBe("220");
-    expect(rect?.getAttribute("height")).toBe("96");
+    // Nodes now render via foreignObject — check its width/height attributes.
+    const fo = screen.getByTestId("state-node-wide").querySelector("foreignObject");
+    expect(fo?.getAttribute("width")).toBe("220");
+    expect(fo?.getAttribute("height")).toBe("96");
   });
 
   test("renders manual transitions dotted and automatic transitions solid", () => {
@@ -359,6 +364,80 @@ describe("WorkflowViewer", () => {
 
     expect(laneDashArray(manualEdge)).toBe("2 4");
     expect(laneDashArray(automaticEdge)).toBeUndefined();
+  });
+
+  test("nudges overlapping edge labels apart even when the supplied layout has an empty edges map", () => {
+    const summary = {
+      display: "go",
+      processor: null,
+      criterion: false,
+      execution: null,
+    } as unknown as TransitionEdge["summary"];
+
+    const stateNode = (id: string, role: "initial" | "normal" | "terminal") => ({
+      kind: "state" as const,
+      id,
+      workflow: "wf",
+      stateCode: id,
+      role,
+      hasDisabledOutgoing: false,
+      category: "STATE" as const,
+    });
+
+    const transitionEdge = (id: string, sourceId: string, targetId: string) => ({
+      kind: "transition" as const,
+      id,
+      workflow: "wf",
+      sourceId,
+      targetId,
+      label: "go",
+      manual: false,
+      disabled: false,
+      isSelf: false,
+      isLoopback: false,
+      parallelIndex: 0,
+      parallelGroupSize: 1,
+      summary,
+    });
+
+    const graph = {
+      nodes: [
+        stateNode("a", "initial"),
+        stateNode("b", "normal"),
+        stateNode("c", "normal"),
+        stateNode("d", "terminal"),
+      ],
+      edges: [transitionEdge("e1", "a", "b"), transitionEdge("e2", "c", "d")],
+      annotations: [],
+    };
+
+    // Engineered so both edges compute the same (midX, midY) via
+    // computeEdgeGeometry's "forward edge" branch: midX = (sx+tx)/2,
+    // midY = (sy+ty)/2. e1: sx=80,sy=40,tx=80,ty=120 -> (80,80).
+    // e2: sx=280,sy=40,tx=-120,ty=120 -> (80,80).
+    const positions = new Map([
+      ["a", { id: "a", x: 0, y: 0, width: 160, height: 40 }],
+      ["b", { id: "b", x: 0, y: 120, width: 160, height: 40 }],
+      ["c", { id: "c", x: 200, y: 0, width: 160, height: 40 }],
+      ["d", { id: "d", x: -200, y: 120, width: 160, height: 40 }],
+    ]);
+
+    const { container } = render(
+      <WorkflowViewer
+        graph={graph as unknown as Parameters<typeof WorkflowViewer>[0]["graph"]}
+        layout={{ positions, edges: new Map(), width: 400, height: 300 }}
+      />,
+    );
+
+    // Labels now render as foreignObject with overflow:visible at labelX/labelY.
+    // Distinguish from node foreignObjects (which have explicit width/height > 1)
+    // by checking width="1".
+    const labelFOs = Array.from(container.querySelectorAll("foreignObject")).filter(
+      (fo) => fo.getAttribute("width") === "1",
+    );
+    expect(labelFOs).toHaveLength(2);
+    const yValues = labelFOs.map((fo) => fo.getAttribute("y"));
+    expect(new Set(yValues).size).toBe(2);
   });
 });
 
