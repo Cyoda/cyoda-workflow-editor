@@ -1,6 +1,6 @@
 {
   "name": "@cyoda/workflow-graph",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Cyoda workflow graph projection: domain → nodes/edges/annotations; canvas edits → domain patches.",
   "license": "Apache-2.0",
   "type": "module",
