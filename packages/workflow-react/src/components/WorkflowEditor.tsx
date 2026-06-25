@@ -129,7 +129,14 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   if (target.isContentEditable) return true;
   const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  // Monaco's EditContext-based editor exposes its editable surface as a
+  // role="textbox" <div> — not a <textarea> or contentEditable element — so the
+  // checks above miss it, and a Backspace/Delete inside the criterion JSON modal
+  // would otherwise escape to the canvas delete shortcut and remove the whole
+  // transition. Treat any ARIA textbox, or anything inside a Monaco editor, as a
+  // typing target.
+  return target.closest('[role="textbox"], .monaco-editor') !== null;
 }
 
 function defaultNewWorkflow(existing: string[]): Workflow {
