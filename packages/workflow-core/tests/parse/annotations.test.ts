@@ -73,3 +73,23 @@ describe("workflow- and transition-level annotations survive parse", () => {
     expect(wf.states["NEW"]!.transitions[0]!.annotations).toEqual({ ui: 1 });
   });
 });
+
+describe("state-level annotations survive parse", () => {
+  test("normalizeWorkflowInput keeps state.annotations", () => {
+    const json = JSON.stringify({
+      importMode: "MERGE",
+      workflows: [
+        {
+          version: "1.0",
+          name: "wf",
+          initialState: "NEW",
+          active: true,
+          states: { NEW: { transitions: [], annotations: { hint: "start" } } },
+        },
+      ],
+    });
+    const result = parseImportPayload(json);
+    const state = result.document!.session.workflows[0]!.states["NEW"]!;
+    expect(state.annotations).toEqual({ hint: "start" });
+  });
+});
