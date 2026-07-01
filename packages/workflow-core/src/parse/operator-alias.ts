@@ -20,7 +20,12 @@ export function normalizeOperatorAlias(raw: unknown): unknown {
 
   const result: UnknownRecord = {};
   for (const [k, v] of Object.entries(raw)) {
-    result[k] = normalizeOperatorAlias(v);
+    // `annotations` is engine-opaque, client-owned metadata (workflow/state/
+    // transition level, cyoda-go 0.8.1). Never recurse into it: aliasing
+    // operatorType->operation inside a client's opaque object would corrupt it,
+    // and a value carrying both keys would throw. Clone so the "returns a new
+    // tree" invariant in this function's docstring still holds.
+    result[k] = k === "annotations" ? structuredClone(v) : normalizeOperatorAlias(v);
   }
 
   const type = result["type"];
