@@ -11,6 +11,10 @@ const isObject = (v: unknown): v is UnknownRecord =>
  * If both are present and disagree, throw SchemaError.
  *
  * Only applies to criterion-shaped nodes (type: simple | lifecycle | array).
+ *
+ * `annotations` values (workflow/state/transition level) are engine-opaque
+ * client metadata: they are copied through verbatim and never recursed into, so
+ * a key literally named `operatorType` inside a client annotation is left alone.
  */
 export function normalizeOperatorAlias(raw: unknown): unknown {
   if (Array.isArray(raw)) {
