@@ -169,3 +169,31 @@ It composes the 0.7 operator-alias/defaults pass and adds the deltas below.
 
 `ParseResult` gained an optional `warnings: string[]` field (additive; existing
 call sites are unaffected) carrying the dialect's `toCanonical` notes.
+
+## v0.8.1 (dialect `"0.8"`)
+
+The `"0.8"` dialect now targets cyoda-go **0.8.1** (0.8.0 never shipped, so a
+single MAJOR.MINOR-keyed dialect can carry the new field safely).
+
+- **`annotations` added at workflow / state / transition level.** Optional,
+  engine-opaque, client-owned JSON. **Object-only** (arrays/primitives/null are
+  rejected by `AnnotationsSchema`), **capped at 64 KB per field** (compacted
+  UTF-8 bytes), stored and round-tripped but never interpreted by the engine.
+  Modelled on the canonical `Workflow`/`State`/`Transition` (`src/types/workflow.ts`)
+  and `WorkflowSchema`/`StateSchema`/`TransitionSchema` (`src/schema/workflow.ts`).
+- **Parse:** `normalizeOperatorAlias` skips the `annotations` subtree (it would
+  otherwise rewrite `operatorType`->`operation` inside opaque client data or throw
+  on a value carrying both keys); `normalizeWorkflowInput` carries state-level
+  annotations through its state rebuild.
+- **Serialize:** `outputWorkflow`/`outputStates`/`outputTransition` emit
+  annotations under a new `OutputOptions.annotations` flag; the `"0.8"` dialect
+  passes `{ schedule: true, annotations: true }` and adds `annotations` to the
+  per-level `V0_8_WIRE_FIELDS` allowlist (the inner keys are opaque and are not
+  further allowlisted). The `"0.7"` dialect omits the field entirely.
+- **Validation:** an `annotations-too-large` semantic error (`ANNOTATIONS_MAX_BYTES`)
+  blocks a save above 64 KB before cyoda-go returns a 400, carrying a `targetId`
+  so the editor can locate the offending node.
+- **Open items (verify against a running 0.8.1 binary):** the exact byte boundary
+  (65536 vs 64000, `>` vs `>=`); whether the server preserves annotation key order
+  on reload (`json.Compact` preserves; map re-marshal sorts); whether an empty
+  `{}` is round-tripped or dropped.

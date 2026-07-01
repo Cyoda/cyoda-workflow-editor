@@ -5,10 +5,11 @@ import { coerceCanonicalDefaults, isObj } from "./cyoda-0_7.js";
 import type { CyodaDialect, ToCanonicalResult } from "./dialect.js";
 
 /**
- * The cyoda-go 0.8.0 dialect — the current default (`LATEST_CYODA_VERSION`).
+ * The cyoda-go 0.8 dialect — the current default (`LATEST_CYODA_VERSION`).
+ * Targets cyoda-go 0.8.1; 0.8.0 was never released.
  *
- * Covers: cyoda-go 0.8.0. (Not yet released as of 2026-06; see the status note
- * in `ai/cyoda-schema-versions.md`.)
+ * Covers: cyoda-go 0.8.1 (the 0.8 line; 0.8.0 never shipped — see the status
+ * note in `ai/cyoda-schema-versions.md`).
  *
  * Deltas from the 0.7 dialect:
  * - **`scheduled` processor removed.** The type no longer exists in the wire
