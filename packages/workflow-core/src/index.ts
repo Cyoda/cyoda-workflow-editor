@@ -2,6 +2,7 @@
 // Per spec §3: explicit re-exports only; no `export *`.
 
 export type {
+  Annotations,
   ArrayCriterion,
   CommentMeta,
   ConcurrencyToken,
@@ -59,6 +60,7 @@ export {
 } from "./types/index.js";
 
 export {
+  AnnotationsSchema,
   ArrayCriterionSchema,
   CriterionSchema,
   ExecutionModeSchema,

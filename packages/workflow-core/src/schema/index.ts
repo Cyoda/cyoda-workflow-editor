@@ -15,6 +15,7 @@ export {
   ProcessorSchema,
 } from "./processor.js";
 export {
+  AnnotationsSchema,
   StateSchema,
   TransitionSchema,
   TransitionScheduleSchema,

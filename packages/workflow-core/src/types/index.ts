@@ -23,6 +23,7 @@ export type {
   State,
   Transition,
   TransitionSchedule,
+  Annotations,
 } from "./workflow.js";
 export type {
   WorkflowSession,
