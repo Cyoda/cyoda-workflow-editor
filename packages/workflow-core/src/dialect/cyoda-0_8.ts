@@ -22,6 +22,10 @@ import type { CyodaDialect, ToCanonicalResult } from "./dialect.js";
  *   canonical field) is rejected with a 400. `workflowsToWire` runs every node
  *   through a per-level field allowlist (`V0_8_WIRE_FIELDS`) so the output is
  *   provably clean. 0.7 relied only on `outputWorkflow`'s by-construction shape.
+ * - **`annotations` added (cyoda-go 0.8.1).** Engine-opaque, client-owned JSON
+ *   object at workflow/state/transition level, emitted verbatim (its inner keys
+ *   are intentionally not allowlisted). The `"0.8"` dialect targets 0.8.1;
+ *   0.8.0 never shipped. The 0.7 dialect omits it.
  *
  * Server-side v0.8.0 constraints mirrored elsewhere (not in this file): `active`
  * preserved on import, names ≤ 256 chars, empty `workflows` rejected in
@@ -41,7 +45,9 @@ export const cyoda08Dialect: CyodaDialect = {
     return { value: coerceCanonicalDefaults(normalizeOperatorAlias(raw)), warnings: [] };
   },
   workflowsToWire(workflows: Workflow[]): Array<Record<string, unknown>> {
-    return workflows.map((wf) => allowlistWorkflow(outputWorkflow(wf, { schedule: true })));
+    return workflows.map((wf) =>
+      allowlistWorkflow(outputWorkflow(wf, { schedule: true, annotations: true })),
+    );
   },
 };
 
@@ -53,14 +59,16 @@ const WORKFLOW_FIELDS = [
   "desc",
   "initialState",
   "active",
+  "annotations",
   "criterion",
   "states",
 ] as const;
-const STATE_FIELDS = ["transitions"] as const;
+const STATE_FIELDS = ["transitions", "annotations"] as const;
 const TRANSITION_FIELDS = [
   "name",
   "next",
   "manual",
+  "annotations",
   "disabled",
   "criterion",
   "processors",
