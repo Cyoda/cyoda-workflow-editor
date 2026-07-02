@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { AnnotationsField } from "../src/inspector/AnnotationsField.js";
