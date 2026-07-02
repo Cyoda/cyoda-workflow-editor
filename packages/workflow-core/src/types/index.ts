@@ -23,6 +23,7 @@ export type {
   State,
   Transition,
   TransitionSchedule,
+  Annotations,
 } from "./workflow.js";
 export type {
   WorkflowSession,
@@ -47,7 +48,7 @@ export type {
   EdgeAnchor,
   EdgeAnchorPair,
 } from "./editor.js";
-export type { DomainPatch } from "./patch.js";
+export type { DomainPatch, AnnotationsTarget } from "./patch.js";
 export type { PatchTransaction } from "./transaction.js";
 export { PatchConflictError } from "./transaction.js";
 export type {

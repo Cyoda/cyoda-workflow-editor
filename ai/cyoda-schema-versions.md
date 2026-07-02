@@ -76,13 +76,17 @@ endpoint, and the in-document `version` tag is informational.
    - **Canonical model / Zod schema change** — a field the canonical model does
      not yet represent at all (a new transition/processor field, a removed type).
 
-4. **If the canonical model changes → major bump + coordinated updates.**
-   Changing the canonical model (`src/schema/*`, `src/types/*`) is a **major**
-   `@cyoda/workflow-core` bump. It requires coordinated updates in the
+4. **If the canonical model changes → major-class change + coordinated updates.**
+   Changing the canonical model (`src/schema/*`, `src/types/*`) is a **major-class**
+   `@cyoda/workflow-core` change. It requires coordinated updates in the
    downstream packages that consume the model:
    `workflow-react`, `workflow-graph`, `workflow-layout`, `workflow-monaco`,
    `workflow-viewer`, and the `cyoda-dev-console` host app. Do not land the core
    change without scheduling those follow-ups.
+   **Versioning:** while the project is below `1.0.0` it deliberately stays in
+   `0.x`, so this major-class change ships as a Changesets **`minor`** (0.x
+   convention), **not** a `major`/`1.0.0` cut — see the versioning policy in
+   `CLAUDE.md` and the "Pre-1.0 `minor`" notes in the package CHANGELOGs.
 
 5. **If the canonical model is unchanged → new dialect, minor/patch bump.**
    Write a new dialect in `packages/workflow-core/src/dialect/cyoda-<v>.ts`
@@ -169,3 +173,31 @@ It composes the 0.7 operator-alias/defaults pass and adds the deltas below.
 
 `ParseResult` gained an optional `warnings: string[]` field (additive; existing
 call sites are unaffected) carrying the dialect's `toCanonical` notes.
+
+## v0.8.1 (dialect `"0.8"`)
+
+The `"0.8"` dialect now targets cyoda-go **0.8.1** (0.8.0 never shipped, so a
+single MAJOR.MINOR-keyed dialect can carry the new field safely).
+
+- **`annotations` added at workflow / state / transition level.** Optional,
+  engine-opaque, client-owned JSON. **Object-only** (arrays/primitives/null are
+  rejected by `AnnotationsSchema`), **capped at 64 KB per field** (compacted
+  UTF-8 bytes), stored and round-tripped but never interpreted by the engine.
+  Modelled on the canonical `Workflow`/`State`/`Transition` (`src/types/workflow.ts`)
+  and `WorkflowSchema`/`StateSchema`/`TransitionSchema` (`src/schema/workflow.ts`).
+- **Parse:** `normalizeOperatorAlias` skips the `annotations` subtree (it would
+  otherwise rewrite `operatorType`->`operation` inside opaque client data or throw
+  on a value carrying both keys); `normalizeWorkflowInput` carries state-level
+  annotations through its state rebuild.
+- **Serialize:** `outputWorkflow`/`outputStates`/`outputTransition` emit
+  annotations under a new `OutputOptions.annotations` flag; the `"0.8"` dialect
+  passes `{ schedule: true, annotations: true }` and adds `annotations` to the
+  per-level `V0_8_WIRE_FIELDS` allowlist (the inner keys are opaque and are not
+  further allowlisted). The `"0.7"` dialect omits the field entirely.
+- **Validation:** an `annotations-too-large` semantic error (`ANNOTATIONS_MAX_BYTES`)
+  blocks a save above 64 KB before cyoda-go returns a 400, carrying a `targetId`
+  so the editor can locate the offending node.
+- **Open items (verify against a running 0.8.1 binary):** the exact byte boundary
+  (65536 vs 64000, `>` vs `>=`); whether the server preserves annotation key order
+  on reload (`json.Compact` preserves; map re-marshal sorts); whether an empty
+  `{}` is round-tripped or dropped.

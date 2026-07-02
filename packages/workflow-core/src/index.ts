@@ -2,6 +2,8 @@
 // Per spec §3: explicit re-exports only; no `export *`.
 
 export type {
+  Annotations,
+  AnnotationsTarget,
   ArrayCriterion,
   CommentMeta,
   ConcurrencyToken,
@@ -59,6 +61,7 @@ export {
 } from "./types/index.js";
 
 export {
+  AnnotationsSchema,
   ArrayCriterionSchema,
   CriterionSchema,
   ExecutionModeSchema,
@@ -119,6 +122,7 @@ export {
 export type { IdRef, LookupResult } from "./identity/index.js";
 
 export {
+  ANNOTATIONS_MAX_BYTES,
   validateAll,
   validateExportSchema,
   validateImportSchema,

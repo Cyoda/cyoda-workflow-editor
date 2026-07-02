@@ -1,0 +1,38 @@
+{
+  "importMode": "MERGE",
+  "workflows": [
+    {
+      "version": "1.0",
+      "name": "annotated",
+      "initialState": "NEW",
+      "active": true,
+      "annotations": {
+        "label": "Prize lifecycle",
+        "roles": ["reviewer"]
+      },
+      "states": {
+        "NEW": {
+          "transitions": [
+            {
+              "name": "APPROVE",
+              "next": "APPROVED",
+              "manual": false,
+              "annotations": {
+                "ui": {
+                  "color": "green"
+                }
+              },
+              "disabled": false
+            }
+          ],
+          "annotations": {
+            "hint": "start here"
+          }
+        },
+        "APPROVED": {
+          "transitions": []
+        }
+      }
+    }
+  ]
+}

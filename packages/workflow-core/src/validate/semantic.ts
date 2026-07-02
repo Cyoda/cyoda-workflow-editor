@@ -16,6 +16,8 @@ import { isValidName, walkCriteria } from "./helpers.js";
 
 const LIFECYCLE_FIELDS = new Set(["state", "creationDate", "previousTransition"]);
 
+export const ANNOTATIONS_MAX_BYTES = 64 * 1024;
+
 /**
  * Operator warnings for a criterion's `operation` (issue #22).
  * - Unknown operator (outside the editor's known catalogue): non-blocking
@@ -66,6 +68,7 @@ export function validateSemantics(
   issues.push(...criterionRules(session));
   issues.push(...criterionDepthRules(session));
   issues.push(...automatedOrderingRules(session, doc));
+  issues.push(...annotationsSizeIssues(session, doc));
 
   if (session.workflows.length === 1) {
     const only = session.workflows[0];
@@ -619,6 +622,70 @@ function transitionTargetId(
     ordinal: declarationIndex,
   });
   return id ? { targetId: id } : {};
+}
+
+function stateTargetId(
+  doc: WorkflowEditorDocument | undefined,
+  workflow: string,
+  state: string,
+): { targetId?: string } {
+  if (!doc) return {};
+  const id = identityIdFor(doc.meta, { kind: "state", workflow, state });
+  return id ? { targetId: id } : {};
+}
+
+function annotationBytes(annotations: Record<string, unknown>): number {
+  return new TextEncoder().encode(JSON.stringify(annotations)).length;
+}
+
+function annotationsSizeIssues(
+  session: WorkflowSession,
+  doc?: WorkflowEditorDocument,
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  const max = ANNOTATIONS_MAX_BYTES;
+  for (const wf of session.workflows) {
+    if (wf.annotations !== undefined) {
+      const bytes = annotationBytes(wf.annotations);
+      if (bytes > max) {
+        issues.push({
+          severity: "error",
+          code: "annotations-too-large",
+          message: `Annotations on workflow "${wf.name}" are ${bytes} bytes, over the ${max}-byte limit.`,
+          ...idFor(doc, wf.name, "workflow"),
+          detail: { bytes, max },
+        });
+      }
+    }
+    for (const [stateCode, state] of Object.entries(wf.states)) {
+      if (state.annotations !== undefined) {
+        const bytes = annotationBytes(state.annotations);
+        if (bytes > max) {
+          issues.push({
+            severity: "error",
+            code: "annotations-too-large",
+            message: `Annotations on state "${stateCode}" (workflow "${wf.name}") are ${bytes} bytes, over the ${max}-byte limit.`,
+            ...stateTargetId(doc, wf.name, stateCode),
+            detail: { bytes, max },
+          });
+        }
+      }
+      state.transitions.forEach((t, index) => {
+        if (t.annotations === undefined) return;
+        const bytes = annotationBytes(t.annotations);
+        if (bytes > max) {
+          issues.push({
+            severity: "error",
+            code: "annotations-too-large",
+            message: `Annotations on transition "${t.name}" (state "${stateCode}", workflow "${wf.name}") are ${bytes} bytes, over the ${max}-byte limit.`,
+            ...transitionTargetId(doc, wf.name, stateCode, index),
+            detail: { bytes, max },
+          });
+        }
+      });
+    }
+  }
+  return issues;
 }
 
 function automatedOrderingRules(

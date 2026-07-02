@@ -58,6 +58,33 @@ describe("workflowJsonSchema", () => {
     expect(workflowsDef, "workflows property must be present").toBeDefined();
     expect(workflowsDef["type"]).toBe("array");
   });
+
+  it("includes annotations as an optional object at workflow/state/transition levels", () => {
+    const schema = workflowJsonSchema();
+    const annNodes: Record<string, unknown>[] = [];
+    let requiredViolations = 0;
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      const obj = node as Record<string, unknown>;
+      const props = obj["properties"] as Record<string, unknown> | undefined;
+      if (props && props["annotations"]) {
+        annNodes.push(props["annotations"] as Record<string, unknown>);
+        const required = (obj["required"] as string[] | undefined) ?? [];
+        if (required.includes("annotations")) requiredViolations += 1;
+      }
+      for (const value of Object.values(obj)) walk(value);
+    };
+    walk(schema);
+
+    // WorkflowSchema, StateSchema, TransitionSchema each contribute one inlined node.
+    expect(annNodes.length).toBeGreaterThanOrEqual(3);
+    for (const n of annNodes) expect(n["type"]).toBe("object");
+    expect(requiredViolations).toBe(0);
+  });
 });
 
 describe("registerWorkflowSchema", () => {
