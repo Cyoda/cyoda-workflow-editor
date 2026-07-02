@@ -3,6 +3,7 @@
 
 export type {
   Annotations,
+  AnnotationsTarget,
   ArrayCriterion,
   CommentMeta,
   ConcurrencyToken,
@@ -121,6 +122,7 @@ export {
 export type { IdRef, LookupResult } from "./identity/index.js";
 
 export {
+  ANNOTATIONS_MAX_BYTES,
   validateAll,
   validateExportSchema,
   validateImportSchema,

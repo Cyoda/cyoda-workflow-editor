@@ -222,6 +222,24 @@ export function applyPatch(
         );
         return;
       }
+      case "setAnnotations": {
+        const t = patch.target;
+        let host: { annotations?: Record<string, unknown> } | undefined;
+        if (t.kind === "workflow") {
+          host = draft.workflows.find((w) => w.name === t.workflow);
+        } else if (t.kind === "state") {
+          host = draft.workflows.find((w) => w.name === t.workflow)?.states[t.stateCode];
+        } else {
+          const loc = locateTransition(doc, t.transitionUuid);
+          if (loc) {
+            host = draft.workflows.find((w) => w.name === loc.workflow)?.states[loc.state]?.transitions[loc.index];
+          }
+        }
+        if (!host) return;
+        if (patch.annotations === undefined) delete host.annotations;
+        else host.annotations = patch.annotations;
+        return;
+      }
       case "setImportMode":
         draft.importMode = patch.mode;
         return;

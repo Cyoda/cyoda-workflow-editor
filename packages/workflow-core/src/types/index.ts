@@ -48,7 +48,7 @@ export type {
   EdgeAnchor,
   EdgeAnchorPair,
 } from "./editor.js";
-export type { DomainPatch } from "./patch.js";
+export type { DomainPatch, AnnotationsTarget } from "./patch.js";
 export type { PatchTransaction } from "./transaction.js";
 export { PatchConflictError } from "./transaction.js";
 export type {

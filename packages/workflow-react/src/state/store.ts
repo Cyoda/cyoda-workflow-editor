@@ -57,6 +57,8 @@ function summarize(patch: DomainPatch): string {
       return `Reorder processor`;
     case "setCriterion":
       return patch.criterion ? `Set criterion` : `Clear criterion`;
+    case "setAnnotations":
+      return patch.annotations ? `Set annotations` : `Clear annotations`;
     case "setImportMode":
       return `Set import mode to "${patch.mode}"`;
     case "setEntity":
