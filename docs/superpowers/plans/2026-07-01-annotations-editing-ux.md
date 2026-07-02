@@ -721,10 +721,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Create `packages/workflow-react/tests/annotationsFormIntegration.test.tsx`:
 
 ```tsx
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
-import type { State, Transition, Workflow } from "@cyoda/workflow-core";
+import type { State, Workflow } from "@cyoda/workflow-core";
 import { WorkflowForm } from "../src/inspector/WorkflowForm.js";
 import { StateForm } from "../src/inspector/StateForm.js";
 import { I18nContext } from "../src/i18n/context.js";
