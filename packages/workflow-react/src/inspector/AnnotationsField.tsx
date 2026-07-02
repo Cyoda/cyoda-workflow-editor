@@ -15,6 +15,12 @@ export interface AnnotationsFieldProps {
   modelKey: string;
   onCommit: (next: Annotations) => void;
   onRemove: () => void;
+  /**
+   * Render the "Annotations" heading. Default `true`. Set `false` when an
+   * enclosing container already provides the heading (e.g. the transition form,
+   * which wraps the field in a titled `TransitionSection`) to avoid a duplicate.
+   */
+  showLabel?: boolean;
 }
 
 export function AnnotationsField(props: AnnotationsFieldProps) {
@@ -22,7 +28,7 @@ export function AnnotationsField(props: AnnotationsFieldProps) {
   if (props.value === undefined) {
     return (
       <div style={sectionStyle}>
-        <SectionLabel />
+        {props.showLabel !== false && <SectionLabel />}
         {!props.disabled && (
           <button
             type="button"
@@ -46,6 +52,7 @@ function AnnotationsEditor({
   modelKey,
   onCommit,
   onRemove,
+  showLabel,
 }: AnnotationsFieldProps & { value: Annotations }) {
   const messages = useMessages();
   const monaco = useCriterionMonaco();
@@ -87,7 +94,7 @@ function AnnotationsEditor({
 
   return (
     <div style={sectionStyle}>
-      <SectionLabel />
+      {showLabel !== false && <SectionLabel />}
       {monaco ? (
         <MonacoJsonPane
           monaco={monaco}

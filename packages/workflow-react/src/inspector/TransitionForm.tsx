@@ -529,6 +529,7 @@ export function TransitionForm({
         <AnnotationsField
           value={transition.annotations}
           disabled={disabled}
+          showLabel={false}
           modelKey={`transition-${transitionUuid}`}
           onCommit={(annotations) =>
             onDispatch({ op: "setAnnotations", target: { kind: "transition", transitionUuid }, annotations })

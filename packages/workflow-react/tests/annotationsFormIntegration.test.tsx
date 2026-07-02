@@ -57,6 +57,9 @@ test("TransitionForm: Add annotations dispatches setAnnotations for the transiti
       onDispatch={onDispatch}
     />,
   );
+  // Regression: the "Annotations" heading appears exactly once — the section
+  // title provides it, so the field must not also render its own SectionLabel.
+  expect(screen.getAllByText("Annotations")).toHaveLength(1);
   fireEvent.click(screen.getByTestId("inspector-annotations-add"));
   expect(onDispatch).toHaveBeenCalledWith({
     op: "setAnnotations",
