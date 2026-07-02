@@ -1,8 +1,9 @@
 import { afterEach, expect, test, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import type { State, Workflow } from "@cyoda/workflow-core";
+import type { State, Transition, Workflow } from "@cyoda/workflow-core";
 import { WorkflowForm } from "../src/inspector/WorkflowForm.js";
 import { StateForm } from "../src/inspector/StateForm.js";
+import { TransitionForm } from "../src/inspector/TransitionForm.js";
 import { I18nContext } from "../src/i18n/context.js";
 import { defaultMessages } from "../src/i18n/en.js";
 
@@ -36,6 +37,30 @@ test("StateForm: annotations field renders above the Delete button", () => {
   expect(onDispatch).toHaveBeenCalledWith({
     op: "setAnnotations",
     target: { kind: "state", workflow: "wf", stateCode: "NEW" },
+    annotations: {},
+  });
+});
+
+test("TransitionForm: Add annotations dispatches setAnnotations for the transition", () => {
+  const transition: Transition = { name: "go", next: "DONE", manual: false, disabled: false };
+  const onDispatch = vi.fn();
+  wrap(
+    <TransitionForm
+      workflow={{ ...wf, states: { NEW: { transitions: [transition] }, DONE: { transitions: [] } } }}
+      stateCode="NEW"
+      transition={transition}
+      transitionUuid="tx-uuid-1"
+      transitionIndex={0}
+      processorUuids={[]}
+      anchors={undefined}
+      disabled={false}
+      onDispatch={onDispatch}
+    />,
+  );
+  fireEvent.click(screen.getByTestId("inspector-annotations-add"));
+  expect(onDispatch).toHaveBeenCalledWith({
+    op: "setAnnotations",
+    target: { kind: "transition", transitionUuid: "tx-uuid-1" },
     annotations: {},
   });
 });
