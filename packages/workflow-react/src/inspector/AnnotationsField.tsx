@@ -5,6 +5,7 @@ import { useCriterionMonaco } from "./CriterionMonacoContext.js";
 import { installMonacoCancellationFilter } from "../components/monacoDisposal.js";
 import { annotationsModelUri, parseAnnotationsJson, sameJson } from "./annotationsJson.js";
 import { colors, fonts, radii } from "../style/tokens.js";
+import { useMessages } from "../i18n/context.js";
 
 const pretty = (v: unknown): string => JSON.stringify(v, null, 2);
 
@@ -17,6 +18,7 @@ export interface AnnotationsFieldProps {
 }
 
 export function AnnotationsField(props: AnnotationsFieldProps) {
+  const messages = useMessages();
   if (props.value === undefined) {
     return (
       <div style={sectionStyle}>
@@ -28,7 +30,7 @@ export function AnnotationsField(props: AnnotationsFieldProps) {
             data-testid="inspector-annotations-add"
             onClick={() => props.onCommit({})}
           >
-            Add annotations
+            {messages.inspector.annotationsAdd}
           </button>
         )}
       </div>
@@ -45,6 +47,7 @@ function AnnotationsEditor({
   onCommit,
   onRemove,
 }: AnnotationsFieldProps & { value: Annotations }) {
+  const messages = useMessages();
   const monaco = useCriterionMonaco();
   const [buffer, setBuffer] = useState<string>(() => pretty(value));
   const [docChanged, setDocChanged] = useState(false);
@@ -110,7 +113,7 @@ function AnnotationsEditor({
       )}
       {docChanged && (
         <div role="alert" data-testid="annotations-doc-changed" style={warnStyle}>
-          Document changed underneath — Revert to reload.
+          {messages.inspector.annotationsDocChanged}
         </div>
       )}
       {!disabled && (
@@ -122,13 +125,13 @@ function AnnotationsEditor({
             style={applyEnabled ? primaryBtn : disabledBtn}
             data-testid="inspector-annotations-apply"
           >
-            Apply
+            {messages.inspector.annotationsApply}
           </button>
           <button type="button" onClick={revert} disabled={!dirty} style={ghostBtn} data-testid="inspector-annotations-revert">
-            Revert
+            {messages.inspector.annotationsRevert}
           </button>
           <button type="button" onClick={onRemove} style={dangerBtn} data-testid="inspector-annotations-remove">
-            Remove
+            {messages.inspector.annotationsRemove}
           </button>
         </div>
       )}
@@ -201,9 +204,10 @@ function MonacoJsonPane({
 }
 
 function SectionLabel() {
+  const messages = useMessages();
   return (
     <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: colors.textSecondary }}>
-      Annotations
+      {messages.inspector.annotations}
     </span>
   );
 }
