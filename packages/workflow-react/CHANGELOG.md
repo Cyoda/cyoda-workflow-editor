@@ -1,5 +1,28 @@
 # @cyoda/workflow-react
 
+## 0.4.0
+
+### Minor Changes
+
+- 0b2694c: Edit `annotations` in place in the inspector.
+
+  Adds a `setAnnotations` patch op to `@cyoda/workflow-core` (targeted, exact
+  inverse) and an inline `AnnotationsField` to `@cyoda/workflow-react` — a
+  scoped JSON editor (Monaco or textarea) with Apply/Revert/Remove — wired into
+  the state, transition, and workflow inspector forms, plus a control-cluster
+  button that surfaces the workflow form. Editing is an ordinary undoable edit
+  committed via the standard Save flow; no annotation-specific persistence.
+
+### Patch Changes
+
+- Updated dependencies [0b2694c]
+- Updated dependencies [0b2694c]
+  - @cyoda/workflow-core@0.4.0
+  - @cyoda/workflow-graph@0.2.2
+  - @cyoda/workflow-layout@0.1.3
+  - @cyoda/workflow-monaco@0.2.1
+  - @cyoda/workflow-viewer@0.3.1
+
 ## 0.3.0
 
 ### Minor Changes
