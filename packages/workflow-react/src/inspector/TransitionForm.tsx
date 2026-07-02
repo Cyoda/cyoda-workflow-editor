@@ -20,6 +20,7 @@ import {
   duplicateProcessorName,
   summarizeProcessor,
 } from "./ProcessorForm.js";
+import { AnnotationsField } from "./AnnotationsField.js";
 import type { Selection } from "../state/types.js";
 
 export function TransitionForm({
@@ -522,6 +523,20 @@ export function TransitionForm({
         >
           {messages.inspector.addProcessor}
         </button>
+      </TransitionSection>
+
+      <TransitionSection title="Annotations" testId="inspector-transition-annotations-section">
+        <AnnotationsField
+          value={transition.annotations}
+          disabled={disabled}
+          modelKey={`transition-${transitionUuid}`}
+          onCommit={(annotations) =>
+            onDispatch({ op: "setAnnotations", target: { kind: "transition", transitionUuid }, annotations })
+          }
+          onRemove={() =>
+            onDispatch({ op: "setAnnotations", target: { kind: "transition", transitionUuid } })
+          }
+        />
       </TransitionSection>
 
       {processorModal && (

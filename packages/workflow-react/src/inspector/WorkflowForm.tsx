@@ -1,6 +1,7 @@
 import type { DomainPatch, Workflow } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
 import { CheckboxField, FieldGroup, TextField } from "./fields.js";
+import { AnnotationsField } from "./AnnotationsField.js";
 
 export function WorkflowForm({
   workflow,
@@ -78,6 +79,17 @@ export function WorkflowForm({
           })
         }
         testId="inspector-workflow-initial"
+      />
+      <AnnotationsField
+        value={workflow.annotations}
+        disabled={disabled}
+        modelKey={`workflow-${workflow.name}`}
+        onCommit={(annotations) =>
+          onDispatch({ op: "setAnnotations", target: { kind: "workflow", workflow: workflow.name }, annotations })
+        }
+        onRemove={() =>
+          onDispatch({ op: "setAnnotations", target: { kind: "workflow", workflow: workflow.name } })
+        }
       />
     </FieldGroup>
   );
