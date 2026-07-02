@@ -4,6 +4,7 @@ import { NAME_REGEX } from "@cyoda/workflow-core";
 import { useMessages } from "../i18n/context.js";
 import { colors, radii } from "../style/tokens.js";
 import { FieldGroup, TextField } from "./fields.js";
+import { AnnotationsField } from "./AnnotationsField.js";
 
 export function StateForm({
   workflow,
@@ -106,6 +107,17 @@ export function StateForm({
           ))}
         </div>
       )}
+      <AnnotationsField
+        value={state.annotations}
+        disabled={disabled}
+        modelKey={`state-${workflow.name}-${stateCode}`}
+        onCommit={(annotations) =>
+          onDispatch({ op: "setAnnotations", target: { kind: "state", workflow: workflow.name, stateCode }, annotations })
+        }
+        onRemove={() =>
+          onDispatch({ op: "setAnnotations", target: { kind: "state", workflow: workflow.name, stateCode } })
+        }
+      />
       <button
         type="button"
         onClick={onRequestDelete}

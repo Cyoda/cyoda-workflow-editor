@@ -154,3 +154,47 @@ function assertKeysSubset(obj: unknown, allowed: readonly string[]): void {
     expect(allowed).toContain(key);
   }
 }
+
+const annotatedWorkflow = {
+  version: "1.0",
+  name: "wf",
+  initialState: "new",
+  active: true,
+  annotations: { label: "L", roles: ["r"] },
+  states: {
+    new: {
+      transitions: [
+        { name: "go", next: "done", manual: false, annotations: { ui: { color: "green" } } },
+      ],
+      annotations: { hint: "start" },
+    },
+    done: { transitions: [] },
+  },
+};
+
+describe("0.8 dialect round-trips annotations", () => {
+  test("annotations at all three levels survive parse -> serialize -> parse", () => {
+    const first = parseImportPayload(importJson(annotatedWorkflow), undefined, { sourceVersion: "0.8" });
+    const wire1 = serializeImportPayload(first.document!, { targetVersion: "0.8" });
+    const second = parseImportPayload(wire1, undefined, { sourceVersion: "0.8" });
+    const wire2 = serializeImportPayload(second.document!, { targetVersion: "0.8" });
+
+    expect(wire2).toBe(wire1);
+    const wf = JSON.parse(wire1).workflows[0];
+    expect(wf.annotations).toEqual({ label: "L", roles: ["r"] });
+    expect(wf.states.new.annotations).toEqual({ hint: "start" });
+    expect(wf.states.new.transitions[0].annotations).toEqual({ ui: { color: "green" } });
+  });
+
+  test("opaque inner keys of annotations are NOT stripped by the allowlist", () => {
+    const parsed = parseImportPayload(importJson(annotatedWorkflow), undefined, { sourceVersion: "0.8" });
+    const wire = serializeImportPayload(parsed.document!, { targetVersion: "0.8" });
+    expect(wire).toContain('"color"');
+  });
+
+  test("0.7 wire omits annotations (field absent in v0.7)", () => {
+    const parsed = parseImportPayload(importJson(annotatedWorkflow), undefined, { sourceVersion: "0.8" });
+    const wire07 = serializeImportPayload(parsed.document!, { targetVersion: "0.7" });
+    expect(wire07).not.toContain('"annotations"');
+  });
+});

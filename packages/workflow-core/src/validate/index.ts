@@ -5,7 +5,7 @@ import type { ValidationIssue } from "../types/validation.js";
 import { zodErrorToIssues } from "./schema.js";
 import { validateSemantics } from "./semantic.js";
 
-export { validateSemantics } from "./semantic.js";
+export { validateSemantics, ANNOTATIONS_MAX_BYTES } from "./semantic.js";
 export { zodErrorToIssues } from "./schema.js";
 
 /**

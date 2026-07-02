@@ -2,7 +2,12 @@ import type { Criterion } from "./criterion.js";
 import type { CommentMeta, EdgeAnchorPair, HostRef } from "./editor.js";
 import type { Processor } from "./processor.js";
 import type { EntityIdentity, ImportMode, WorkflowSession } from "./session.js";
-import type { StateCode, Transition, Workflow } from "./workflow.js";
+import type { Annotations, StateCode, Transition, Workflow } from "./workflow.js";
+
+export type AnnotationsTarget =
+  | { kind: "workflow"; workflow: string }
+  | { kind: "state"; workflow: string; stateCode: StateCode }
+  | { kind: "transition"; transitionUuid: string };
 
 export type DomainPatch =
   | { op: "addWorkflow"; workflow: Workflow }
@@ -47,6 +52,7 @@ export type DomainPatch =
       toIndex: number;
     }
   | { op: "setCriterion"; host: HostRef; path: string[]; criterion?: Criterion }
+  | { op: "setAnnotations"; target: AnnotationsTarget; annotations?: Annotations }
   | { op: "setImportMode"; mode: ImportMode }
   | { op: "setEntity"; entity: EntityIdentity | null }
   | { op: "replaceSession"; session: WorkflowSession }

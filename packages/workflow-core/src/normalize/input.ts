@@ -1,4 +1,4 @@
-import type { Workflow } from "../types/workflow.js";
+import type { State, Workflow } from "../types/workflow.js";
 import type { Processor } from "../types/processor.js";
 import type { Criterion } from "../types/criterion.js";
 import { MAX_CRITERION_DEPTH } from "../criteria/operators.js";
@@ -52,7 +52,9 @@ export function normalizeWorkflowInput(workflow: Workflow): Workflow {
       }
       return nt;
     });
-    out.states[trimmedCode] = { transitions: normTransitions };
+    const normState: State = { transitions: normTransitions };
+    if (state.annotations !== undefined) normState.annotations = state.annotations;
+    out.states[trimmedCode] = normState;
   }
 
   return out;

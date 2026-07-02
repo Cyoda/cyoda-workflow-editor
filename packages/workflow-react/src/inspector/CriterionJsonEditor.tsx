@@ -118,7 +118,8 @@ function MonacoCriterionEditor({
       editorRef.current = null;
       model.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally keyed only on (monaco, modelKey): the editor, model, and
+    // schema handle are created inside this effect and re-created per model.
   }, [monaco, modelKey]);
 
   // Reflect disabled changes onto the live editor.

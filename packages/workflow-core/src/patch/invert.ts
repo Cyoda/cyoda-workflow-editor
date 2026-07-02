@@ -179,6 +179,21 @@ export function invertPatch(
         : { op: "setCriterion", host: patch.host, path: patch.path, criterion: cloneCriterion(prior) };
     }
 
+    case "setAnnotations": {
+      const t = patch.target;
+      let prior: Record<string, unknown> | undefined;
+      if (t.kind === "workflow") {
+        prior = findWorkflow(doc, t.workflow)?.annotations;
+      } else if (t.kind === "state") {
+        prior = findWorkflow(doc, t.workflow)?.states[t.stateCode]?.annotations;
+      } else {
+        prior = findTransition(doc, t.transitionUuid)?.annotations;
+      }
+      return prior === undefined
+        ? { op: "setAnnotations", target: t }
+        : { op: "setAnnotations", target: t, annotations: structuredClone(prior) };
+    }
+
     case "setImportMode":
       return { op: "setImportMode", mode: doc.session.importMode };
 

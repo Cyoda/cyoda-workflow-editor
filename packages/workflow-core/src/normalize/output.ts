@@ -15,9 +15,13 @@ import type { Transition, TransitionSchedule, Workflow } from "../types/workflow
  * Per-version output options.
  * - `schedule`: emit `transitions[].schedule` (cyoda-go v0.8.0). Defaults to
  *   `false` so the v0.7 wire format (which has no such field) is unchanged.
+ * - `annotations`: emit `annotations` at the workflow/state/transition levels
+ *   (cyoda-go v0.8.1). Defaults to `false` so the v0.7 wire format (which has
+ *   no such field) is unchanged.
  */
 export interface OutputOptions {
   schedule?: boolean;
+  annotations?: boolean;
 }
 
 export function outputWorkflow(
@@ -31,6 +35,7 @@ export function outputWorkflow(
   if (w.desc !== undefined) out["desc"] = w.desc;
   out["initialState"] = w.initialState;
   out["active"] = w.active;
+  if (options?.annotations && w.annotations !== undefined) out["annotations"] = w.annotations;
   if (w.criterion !== undefined) out["criterion"] = outputCriterion(w.criterion);
   out["states"] = outputStates(w.states, options);
   return out;
@@ -42,7 +47,13 @@ function outputStates(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [code, state] of Object.entries(states)) {
-    out[code] = { transitions: state.transitions.map((t) => outputTransition(t, options)) };
+    const stateOut: Record<string, unknown> = {
+      transitions: state.transitions.map((t) => outputTransition(t, options)),
+    };
+    if (options?.annotations && state.annotations !== undefined) {
+      stateOut["annotations"] = state.annotations;
+    }
+    out[code] = stateOut;
   }
   return out;
 }
@@ -55,8 +66,13 @@ export function outputTransition(
     name: t.name,
     next: t.next,
     manual: t.manual,
-    disabled: t.disabled,
   };
+  // Emit `annotations` between `manual` and `disabled` to match V0_8_WIRE_FIELDS
+  // order (the 0.8 allowlist reorders regardless; this keeps emission readable
+  // and consistent). Omitted for 0.7 (no annotations option), which then emits
+  // the historical name/next/manual/disabled order unchanged.
+  if (options?.annotations && t.annotations !== undefined) out["annotations"] = t.annotations;
+  out["disabled"] = t.disabled;
   if (t.criterion !== undefined) out["criterion"] = outputCriterion(t.criterion);
   if (t.processors !== undefined && t.processors.length > 0) {
     out["processors"] = t.processors.map(outputProcessor);
