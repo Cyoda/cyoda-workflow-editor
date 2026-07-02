@@ -76,13 +76,17 @@ endpoint, and the in-document `version` tag is informational.
    - **Canonical model / Zod schema change** — a field the canonical model does
      not yet represent at all (a new transition/processor field, a removed type).
 
-4. **If the canonical model changes → major bump + coordinated updates.**
-   Changing the canonical model (`src/schema/*`, `src/types/*`) is a **major**
-   `@cyoda/workflow-core` bump. It requires coordinated updates in the
+4. **If the canonical model changes → major-class change + coordinated updates.**
+   Changing the canonical model (`src/schema/*`, `src/types/*`) is a **major-class**
+   `@cyoda/workflow-core` change. It requires coordinated updates in the
    downstream packages that consume the model:
    `workflow-react`, `workflow-graph`, `workflow-layout`, `workflow-monaco`,
    `workflow-viewer`, and the `cyoda-dev-console` host app. Do not land the core
    change without scheduling those follow-ups.
+   **Versioning:** while the project is below `1.0.0` it deliberately stays in
+   `0.x`, so this major-class change ships as a Changesets **`minor`** (0.x
+   convention), **not** a `major`/`1.0.0` cut — see the versioning policy in
+   `CLAUDE.md` and the "Pre-1.0 `minor`" notes in the package CHANGELOGs.
 
 5. **If the canonical model is unchanged → new dialect, minor/patch bump.**
    Write a new dialect in `packages/workflow-core/src/dialect/cyoda-<v>.ts`
