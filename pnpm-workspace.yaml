@@ -33,7 +33,7 @@ catalog:
   typescript: 6.0.3
   uuid: 14.0.0
   vite: 8.0.16
-  vitest: 4.1.8
+  vitest: 4.1.11
   zod: 4.4.3
 
 # Supply-chain hardening (pnpm 10)
@@ -46,6 +46,8 @@ minimumReleaseAgeExclude:
   # The patched version may be <14 days old, so the cooldown is excluded here.
   - esbuild
   - "@esbuild/*"
+  # Renovate security update: vitest@4.1.11
+  - vitest@4.1.11
 # Only these packages may run install lifecycle scripts (pnpm 10 blocks all others).
 # Seeded with esbuild; add any package pnpm reports under "Ignored build scripts" in Step 5.
 onlyBuiltDependencies:
