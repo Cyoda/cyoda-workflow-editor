@@ -26,7 +26,8 @@ export function describeCriterion(c: Criterion): string {
       return describeBinary(c.field, c.operation, c.value);
     case "array": {
       const n = c.value.length;
-      return `${c.jsonPath} ${c.operation} [${n} value${n === 1 ? "" : "s"}]`;
+      const op = c.operation !== undefined ? ` ${c.operation}` : "";
+      return `${c.jsonPath}${op} [${n} value${n === 1 ? "" : "s"}]`;
     }
   }
 }

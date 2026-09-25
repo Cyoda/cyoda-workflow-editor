@@ -1,6 +1,7 @@
 import { CriterionSchema } from "@cyoda/workflow-core";
 import * as z from "zod";
 import type { JsonSchemaHandle, MonacoLike } from "./types.js";
+import { withArrayCriterionWireKeys } from "./wireKeys.js";
 
 export const CRITERION_SCHEMA_URI = "https://cyoda.dev/schemas/criterion.schema.json";
 
@@ -10,7 +11,7 @@ export const CRITERION_SCHEMA_URI = "https://cyoda.dev/schemas/criterion.schema.
  * `anyOf` with recursive `$ref:"#"` for nested groups / function prechecks.
  */
 export function criterionJsonSchema(): object {
-  return z.toJSONSchema(CriterionSchema, { target: "draft-7" });
+  return withArrayCriterionWireKeys(z.toJSONSchema(CriterionSchema, { target: "draft-7" }));
 }
 
 /**

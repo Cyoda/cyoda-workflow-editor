@@ -22,7 +22,7 @@ function sessionWithTransitionCriterion(criterion: Criterion): WorkflowSession {
     importMode: "MERGE",
     workflows: [
       {
-        version: "1.3",
+        version: "1.4",
         name: "wf",
         initialState: "start",
         active: true,
@@ -121,15 +121,24 @@ describe("criterion semantic rules", () => {
     expect(issue?.severity).toBe("info");
   });
 
-  test("group NOT → unsupported-group-operator warning, no errors", () => {
+  test("group NOT with one condition is clean (implemented in cyoda-go 0.8.4)", () => {
     const session = sessionWithTransitionCriterion({
       type: "group",
       operator: "NOT",
       conditions: [{ type: "simple", jsonPath: "$.x", operation: "EQUALS", value: 1 }],
     });
-    const issues = validateSemantics(session);
-    expect(issues.map((i) => i.code)).toContain("unsupported-group-operator");
-    expect(issues.filter((i) => i.severity === "error")).toEqual([]);
+    expect(validateSemantics(session).filter((i) => i.severity !== "info")).toEqual([]);
+  });
+
+  test("group NOT with two conditions → not-with-multiple-conditions error", () => {
+    const leaf: Criterion = { type: "simple", jsonPath: "$.x", operation: "EQUALS", value: 1 };
+    const session = sessionWithTransitionCriterion({
+      type: "group",
+      operator: "NOT",
+      conditions: [leaf, leaf],
+    });
+    const issue = validateSemantics(session).find((i) => i.code === "not-with-multiple-conditions");
+    expect(issue?.severity).toBe("error");
   });
 
   test("group AND with valid children → no group operator warning", () => {

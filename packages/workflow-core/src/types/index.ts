@@ -8,6 +8,8 @@ export type {
   FunctionCriterion,
   LifecycleCriterion,
   ArrayCriterion,
+  ArrayCriterionValue,
+  LifecycleField,
   FunctionConfig,
 } from "./criterion.js";
 export type {

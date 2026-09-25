@@ -252,7 +252,7 @@ export function CriteriaEditorPage() {
             <code>ARRIVED_VIA_APPROVAL</code>.
           </li>
           <li>
-            <strong>Array — CONTAINS on string list:</strong>{" "}
+            <strong>Array — positional values on a [*] path:</strong>{" "}
             <code>MATCHED_WITH_KEY_FIELDS</code> (matchedFields) and{" "}
             <code>APPROVED_AND_USD_SSI</code> (businessCenters).
           </li>

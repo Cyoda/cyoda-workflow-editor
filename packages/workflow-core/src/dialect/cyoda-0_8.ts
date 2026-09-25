@@ -6,10 +6,9 @@ import type { CyodaDialect, ToCanonicalResult } from "./dialect.js";
 
 /**
  * The cyoda-go 0.8 dialect — the current default (`LATEST_CYODA_VERSION`).
- * Targets cyoda-go 0.8.1; 0.8.0 was never released.
- *
- * Covers: cyoda-go 0.8.1 (the 0.8 line; 0.8.0 never shipped — see the status
- * note in `ai/cyoda-schema-versions.md`).
+ * Extended in place across the 0.8 line; currently targets cyoda-go 0.8.4
+ * (workflow schema tag 1.4, accepting 1.1–1.4). 0.8.0 was never released.
+ * Per-release wire deltas are recorded in `ai/cyoda-schema-versions.md`.
  *
  * Deltas from the 0.7 dialect:
  * - **`scheduled` processor no longer specially handled.** The dedicated
@@ -49,11 +48,16 @@ import type { CyodaDialect, ToCanonicalResult } from "./dialect.js";
  */
 export const cyoda08Dialect: CyodaDialect = {
   version: "0.8",
-  schemaVersionTag: "1.3",
-  acceptedSchemaVersions: [{ major: 1, minMinor: 1, maxMinor: 3 }],
+  schemaVersionTag: "1.4",
+  acceptedSchemaVersions: [{ major: 1, minMinor: 1, maxMinor: 4 }],
   toCanonical(raw: unknown): ToCanonicalResult {
+    const legacyArrays = countLegacyArrayValue(raw);
     const normalized = normalize08(coerceCanonicalDefaults(normalizeOperatorAlias(raw)));
-    return { value: normalized.value, warnings: normalized.warnings };
+    const warnings =
+      legacyArrays > 0
+        ? [`array-criterion-legacy-value:${legacyArrays}`, ...normalized.warnings]
+        : normalized.warnings;
+    return { value: normalized.value, warnings };
   },
   workflowsToWire(workflows: Workflow[]): Array<Record<string, unknown>> {
     return workflows.map((wf) =>
@@ -61,6 +65,32 @@ export const cyoda08Dialect: CyodaDialect = {
     );
   },
 };
+
+/**
+ * Count array criteria carrying their list only under the legacy `value` key.
+ * cyoda-go reads `values` exclusively, so such a clause — written by editor
+ * versions before the 0.8.4 support — is stored as a guard with no positional
+ * tests and matches every entity. The alias pass silently migrates it; this
+ * count surfaces that the file on disk / server is currently wrong. Skips the
+ * opaque `annotations` / `criterionAnnotations` subtrees.
+ */
+function countLegacyArrayValue(raw: unknown): number {
+  let count = 0;
+  const stack: unknown[] = [raw];
+  while (stack.length > 0) {
+    const node = stack.pop();
+    if (Array.isArray(node)) {
+      stack.push(...node);
+      continue;
+    }
+    if (!isObj(node)) continue;
+    if (node["type"] === "array" && "value" in node && !("values" in node)) count += 1;
+    for (const [k, v] of Object.entries(node)) {
+      if (k !== "annotations" && k !== "criterionAnnotations") stack.push(v);
+    }
+  }
+  return count;
+}
 
 // The exact fields the v0.8.0 wire format accepts at each nesting level, in
 // emission order. Anything not listed here is stripped from the output.

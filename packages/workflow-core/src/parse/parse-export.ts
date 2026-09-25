@@ -1,4 +1,5 @@
 import { getDialect, LATEST_CYODA_VERSION, type CyodaSchemaVersion } from "../dialect/index.js";
+import { dialectWarningToIssue } from "./parse-import.js";
 import { assignSyntheticIds } from "../identity/assign.js";
 import { normalizeWorkflowInput } from "../normalize/input.js";
 import { ExportPayloadSchema } from "../schema/payload.js";
@@ -64,7 +65,7 @@ export function parseExportPayload(
   meta.cyodaVersion = sourceVersion;
   const document: WorkflowEditorDocument = { session, meta };
 
-  const issues = validateSemantics(session, document);
+  const issues = [...warnings.map(dialectWarningToIssue), ...validateSemantics(session, document)];
   const hasError = issues.some((i) => i.severity === "error");
 
   return {

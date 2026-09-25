@@ -5,6 +5,8 @@ export type {
   Annotations,
   AnnotationsTarget,
   ArrayCriterion,
+  ArrayCriterionValue,
+  LifecycleField,
   CommentMeta,
   ConcurrencyToken,
   Criterion,
@@ -65,6 +67,7 @@ export {
 export {
   AnnotationsSchema,
   ArrayCriterionSchema,
+  LIFECYCLE_FIELDS,
   CriterionSchema,
   ExecutionModeSchema,
   ExportPayloadSchema,

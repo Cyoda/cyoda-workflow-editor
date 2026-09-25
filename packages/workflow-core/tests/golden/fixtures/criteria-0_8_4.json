@@ -1,0 +1,79 @@
+{
+  "importMode": "MERGE",
+  "workflows": [
+    {
+      "version": "1.4",
+      "name": "criteria-0-8-4",
+      "initialState": "open",
+      "active": true,
+      "criterion": {
+        "type": "group",
+        "operator": "NOT",
+        "conditions": [
+          {
+            "type": "lifecycle",
+            "field": "transitionForLatestSave",
+            "operation": "EQUALS",
+            "value": "archive"
+          }
+        ]
+      },
+      "states": {
+        "open": {
+          "transitions": [
+            {
+              "name": "tagged",
+              "next": "closed",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "OR",
+                "conditions": [
+                  {
+                    "type": "group",
+                    "operator": "NOT",
+                    "conditions": [
+                      {
+                        "type": "simple",
+                        "jsonPath": "$.tags[*]",
+                        "operation": "EQUALS",
+                        "value": "red"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "array",
+                    "jsonPath": "$.tags[*]",
+                    "values": ["a", null, "c"]
+                  },
+                  {
+                    "type": "array",
+                    "jsonPath": "$.scores[*]",
+                    "operation": "EQUALS",
+                    "values": [1, 2.5, true]
+                  },
+                  {
+                    "type": "lifecycle",
+                    "field": "lastUpdateTime",
+                    "operation": "BETWEEN",
+                    "value": ["2026-01-01", "2026-12-31T23:59:59Z"]
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.0-code[0]",
+                    "operation": "LIKE",
+                    "value": "A\\%%\\\\"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "closed": {
+          "transitions": []
+        }
+      }
+    }
+  ]
+}

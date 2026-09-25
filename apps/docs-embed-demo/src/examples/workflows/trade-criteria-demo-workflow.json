@@ -2,7 +2,7 @@
   "importMode": "MERGE",
   "workflows": [
     {
-      "version": "1.3",
+      "version": "1.4",
       "name": "TradeCriteriaDemoWorkflow",
       "desc": "Trade post-execution workflow that exercises every criterion shape in the editor: simple (many operators), group (AND / OR / NOT), function (with quick-exit), lifecycle, and array. Designed for criterion-editor demo and regression testing using the StructuredTrade entity sample.",
       "initialState": "RECEIVED",
@@ -140,9 +140,8 @@
                   },
                   {
                     "type": "array",
-                    "jsonPath": "$.confirmation.matchedFields",
-                    "operation": "CONTAINS",
-                    "value": [
+                    "jsonPath": "$.confirmation.matchedFields[*]",
+                    "values": [
                       "notional",
                       "fixedRate",
                       "floatingRateIndex"
@@ -273,9 +272,8 @@
                   },
                   {
                     "type": "array",
-                    "jsonPath": "$.tradeDates.businessCenters",
-                    "operation": "CONTAINS",
-                    "value": ["USNY"]
+                    "jsonPath": "$.tradeDates.businessCenters[*]",
+                    "values": ["USNY"]
                   },
                   {
                     "type": "simple",
