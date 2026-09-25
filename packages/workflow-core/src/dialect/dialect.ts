@@ -46,7 +46,7 @@ export interface CyodaDialect {
 
   /**
    * The in-document `version` tag this dialect stamps on NEW workflows — e.g.
-   * `"1.3"` for the 0.8 dialect. Required: a dialect that cannot say which tag
+   * `"1.4"` for the 0.8 dialect (cyoda-go 0.8.4). Required: a dialect that cannot say which tag
    * its wire contract uses is under-specified, and any default we invented for
    * an absent value would be the hardcoded literal this field exists to remove.
    */

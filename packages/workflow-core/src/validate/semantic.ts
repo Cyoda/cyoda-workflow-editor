@@ -1,9 +1,17 @@
 import {
   CRITERION_DEPTH_WARNING_THRESHOLD,
   MAX_CRITERION_DEPTH,
+  TEMPORAL_LIFECYCLE_FIELDS,
+  TEMPORAL_OPERATORS,
   UNSUPPORTED_OPERATORS,
 } from "../criteria/operators.js";
 import { validateJsonPathSubset } from "../criteria/jsonPathSubset.js";
+import {
+  isTemporalOperand,
+  likePatternError,
+  matchesPatternIssue,
+} from "../criteria/patterns.js";
+import { LIFECYCLE_FIELDS as LIFECYCLE_FIELD_LIST } from "../schema/criterion.js";
 import { getDialect, LATEST_CYODA_VERSION, type CyodaDialect } from "../dialect/index.js";
 import { findUnguardedCycles } from "./cycles.js";
 import { idFor as identityIdFor } from "../identity/id-for.js";
@@ -16,7 +24,7 @@ import type { ValidationIssue } from "../types/validation.js";
 import type { Transition, Workflow } from "../types/workflow.js";
 import { isValidName, walkCriteria } from "./helpers.js";
 
-const LIFECYCLE_FIELDS = new Set(["state", "creationDate", "previousTransition"]);
+const LIFECYCLE_FIELDS: ReadonlySet<string> = new Set(LIFECYCLE_FIELD_LIST);
 
 /** Processor config `retryPolicy` values cyoda-go accepts; anything else is a hard 400. */
 const RETRY_POLICIES = new Set(["NONE", "FIXED", ""]);
@@ -33,8 +41,11 @@ const TAG_RE = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
  * Operator warnings for a criterion's `operation` (issue #22).
  * - Unknown operator (outside the editor's known catalogue): non-blocking
  *   `operator-not-recognized` — preserved for round-trip, can't be validated.
- * - Known but engine-unimplemented: existing `unsupported-operator` warning.
- * Never an error: imports must always round-trip.
+ * - Known but not implemented by cyoda-go (`IS_CHANGED` / `IS_UNCHANGED`):
+ *   `unsupported-operator`.
+ * cyoda-go 0.8.4 rejects both at import (`unknown operatorType`), but Cyoda
+ * Cloud's operator set is wider, so these stay warnings (backend-conditional —
+ * see docs/validation-rules.md) and imports always round-trip.
  */
 function operatorWarnings(operation: string, where: CriterionLoc): ValidationIssue[] {
   if (!OPERATOR_TYPES.has(operation as OperatorType)) {
@@ -42,7 +53,7 @@ function operatorWarnings(operation: string, where: CriterionLoc): ValidationIss
       {
         severity: "warning",
         code: "operator-not-recognized",
-        message: `Operator "${operation}" is not in the editor's known operator set; it is preserved for round-trip but cannot be validated or edited (at ${describe(where)}).`,
+        message: `Operator "${operation}" is not in the editor's known operator set; it is preserved for round-trip but cannot be validated or edited. cyoda-go rejects it at import; Cyoda Cloud may accept it (at ${describe(where)}).`,
         detail: { operation },
       },
     ];
@@ -52,10 +63,45 @@ function operatorWarnings(operation: string, where: CriterionLoc): ValidationIss
       {
         severity: "warning",
         code: "unsupported-operator",
-        message: `Operator "${operation}" is not implemented by the engine (at ${describe(where)}).`,
+        message: `Operator "${operation}" is not implemented by cyoda-go, which rejects it at import (at ${describe(where)}).`,
         detail: { operation },
       },
     ];
+  }
+  return [];
+}
+
+/**
+ * Pattern-operand checks shared by simple and lifecycle criteria. cyoda-go
+ * 0.8.4 validates both pattern operators at import. The LIKE rule is an exact
+ * mirror (error); the MATCHES_PATTERN rule approximates Go's RE2 in JS and is
+ * therefore a warning.
+ */
+function patternIssues(operation: string, value: unknown, where: CriterionLoc): ValidationIssue[] {
+  if (operation === "LIKE") {
+    const reason = likePatternError(value);
+    if (reason) {
+      return [
+        {
+          severity: "error",
+          code: "like-pattern-invalid",
+          message: `LIKE pattern ${JSON.stringify(value)} is invalid: ${reason}. Write a literal trailing backslash as \\\\ (at ${describe(where)}).`,
+          detail: { operation, reason },
+        },
+      ];
+    }
+  } else if (operation === "MATCHES_PATTERN") {
+    const reason = matchesPatternIssue(value);
+    if (reason) {
+      return [
+        {
+          severity: "warning",
+          code: "matches-pattern-invalid",
+          message: `MATCHES_PATTERN operand ${JSON.stringify(value)} is probably not a valid RE2 pattern (${reason}); cyoda-go rejects invalid patterns at import (at ${describe(where)}).`,
+          detail: { operation, reason },
+        },
+      ];
+    }
   }
   return [];
 }
@@ -508,9 +554,16 @@ function validateWorkflow(
 
 function criterionRules(session: WorkflowSession): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  for (const { criterion, where } of walkCriteria(session)) {
+  for (const { criterion, where, parent } of walkCriteria(session)) {
     switch (criterion.type) {
       case "function":
+        if (parent?.type === "group") {
+          issues.push({
+            severity: "warning",
+            code: "function-criterion-in-group",
+            message: `Function criterion "${criterion.function.name}" is nested inside a group; cyoda-go requires a function criterion to be the whole criterion and fails the evaluation otherwise (at ${describe(where)}).`,
+          });
+        }
         if (!criterion.function.name || criterion.function.name.length === 0) {
           issues.push({
             severity: "error",
@@ -541,18 +594,27 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
             message: `Array criterion jsonPath "${criterion.jsonPath}" is not in the supported subset (${arrPathCheck.reason}) (at ${describe(where)}).`,
             detail: { jsonPath: criterion.jsonPath, reason: arrPathCheck.reason },
           });
+        } else if (!criterion.jsonPath.endsWith("[*]")) {
+          issues.push({
+            severity: "error",
+            code: "array-path-not-wildcard",
+            message: `Array criterion jsonPath "${criterion.jsonPath}" must end in [*] — it addresses the array's elements, and cyoda-go rejects any other path at import (at ${describe(where)}).`,
+            detail: { jsonPath: criterion.jsonPath },
+          });
         }
         for (const v of criterion.value) {
-          if (typeof v !== "string") {
+          if (v !== null && typeof v === "object") {
             issues.push({
               severity: "error",
-              code: "array-non-string-value",
-              message: `Array criterion value contains a non-string element.`,
+              code: "array-non-scalar-value",
+              message: `Array criterion value contains an object or array; each entry must be a scalar or null (at ${describe(where)}).`,
             });
             break;
           }
         }
-        issues.push(...operatorWarnings(criterion.operation, where));
+        if (criterion.operation !== undefined) {
+          issues.push(...operatorWarnings(criterion.operation, where));
+        }
         break;
       }
       case "lifecycle":
@@ -564,22 +626,40 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
           });
         }
         issues.push(...operatorWarnings(criterion.operation, where));
-        break;
-      case "group":
-        if (criterion.operator === "NOT") {
-          issues.push({
-            severity: "warning",
-            code: "unsupported-group-operator",
-            message: `Group operator "NOT" is not implemented by the engine (at ${describe(where)}).`,
-            detail: { operator: "NOT" },
-          });
-          if (criterion.conditions.length > 1) {
+        issues.push(...patternIssues(criterion.operation, criterion.value, where));
+        if (TEMPORAL_LIFECYCLE_FIELDS.has(criterion.field)) {
+          if (!TEMPORAL_OPERATORS.has(criterion.operation as OperatorType)) {
+            // Warning, not error: cyoda-go rejects it at import, but a pushdown
+            // evaluator matches the field's RFC3339 text lexically, so another
+            // backend may accept it.
             issues.push({
               severity: "warning",
-              code: "not-with-multiple-conditions",
-              message: `NOT group has ${criterion.conditions.length} conditions; should have exactly one.`,
+              code: "lifecycle-temporal-operator",
+              message: `Operator "${criterion.operation}" is not valid on temporal field "${criterion.field}"; cyoda-go accepts only comparison, range and null-presence operators there and rejects this at import (at ${describe(where)}).`,
+              detail: { field: criterion.field, operation: criterion.operation },
             });
+          } else if (criterion.operation !== "IS_NULL" && criterion.operation !== "NOT_NULL") {
+            const operands = Array.isArray(criterion.value) ? criterion.value : [criterion.value];
+            const bad = operands.find((v) => v !== null && v !== undefined && !isTemporalOperand(v));
+            if (bad !== undefined) {
+              issues.push({
+                severity: "warning",
+                code: "lifecycle-temporal-operand",
+                message: `Operand ${JSON.stringify(bad)} for temporal field "${criterion.field}" does not look like a date, date-time or time; cyoda-go rejects operands it cannot parse as temporal (at ${describe(where)}).`,
+                detail: { field: criterion.field },
+              });
+            }
           }
+        }
+        break;
+      case "group":
+        if (criterion.operator === "NOT" && criterion.conditions.length !== 1) {
+          issues.push({
+            severity: "error",
+            code: "not-with-multiple-conditions",
+            message: `NOT group has ${criterion.conditions.length} conditions; NOT takes exactly one — nest an AND/OR group to negate several (at ${describe(where)}).`,
+            detail: { count: criterion.conditions.length },
+          });
         }
         break;
       case "simple": {
@@ -604,6 +684,7 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
         }
 
         issues.push(...operatorWarnings(criterion.operation, where));
+        issues.push(...patternIssues(criterion.operation, criterion.value, where));
 
         if (criterion.operation === "BETWEEN" || criterion.operation === "BETWEEN_INCLUSIVE") {
           if (!Array.isArray(criterion.value) || criterion.value.length !== 2) {

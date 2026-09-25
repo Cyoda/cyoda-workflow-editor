@@ -12,6 +12,11 @@ const isObject = (v: unknown): v is UnknownRecord =>
  *
  * Only applies to criterion-shaped nodes (type: simple | lifecycle | array).
  *
+ * Array clauses additionally get `values` → `value`: cyoda-go reads the
+ * positional list from `values` only (the OpenAPI's `value` is wrong), while
+ * the canonical model and files written by earlier editor versions use
+ * `value`. Same agree/disagree rule as the operator alias.
+ *
  * `annotations` / `criterionAnnotations` values (workflow/state/transition/
  * processor level) are engine-opaque client metadata: they are copied through
  * verbatim and never recursed into, so a key literally named `operatorType`
@@ -51,6 +56,18 @@ export function normalizeOperatorAlias(raw: unknown): unknown {
     }
     result["operation"] = existing ?? alias;
     delete result["operatorType"];
+  }
+
+  if (type === "array" && "values" in result) {
+    const wire = result["values"];
+    const legacy = result["value"];
+    if (legacy !== undefined && JSON.stringify(legacy) !== JSON.stringify(wire)) {
+      throw new SchemaError(
+        `Conflicting array criterion "value" and "values": ${JSON.stringify(legacy)} vs ${JSON.stringify(wire)}`,
+      );
+    }
+    result["value"] = wire;
+    delete result["values"];
   }
   return result;
 }

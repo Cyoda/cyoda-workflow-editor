@@ -42,9 +42,12 @@ when the editor's own model cannot represent it. Anything that hinges on
 | `duplicate-transition-name` | state | yes | Two transitions on one state share a name. |
 | `duplicate-processor-name` | transition | yes | Two processors on one transition share a name. |
 | `function-missing-name` | criterion | — | A function criterion has an empty name. |
-| `invalid-jsonpath-subset` | criterion | — | A simple/array criterion `jsonPath` is outside the supported subset. |
-| `array-non-string-value` | criterion | — | An array criterion value contains a non-string element. |
+| `invalid-jsonpath-subset` | criterion | — | A simple/array criterion `jsonPath` is not JSON Path under cyoda-go 0.8.4's grammar (`$.` leader required, ASCII `[A-Za-z0-9_-]` names, `[*]` or an int32 index as the only subscripts). |
+| `array-path-not-wildcard` | criterion | — | An array criterion `jsonPath` does not end in `[*]`; it must address the array's elements. |
+| `array-non-scalar-value` | criterion | — | An array criterion value contains an object or array; entries must be scalars or `null`. |
 | `lifecycle-invalid-field` | criterion | — | A lifecycle criterion field is not in the allowed set. |
+| `not-with-multiple-conditions` | criterion | — | A `NOT` group does not have exactly one condition. |
+| `like-pattern-invalid` | criterion | — | A `LIKE` operand ends in an unpaired escape (`\`); write a literal trailing backslash as `\\`. |
 | `simple-between-shape` | criterion | — | `BETWEEN` / `BETWEEN_INCLUSIVE` needs a two-element `[low, high]` value. |
 | `criterion-depth-limit` | criterion | — | Criterion tree depth reaches the engine limit. |
 | `annotations-too-large` | wf / state / transition | yes | Annotations exceed the 64 KiB cap. |
@@ -61,10 +64,12 @@ when the editor's own model cannot represent it. Anything that hinges on
 
 | Code | Scope | Clickable | Meaning |
 |------|-------|-----------|---------|
-| `operator-not-recognized` | criterion | — | Operator outside the editor's known set; preserved for round-trip. |
-| `unsupported-operator` | criterion | — | A known operator the engine does not implement. |
-| `unsupported-group-operator` | criterion | — | Group operator `NOT` is not implemented by the engine. |
-| `not-with-multiple-conditions` | criterion | — | A `NOT` group carries more than one condition. |
+| `operator-not-recognized` | criterion | — | Operator outside the editor's known set; preserved for round-trip. cyoda-go rejects it at import; Cyoda Cloud's operator set is wider. |
+| `unsupported-operator` | criterion | — | A known operator cyoda-go does not implement (`IS_CHANGED` / `IS_UNCHANGED`); rejected at import. |
+| `matches-pattern-invalid` | criterion | — | A `MATCHES_PATTERN` operand is probably not valid RE2. A JS approximation of Go's RE2, so a warning; cyoda-go rejects invalid patterns at import. |
+| `lifecycle-temporal-operator` | criterion | — | A string/pattern operator on `creationDate` / `lastUpdateTime`; cyoda-go accepts only comparison, range and null-presence operators there. |
+| `lifecycle-temporal-operand` | criterion | — | A `creationDate` / `lastUpdateTime` operand doesn't look like a date, date-time or time. Heuristic, hence a warning. |
+| `function-criterion-in-group` | criterion | — | A function criterion nested in a group; cyoda-go requires it to be the whole criterion and fails the evaluation otherwise (import accepts it). |
 | `async-result-unsupported` | processor | yes | `config.asyncResult` is `true`; rejected by cyoda-go, supported on Cyoda Cloud only. |
 | `crossover-unsupported` | processor | yes | `config.crossoverToAsyncMs` is set; rejected by cyoda-go, supported on Cyoda Cloud only. |
 | `processor-type-internalized` | processor | yes | Processor `type` is the reserved value `"internalized"`; cyoda-go accepts it at import but rejects it at dispatch. |

@@ -5,6 +5,7 @@ import type { OperatorValue } from "../types/criterion.js";
 import { NAME_REGEX } from "../schema/name.js";
 import { OPERATOR_VALUE_SHAPE, type OperatorValueShape } from "./operators.js";
 import { validateJsonPathSubset } from "./jsonPathSubset.js";
+import { likePatternError } from "./patterns.js";
 
 function shapeOf(op: OperatorValue): OperatorValueShape {
   return OPERATOR_VALUE_SHAPE[op as OperatorType] ?? "scalar";
@@ -20,6 +21,12 @@ function jsonPathBlockingError(jsonPath: string): string | null {
   if (jsonPath === "") return "Choose a field for this condition.";
   const check = validateJsonPathSubset(jsonPath);
   return check.ok ? null : `JSON path is invalid (${check.reason}).`;
+}
+
+function likeBlockingError(operation: OperatorValue, value: unknown): string | null {
+  if (operation !== "LIKE") return null;
+  const reason = likePatternError(value);
+  return reason ? `LIKE pattern is invalid (${reason}); write a literal backslash as \\\\.` : null;
 }
 
 function rangeBlockingError(operation: OperatorValue, value: unknown): string | null {
@@ -49,10 +56,18 @@ export function criterionBlockingError(criterion: Criterion): string | null {
       ) {
         return "Value is required.";
       }
-      return rangeBlockingError(criterion.operation, criterion.value);
+      return (
+        likeBlockingError(criterion.operation, criterion.value) ??
+        rangeBlockingError(criterion.operation, criterion.value)
+      );
     }
     case "array":
-      return jsonPathBlockingError(criterion.jsonPath);
+      return (
+        jsonPathBlockingError(criterion.jsonPath) ??
+        (criterion.jsonPath.endsWith("[*]")
+          ? null
+          : "Array criterion path must end in [*] (it addresses the array's elements).")
+      );
     case "lifecycle":
       if (!NAME_REGEX.test(criterion.field)) return null;
       if (
@@ -61,7 +76,10 @@ export function criterionBlockingError(criterion: Criterion): string | null {
       ) {
         return "Value is required.";
       }
-      return rangeBlockingError(criterion.operation, criterion.value);
+      return (
+        likeBlockingError(criterion.operation, criterion.value) ??
+        rangeBlockingError(criterion.operation, criterion.value)
+      );
     case "function":
       if (!criterion.function.name || !NAME_REGEX.test(criterion.function.name)) {
         return "Function name is invalid.";
@@ -70,6 +88,9 @@ export function criterionBlockingError(criterion: Criterion): string | null {
         ? criterionBlockingError(criterion.function.criterion)
         : null;
     case "group":
+      if (criterion.operator === "NOT" && criterion.conditions.length !== 1) {
+        return "NOT takes exactly one condition; nest an AND/OR group to negate several.";
+      }
       for (const child of criterion.conditions) {
         const childError = criterionBlockingError(child);
         if (childError) return childError;

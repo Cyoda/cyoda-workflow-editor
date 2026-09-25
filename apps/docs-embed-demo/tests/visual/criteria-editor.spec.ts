@@ -56,7 +56,7 @@ test("criteria editor page mounts and surfaces every coverage row", async ({ pag
     "Group — AND / OR / nested NOT",
     "Function — with quick-exit",
     "Lifecycle — previousTransition",
-    "Array — CONTAINS",
+    "Array — positional values",
   ]) {
     await expect(page.getByText(label, { exact: false })).toBeVisible();
   }

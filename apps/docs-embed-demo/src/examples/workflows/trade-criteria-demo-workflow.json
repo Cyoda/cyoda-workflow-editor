@@ -140,9 +140,8 @@
                   },
                   {
                     "type": "array",
-                    "jsonPath": "$.confirmation.matchedFields",
-                    "operation": "CONTAINS",
-                    "value": [
+                    "jsonPath": "$.confirmation.matchedFields[*]",
+                    "values": [
                       "notional",
                       "fixedRate",
                       "floatingRateIndex"
@@ -273,9 +272,8 @@
                   },
                   {
                     "type": "array",
-                    "jsonPath": "$.tradeDates.businessCenters",
-                    "operation": "CONTAINS",
-                    "value": ["USNY"]
+                    "jsonPath": "$.tradeDates.businessCenters[*]",
+                    "values": ["USNY"]
                   },
                   {
                     "type": "simple",

@@ -23,7 +23,9 @@ export function summarizeCriterion(c: Criterion): CriterionSummary {
     case "lifecycle":
       return { kind: "lifecycle", field: c.field, op: opShort(c.operation) };
     case "array":
-      return { kind: "array", op: opShort(c.operation), path: truncate(c.jsonPath) };
+      // cyoda-go ignores an array clause's operator — each positional entry is
+      // an equality test — so an absent one summarises as EQUALS.
+      return { kind: "array", op: opShort(c.operation ?? "EQUALS"), path: truncate(c.jsonPath) };
     case "group":
       return { kind: "group", operator: c.operator, count: c.conditions.length };
   }

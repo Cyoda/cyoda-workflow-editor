@@ -163,13 +163,15 @@ export function outputCriterion(c: Criterion): Record<string, unknown> {
       }
       return out;
     }
-    case "array":
-      return {
-        type: "array",
-        jsonPath: c.jsonPath,
-        operation: c.operation,
-        value: c.value,
-      };
+    case "array": {
+      // Wire key is `values` — the only one cyoda-go's array parser reads. An
+      // array clause emitted as `value` imports cleanly but carries no
+      // positional tests, so it matches every entity.
+      const out: Record<string, unknown> = { type: "array", jsonPath: c.jsonPath };
+      if (c.operation !== undefined) out["operation"] = c.operation;
+      out["values"] = c.value;
+      return out;
+    }
   }
 }
 

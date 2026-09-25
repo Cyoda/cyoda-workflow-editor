@@ -125,7 +125,9 @@ function CriterionView({ criterion, depth = 0 }: { criterion: Criterion; depth?:
     return (
       <div style={{ ...base, overflowWrap: "break-word" }}>
         <Chip color="orange">array</Chip>
-        <Chip color="blue" style={{ marginLeft: 4 }}>{criterion.operation}</Chip>
+        {criterion.operation !== undefined && (
+          <Chip color="blue" style={{ marginLeft: 4 }}>{criterion.operation}</Chip>
+        )}
         <code style={{ fontSize: 11, marginLeft: 4 }}>{criterion.jsonPath}</code>
       </div>
     );
