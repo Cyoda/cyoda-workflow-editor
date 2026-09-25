@@ -1,5 +1,16 @@
 # @cyoda/workflow-react
 
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [9432de3]
+  - @cyoda/workflow-core@0.7.1
+  - @cyoda/workflow-graph@0.4.2
+  - @cyoda/workflow-layout@0.1.7
+  - @cyoda/workflow-monaco@0.2.5
+  - @cyoda/workflow-viewer@0.4.3
+
 ## 0.6.1
 
 ### Patch Changes
