@@ -1,5 +1,13 @@
 # @cyoda/workflow-layout
 
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [347c467]
+  - @cyoda/workflow-core@0.7.0
+  - @cyoda/workflow-graph@0.4.1
+
 ## 0.1.5
 
 ### Patch Changes
