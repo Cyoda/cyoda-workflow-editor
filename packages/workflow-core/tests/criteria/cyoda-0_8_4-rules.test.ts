@@ -173,6 +173,23 @@ describe("pattern helpers", () => {
     },
   );
 
+  test("matchesPatternIssue stays linear on adversarial input (CodeQL js/polynomial-redos)", () => {
+    const hostile = [
+      "\\Q" + "\\Qa".repeat(50_000),
+      "\\Q" + "\\Qa".repeat(50_000) + "\\E",
+      "(?" + "i".repeat(100_000),
+      "(?P<".repeat(50_000),
+    ];
+    const started = performance.now();
+    for (const p of hostile) matchesPatternIssue(p);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  test("\\Q…\\E runs are compiled as literals", () => {
+    expect(matchesPatternIssue("\\Q(a[\\E")).toBeNull(); // RE2: literal "(a["
+    expect(matchesPatternIssue("x\\Q.*\\E(")).toMatch(/./); // trailing "(" is still unbalanced
+  });
+
   test.each(["2026", "2026-01", "2026-01-01", "2026-01-01T10:00Z", "2026-01-01T00:00:00.123+02:00", "10:00", "10:00:00.5"])(
     "isTemporalOperand accepts %j",
     (v) => {
