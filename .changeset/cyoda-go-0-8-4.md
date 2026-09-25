@@ -27,6 +27,10 @@ Support cyoda-go 0.8.4 (workflow schema 1.4).
   `transactionId` and `id`, which previously failed to parse. New warnings
   `lifecycle-temporal-operator` and `lifecycle-temporal-operand` cover
   `creationDate` / `lastUpdateTime`.
+- New error `workflow-schema-version-below-features`: a workflow's schema tag
+  must be at least the version that introduced each feature it uses (1.2
+  processor `annotations` / `criterionAnnotations`, 1.3 `schedule.function`,
+  1.4 `NOT`), with a fix that raises the tag.
 - `NOT` groups are supported by cyoda-go: `unsupported-group-operator` is
   removed, and `not-with-multiple-conditions` is now an error (exactly one
   condition is required). `SUPPORTED_GROUP_OPERATORS` includes `"NOT"`.

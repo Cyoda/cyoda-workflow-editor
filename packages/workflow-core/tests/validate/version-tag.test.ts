@@ -101,3 +101,45 @@ describe("a document naming an unresolvable dialect (the 0.8.3 upgrade path)", (
     expect(validateAll(doc).map((i) => i.code)).toContain("cyoda-version-unresolvable");
   });
 });
+
+describe("the tag must cover the features the workflow uses", () => {
+  function wf(version: string, extra: Record<string, unknown>) {
+    return JSON.stringify({
+      importMode: "MERGE",
+      workflows: [{ version, name: "w", initialState: "A", active: true, ...extra, states: { A: { transitions: [] } } }],
+    });
+  }
+  const not = {
+    criterion: {
+      type: "group",
+      operator: "NOT",
+      conditions: [{ type: "simple", jsonPath: "$.a", operation: "EQUALS", value: 1 }],
+    },
+  };
+
+  test.each(["1.1", "1.2", "1.3"])("NOT under %j is a blocking error with a fix to 1.4", (v) => {
+    const parsed = parseImportPayload(wf(v, not));
+    const issue = parsed.issues.find((i) => i.code === "workflow-schema-version-below-features");
+    expect(issue?.severity).toBe("error");
+    expect(issue?.detail).toMatchObject({ required: "1.4", features: ["NOT criterion group"] });
+    const fixed = issue!.fix!.apply(parsed.document!);
+    expect(fixed.session.workflows[0]!.version).toBe("1.4");
+  });
+
+  test("NOT under 1.4 is clean", () => {
+    const codes = parseImportPayload(wf("1.4", not)).issues.map((i) => i.code);
+    expect(codes).not.toContain("workflow-schema-version-below-features");
+  });
+
+  test("the fix raises the tag only as far as the features require", () => {
+    const parsed = parseImportPayload(wf("1.1", { criterionAnnotations: { note: "x" } }));
+    const issue = parsed.issues.find((i) => i.code === "workflow-schema-version-below-features");
+    expect(issue?.detail).toMatchObject({ required: "1.2" });
+    expect(issue!.fix!.apply(parsed.document!).session.workflows[0]!.version).toBe("1.2");
+  });
+
+  test("a workflow using no gated feature is clean under 1.1", () => {
+    const codes = parseImportPayload(wf("1.1", {})).issues.map((i) => i.code);
+    expect(codes).not.toContain("workflow-schema-version-below-features");
+  });
+});

@@ -563,9 +563,19 @@ are all in **criterion validation at import**, plus the tag bump.
   export restamps every workflow to `1.4`. Before this change the editor capped the
   range at `1.3`, so **every workflow exported from a 0.8.4 server opened with a
   blocking `workflow-schema-version-malformed` error**. New workflows are now
-  stamped `1.4`. Caveat carried by the single-dialect-per-MAJOR.MINOR design: a
-  `1.4`-stamped new workflow is rejected by a 0.8.3 server (*too new*); users on
-  0.8.3 must keep the tag at `1.3` (the editor accepts both).
+  stamped `1.4`.
+
+  **The tag must cover the features a workflow uses.** cyoda-go does not check
+  this — `NOT` imports under a `1.1` tag — but the tag is the workflow's claim
+  about its contract, and a `NOT` workflow stamped `1.3` misstates it: a server
+  that only speaks 1.3 cannot run it as designed. New error
+  `workflow-schema-version-below-features` (with a fix that raises the tag to
+  exactly the required version) enforces the per-feature minimums from
+  cyoda-go's `docs/workflow-schema-versioning.md` changelog, kept in
+  `src/validate/schema-features.ts`: 1.2 — processor `annotations`,
+  `criterionAnnotations`; 1.3 — `schedule.function`; 1.4 — `NOT` group.
+  **Add a row there with every future additive MINOR.** Do not "maximise
+  compatibility" by stamping a lower tag than the workflow's features need.
 
 - **`NOT` group operator implemented.** Takes **exactly one** child; `0` or `2+` is
   `400 VALIDATION_FAILED` ("NOT requires exactly one condition, got N"). Not gated by

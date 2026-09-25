@@ -55,6 +55,7 @@ when the editor's own model cannot represent it. Anything that hinges on
 | `schedule-manual-conflict` | transition | yes | A transition has both `schedule` and `manual: true`; the two are mutually exclusive. |
 | `schedule-function-incomplete` | transition | yes | `schedule.function` is missing `name` or `calculationNodesTags`. |
 | `workflow-schema-version-malformed` | workflow | yes | The in-document `version` tag is not `MAJOR.MINOR`, uses an unsupported major, or exceeds the max minor the target server accepts. |
+| `workflow-schema-version-below-features` | workflow | yes | The in-document `version` tag is below the schema version that introduced a feature the workflow uses (1.2: processor `annotations` / `criterionAnnotations`; 1.3: `schedule.function`; 1.4: `NOT` group). cyoda-go does not enforce this, but the tag would misstate the workflow's contract — it cannot run as designed on a server that only speaks the declared version. Carries a `fix` raising the tag to the required version. |
 | `unknown-retry-policy` | processor | yes | Processor `config.retryPolicy` is outside `NONE` / `FIXED` / empty; cyoda-go hard-400s on anything else. |
 | `start-new-tx-without-commit-before-dispatch` | processor | yes | `startNewTxOnDispatch` is set but the mode is not `COMMIT_BEFORE_DISPATCH`. |
 | `operator-alias-conflict` | — | — | Import only. A criterion carries two spellings of the same operator with different values, so the alias cannot be normalized. |

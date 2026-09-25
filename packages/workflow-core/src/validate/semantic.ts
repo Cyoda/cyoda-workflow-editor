@@ -14,6 +14,7 @@ import {
 import { LIFECYCLE_FIELDS as LIFECYCLE_FIELD_LIST } from "../schema/criterion.js";
 import { getDialect, LATEST_CYODA_VERSION, type CyodaDialect } from "../dialect/index.js";
 import { findUnguardedCycles } from "./cycles.js";
+import { requiredSchemaMinor } from "./schema-features.js";
 import { idFor as identityIdFor } from "../identity/id-for.js";
 import { NAME_MAX_LENGTH } from "../schema/name.js";
 import type { Criterion } from "../types/criterion.js";
@@ -303,6 +304,34 @@ function validateWorkflow(
               }),
             },
           });
+        } else if (major === 1) {
+          // The tag must cover every feature the workflow uses (see
+          // schema-features.ts). cyoda-go does not enforce this, but a tag
+          // below the workflow's features misstates its contract.
+          const required = requiredSchemaMinor(wf);
+          if (minor < required.minor) {
+            const tag = `1.${required.minor}`;
+            issues.push({
+              severity: "error",
+              code: "workflow-schema-version-below-features",
+              message: `Workflow "${wf.name}": uses ${required.features.join(", ")}, which requires workflow schema ${tag}; it declares ${wf.version}.`,
+              ...idFor(doc, wf.name, "workflow"),
+              detail: { declared: wf.version, required: tag, features: required.features },
+              fix: {
+                label: `Update schema version to ${tag}`,
+                apply: (d) => ({
+                  ...d,
+                  session: {
+                    ...d.session,
+                    workflows: d.session.workflows.map((w) =>
+                      w.name === wf.name ? { ...w, version: tag } : w,
+                    ),
+                  },
+                  meta: { ...d.meta, revision: d.meta.revision + 1 },
+                }),
+              },
+            });
+          }
         }
       }
     }

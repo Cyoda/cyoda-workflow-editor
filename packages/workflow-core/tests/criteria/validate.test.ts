@@ -22,7 +22,7 @@ function sessionWithTransitionCriterion(criterion: Criterion): WorkflowSession {
     importMode: "MERGE",
     workflows: [
       {
-        version: "1.3",
+        version: "1.4",
         name: "wf",
         initialState: "start",
         active: true,
