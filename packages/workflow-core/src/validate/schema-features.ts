@@ -68,7 +68,7 @@ function containsNot(root: Criterion): boolean {
     const c = stack.pop()!;
     if (c.type === "group") {
       if (c.operator === "NOT") return true;
-      stack.push(...c.conditions);
+      for (const child of c.conditions) stack.push(child); // no spread: see cyoda-0_8.ts
     } else if (c.type === "function" && c.function.criterion) {
       stack.push(c.function.criterion);
     }
