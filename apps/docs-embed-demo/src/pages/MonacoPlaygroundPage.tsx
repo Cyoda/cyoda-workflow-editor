@@ -89,6 +89,13 @@ export function MonacoPlaygroundPage() {
       editor.dispose();
       model.dispose();
       schemaHandleRef.current?.dispose();
+      // Reset so a re-run of this effect (React StrictMode mounts effects
+      // twice in dev) creates a fresh editor instead of bailing out on the
+      // stale, already-disposed one and leaving the host empty.
+      editorRef.current = null;
+      controllerRef.current = null;
+      cursorBridgeRef.current = null;
+      schemaHandleRef.current = null;
     };
   }, [initialDocument, loaded?.text, monaco, selectedFixture]);
 

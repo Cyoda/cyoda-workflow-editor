@@ -39,9 +39,34 @@ export const UNSUPPORTED_OPERATORS: ReadonlySet<OperatorType> = new Set<Operator
   "IS_CHANGED",
 ]);
 
-// Group-condition operators the engine implements. NOT is in the schema for
-// round-trip but is NOT implemented in cyoda-go (`internal/match/match.go:119-147`).
-export const SUPPORTED_GROUP_OPERATORS = ["AND", "OR"] as const satisfies readonly ("AND" | "OR")[];
+// Group-condition operators the engine implements. `NOT` is implemented as of
+// cyoda-go 0.8.4 and takes exactly one child condition.
+export const SUPPORTED_GROUP_OPERATORS = ["AND", "OR", "NOT"] as const satisfies readonly (
+  | "AND"
+  | "OR"
+  | "NOT"
+)[];
+
+// Operators cyoda-go accepts on a temporal lifecycle field (`creationDate`,
+// `lastUpdateTime`): comparison, range and null-presence only. Mirrors
+// cyoda-go `internal/match/match.go` IsTemporalOperator.
+export const TEMPORAL_OPERATORS: ReadonlySet<OperatorType> = new Set<OperatorType>([
+  "EQUALS",
+  "NOT_EQUAL",
+  "GREATER_THAN",
+  "LESS_THAN",
+  "GREATER_OR_EQUAL",
+  "LESS_OR_EQUAL",
+  "BETWEEN",
+  "BETWEEN_INCLUSIVE",
+  "IS_NULL",
+  "NOT_NULL",
+]);
+
+export const TEMPORAL_LIFECYCLE_FIELDS: ReadonlySet<string> = new Set([
+  "creationDate",
+  "lastUpdateTime",
+]);
 
 // Criterion-tree depth limits.
 // MAX_CRITERION_DEPTH is the engine import limit (spec §2.2). Trees at or

@@ -33,8 +33,8 @@ describe("operator catalogue", () => {
     for (const op of OPERATOR_TYPES) expect(union.has(op)).toBe(true);
   });
 
-  test("SUPPORTED_GROUP_OPERATORS is AND/OR only", () => {
-    expect(SUPPORTED_GROUP_OPERATORS).toEqual(["AND", "OR"]);
+  test("SUPPORTED_GROUP_OPERATORS is AND/OR/NOT (NOT implemented in cyoda-go 0.8.4)", () => {
+    expect(SUPPORTED_GROUP_OPERATORS).toEqual(["AND", "OR", "NOT"]);
   });
 
   test("OPERATOR_GROUPS cover every supported simple operator exactly once", () => {

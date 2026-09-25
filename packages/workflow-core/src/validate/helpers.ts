@@ -10,11 +10,10 @@ export function isValidName(name: string): boolean {
 
 /**
  * Walk every criterion node (pre-order) across a workflow session.
- * Yields the criterion and a breadcrumb describing where it was found.
+ * Yields the criterion, a breadcrumb describing where it was found, and the
+ * node's parent (absent for a root criterion).
  */
-export function* walkCriteria(
-  session: WorkflowSession,
-): Generator<{ criterion: Criterion; where: CriterionLocation }> {
+export function* walkCriteria(session: WorkflowSession): Generator<CriterionVisit> {
   for (const wf of session.workflows) {
     if (wf.criterion) {
       yield* walkInner(wf.criterion, { kind: "workflow", workflow: wf.name });
@@ -46,12 +45,19 @@ export type CriterionLocation =
       transitionName: string;
     };
 
+export interface CriterionVisit {
+  criterion: Criterion;
+  where: CriterionLocation;
+  parent?: Criterion;
+}
+
 function* walkInner(
   c: Criterion,
   where: CriterionLocation,
   depth = 0,
-): Generator<{ criterion: Criterion; where: CriterionLocation }> {
-  yield { criterion: c, where };
+  parent?: Criterion,
+): Generator<CriterionVisit> {
+  yield parent ? { criterion: c, where, parent } : { criterion: c, where };
   if (depth >= MAX_CRITERION_DEPTH) {
     // Tree already exceeds the engine limit. The iterative criterionMaxDepth
     // check in criterionDepthRules will report the error; stop here to
@@ -59,9 +65,9 @@ function* walkInner(
     return;
   }
   if (c.type === "group") {
-    for (const child of c.conditions) yield* walkInner(child, where, depth + 1);
+    for (const child of c.conditions) yield* walkInner(child, where, depth + 1, c);
   } else if (c.type === "function" && c.function.criterion) {
-    yield* walkInner(c.function.criterion, where, depth + 1);
+    yield* walkInner(c.function.criterion, where, depth + 1, c);
   }
 }
 

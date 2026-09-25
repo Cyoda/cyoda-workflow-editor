@@ -545,3 +545,154 @@ round the defects clustered in whatever had been written most recently, while ol
 material held. A section's having survived one review pass is weak evidence about
 whatever gets written after it — re-verify the newest material hardest, not
 evenly.
+
+## v0.8.4 (dialect `"0.8"`)
+
+The `"0.8"` dialect is extended **in place** to target cyoda-go **0.8.4** (workflow
+schema tag `1.3` → `1.4`, dual-shape: `1.1`–`1.4` accepted, nothing retired). Ships
+as a Changesets **`minor`** per the 0.x policy — `ArrayCriterion` and
+`LifecycleCriterion` widen, which is a canonical-model change.
+
+Every claim below was probed against a **running 0.8.4 binary**
+(`e861154`, built 2026-09-09) via `POST …/workflow/import` / `GET …/workflow/export`.
+The 0.8.4 release is dominated by search/storage work; the workflow-config deltas
+are all in **criterion validation at import**, plus the tag bump.
+
+- **Schema tag `1.4`.** `GET /help/workflows/schema-version/versions` →
+  `{"current":"1.4","supported":[{"major":1,"minMinor":1,"maxMinor":4}]}`. The
+  export restamps every workflow to `1.4`. Before this change the editor capped the
+  range at `1.3`, so **every workflow exported from a 0.8.4 server opened with a
+  blocking `workflow-schema-version-malformed` error**. New workflows are now
+  stamped `1.4`.
+
+  **The tag must cover the features a workflow uses.** cyoda-go does not check
+  this — `NOT` imports under a `1.1` tag — but the tag is the workflow's claim
+  about its contract, and a `NOT` workflow stamped `1.3` misstates it: a server
+  that only speaks 1.3 cannot run it as designed. New error
+  `workflow-schema-version-below-features` (with a fix that raises the tag to
+  exactly the required version) enforces the per-feature minimums from
+  cyoda-go's `docs/workflow-schema-versioning.md` changelog, kept in
+  `src/validate/schema-features.ts`: 1.2 — processor `annotations`,
+  `criterionAnnotations`; 1.3 — `schedule.function`; 1.4 — `NOT` group.
+  **Add a row there with every future additive MINOR.** Do not "maximise
+  compatibility" by stamping a lower tag than the workflow's features need.
+
+- **`NOT` group operator implemented.** Takes **exactly one** child; `0` or `2+` is
+  `400 VALIDATION_FAILED` ("NOT requires exactly one condition, got N"). Not gated by
+  the tag — `NOT` in a workflow tagged `1.1` imports fine. The editor already
+  modelled `NOT`; `unsupported-group-operator` is **removed** and
+  `not-with-multiple-conditions` is **promoted to error** (and now also fires for
+  zero children). `SUPPORTED_GROUP_OPERATORS` gains `"NOT"`. `AND`/`OR` with zero
+  conditions is still accepted by the server (Zod keeps `min(1)`; unchanged).
+  Group operators are case-sensitive (`"or"` → 400); the Zod enum already was.
+
+- **Criterion `jsonPath` must be JSON Path — checked at import.** Grammar
+  (`docs/cloud-parity/path-grammar.md`):
+  `"$." segment ("." segment)*`, `segment = name subscript*`,
+  `name = 1*(ALPHA / DIGIT / "_" / "-")` (ASCII), `subscript = "[" ("*" / 1*DIGIT) "]"`,
+  index ≤ int32 max. `validateJsonPathSubset` now mirrors it exactly. Two
+  corrections in **opposite directions**:
+
+  | Path | Server | Editor before |
+  |---|---|---|
+  | `$` (bare root) | 400 | accepted → now `bare-root` |
+  | `$.tags[2147483648]` | 400 | accepted → now `index-out-of-range` |
+  | `$.0a`, `$.-a`, `$.0-a[01]` | **accepted** | rejected (segment had to start with a letter/`_`) — the editor was *stricter than the server* |
+
+  The check covers `simple`/`array` clauses at any depth. **Not** checked inside a
+  `function` criterion's quick-exit `criterion` (a bare path there imports fine);
+  the editor still flags it — pre-existing, harmless strictness.
+
+- **Array clauses: `values`, not `value` — a pre-existing defect, fixed here.**
+
+  > **Docs disagreement.** The OpenAPI's `ArrayConditionDto` declares `value` and
+  > `operatorType`. The actual parser (`cyoda-go-spi` `predicate/parse.go`
+  > `parseArray`, unchanged since at least 0.8.1) reads **only `jsonPath` and
+  > `values`**. Confirmed against the wire: an array clause written with `value`
+  > imports with **200** and is stored verbatim, but it carries **no positional
+  > tests, so it matches every entity** (verified: an entity whose tags fail the
+  > clause still advanced through the guarded transition; with `values` it did not).
+
+  The editor wrote `value` — so **every array criterion the editor ever saved was
+  an always-true guard on cyoda-go.** Fixed: `normalizeOperatorAlias` maps wire
+  `values` → canonical `value` (legacy `value` still parses; both present and
+  different → `SchemaError`), and `outputCriterion` emits `values`. The canonical
+  field name stays `value` to avoid churn in downstream packages — so every
+  surface that shows or validates *text* must use the wire key instead:
+  `workflow-monaco`'s generated JSON schemas are post-processed
+  (`withArrayCriterionWireKeys`), and the react criterion JSON editor displays
+  `values` and runs `normalizeOperatorAlias` before validating. A stored clause
+  that still uses `value` raises a load-time `array-criterion-legacy-value`
+  warning (it is an always-true guard on the server until re-saved).
+
+  Other array-clause facts from the binary and `cyoda help search`:
+  - `values` are **positional**: `values[i]` is compared (equality) against element
+    `i`; a `null` entry skips that index. The server **ignores `operatorType`**
+    entirely. `ArrayCriterion.operation` is therefore optional (preserved for
+    round-trip); `value` widens from `string[]` to `(string | number | boolean | null)[]`
+    (`ArrayCriterionValue`). An object entry → 400 (`array-non-scalar-value`, which
+    replaces the old `array-non-string-value`).
+  - `jsonPath` must **end in `[*]`**: `$.tags`, `$.tags[0]` and `$.items[*].sku` are
+    all 400 → new error `array-path-not-wildcard`.
+
+- **Lifecycle fields widened.** Accepted: `state`, `creationDate`, `lastUpdateTime`,
+  `transitionForLatestSave` (alias `previousTransition`), `transactionId`, `id`;
+  anything else → 400 *unknown meta filter field*. The canonical enum
+  (`LIFECYCLE_FIELDS`, `LifecycleField`) previously held only three, so a
+  server-valid criterion on e.g. `lastUpdateTime` **failed to parse at all**.
+  `previousTransition` / `transitionForLatestSave` are preserved verbatim, not
+  normalized to one spelling.
+
+- **Temporal lifecycle fields (`creationDate`, `lastUpdateTime`).** Only
+  `EQUALS NOT_EQUAL GREATER_THAN LESS_THAN GREATER_OR_EQUAL LESS_OR_EQUAL BETWEEN
+  BETWEEN_INCLUSIVE IS_NULL NOT_NULL` are accepted (mirrors `match.IsTemporalOperator`);
+  anything else → 400 → warning `lifecycle-temporal-operator`. A comparison operand
+  must parse as temporal → warning `lifecycle-temporal-operand` (a JS approximation
+  of the server parser; calibrated: `2026`, `2026-01`, `2026-01-01`,
+  `2026-01-01T10:00Z`, `…T00:00:00.123+02:00`, `10:00`, `10:00:00.5` accepted;
+  `1700000000`, numbers, booleans, `2026-01-01 10:00:00`, `…+0200`, `10:00:00Z`,
+  `2026-1-1`, `2026-01-01T10` rejected).
+
+- **Operators checked at import.** Unknown `operatorType` (any casing mismatch
+  included) → 400; the server's list is exactly the editor's 26
+  `SUPPORTED_SIMPLE_OPERATORS`. `IS_CHANGED`/`IS_UNCHANGED` → 400 too. Both
+  `operator-not-recognized` and `unsupported-operator` **stay warnings**: the
+  shared (Cloud-parity) OpenAPI declares 66 operators (e.g. `IN_SET`, `REGEXP`)
+  of which cyoda-go implements 26, so these are treated as backend-conditional per
+  `docs/validation-rules.md`. Messages now name the split.
+
+- **Pattern operands checked at import.**
+  - `LIKE` ending in an unpaired `\` → 400 (applies to `simple` and `lifecycle`).
+    Exact mirror → error `like-pattern-invalid`. `LIKE` is now a glob, not a regex:
+    `\d` is a literal `d`, `%`/`_` match newlines — runtime semantics, nothing to
+    model.
+  - `MATCHES_PATTERN` must compile as RE2 in the anchored form `\A(?:p)\z`: an
+    unterminated `\Q`, `a(`, lookaround and backreferences → 400. JS cannot
+    reproduce RE2, so warning `matches-pattern-invalid` (flags lookaround,
+    backrefs, unterminated `\Q`, then a JS compile after rewriting `(?P<`/inline
+    flags).
+
+- **`function` criterion inside a `group`.** Imports cleanly but fails at
+  evaluation ("must be the whole criterion") → warning `function-criterion-in-group`.
+
+- **Runtime-only changes (nothing to model, worth knowing):** workflow selection is
+  re-evaluated on every engine door (not just creation), so an entity can re-bind to
+  another workflow when its payload changes — select on immutable fields; a
+  criterion naming a field the model doesn't declare now fails the save with
+  `400 WORKFLOW_FAILED` instead of evaluating false (import still accepts it); a
+  `[*]`-terminated path now addresses elements, not the array length; `NOT` over a
+  wildcard is universal; `NOT_EQUAL` on an unsatisfiable operand now matches.
+  Processor-returned data is validated against the model.
+
+- **Unchanged wire shapes** (verified): simple/lifecycle clauses accept
+  `operation` as a legacy alias of `operatorType` and the export echoes whichever
+  was sent; the export drops an empty `transitions` array (`"B": {}`), which the
+  editor already defaults.
+
+Golden coverage: `tests/golden/fixtures/criteria-0_8_4.json` (editor output,
+byte-identical round-trip, **accepted by the 0.8.4 server**) and
+`tests/dialect/fixtures/cyoda-0_8_4-export.json` (a verbatim server export that must
+open with no warnings).
+
+No `cyoda-dev-console` `cyodaGoVersion` change is needed — the dialect key is still
+`"0.8"`; the console only needs the dependency bump.

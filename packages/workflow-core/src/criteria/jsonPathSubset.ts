@@ -1,66 +1,61 @@
-// JSONPath subset supported by cyoda-go's gjson translator
-// (`internal/match/match.go:40-59`). The engine does NOT run a full JSONPath
-// parser: filters and recursive descent silently fail. See spec §5.
+// JSONPath grammar cyoda-go enforces on criterion `jsonPath` (simple and array
+// clauses) at workflow import, as of 0.8.4 (`docs/cloud-parity/path-grammar.md`):
 //
-// Accept: `$`, `$.field`, `$.a.b.c`, `$.list[0]`, `$.list[0].x`,
-//         `$.list[*]`, `$.list[*].x`.
-// Reject: recursive descent (`..`), filter expressions (`[?(@…)]`),
-//         bracketed quoted keys (`['foo']`), missing `$` root, malformed
-//         brackets, segment names with whitespace or reserved punctuation.
+//   jsonPath  = "$." segment ( "." segment )*
+//   segment   = name subscript*
+//   name      = 1*( ALPHA / DIGIT / "_" / "-" )   ; ASCII only
+//   subscript = "[" ( "*" / 1*DIGIT ) "]"          ; the digit run must fit an int32
+//
+// Accept: `$.field`, `$.a.b.c`, `$.list[0]`, `$.list[*].x`, `$.1a`, `$.m[*][*]`.
+// Reject: bare `$`, a missing `$.` leader, recursive descent (`..`), filter
+//         expressions (`[?(@…)]`), bracketed quoted keys (`['foo']`), slices,
+//         negative indices, empty/trailing segments, non-ASCII names.
 
 export type JsonPathRejectReason =
   | "empty"
   | "missing-root"
+  | "bare-root"
   | "recursive-descent"
   | "filter-expression"
+  | "index-out-of-range"
   | "malformed";
 
 export type JsonPathValidationResult =
   | { ok: true }
   | { ok: false; reason: JsonPathRejectReason };
 
-const SEGMENT_RE = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+const NAME_RE = /^[A-Za-z0-9_-]+$/;
 const INDEX_RE = /^(?:\d+|\*)$/;
+const INT32_MAX = 2147483647;
 
 export function validateJsonPathSubset(path: string): JsonPathValidationResult {
   if (path.length === 0) return { ok: false, reason: "empty" };
   if (path[0] !== "$") return { ok: false, reason: "missing-root" };
-
-  // Bare root.
-  if (path === "$") return { ok: true };
+  if (path === "$") return { ok: false, reason: "bare-root" };
+  if (path[1] !== ".") return { ok: false, reason: "malformed" };
 
   let i = 1;
   while (i < path.length) {
-    const ch = path[i];
+    // Every segment starts with a dot.
+    if (path[i] !== ".") return { ok: false, reason: "malformed" };
+    if (path[i + 1] === ".") return { ok: false, reason: "recursive-descent" };
 
-    if (ch === ".") {
-      // Recursive descent.
-      if (path[i + 1] === ".") return { ok: false, reason: "recursive-descent" };
+    i += 1;
+    const start = i;
+    while (i < path.length && path[i] !== "." && path[i] !== "[") i += 1;
+    if (!NAME_RE.test(path.slice(start, i))) return { ok: false, reason: "malformed" };
 
-      // Read a dot-segment.
-      i += 1;
-      const start = i;
-      while (i < path.length && path[i] !== "." && path[i] !== "[") i += 1;
-      const segment = path.slice(start, i);
-      if (!SEGMENT_RE.test(segment)) return { ok: false, reason: "malformed" };
-      continue;
-    }
-
-    if (ch === "[") {
-      // Filter expression — gjson translator does not rewrite these.
+    while (path[i] === "[") {
       if (path[i + 1] === "?") return { ok: false, reason: "filter-expression" };
-      // Bracketed quoted keys not supported.
-      if (path[i + 1] === "'" || path[i + 1] === '"') return { ok: false, reason: "malformed" };
-
       const end = path.indexOf("]", i);
       if (end === -1) return { ok: false, reason: "malformed" };
       const inner = path.slice(i + 1, end);
       if (!INDEX_RE.test(inner)) return { ok: false, reason: "malformed" };
+      if (inner !== "*" && Number(inner) > INT32_MAX) {
+        return { ok: false, reason: "index-out-of-range" };
+      }
       i = end + 1;
-      continue;
     }
-
-    return { ok: false, reason: "malformed" };
   }
 
   return { ok: true };

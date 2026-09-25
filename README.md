@@ -273,6 +273,11 @@ export function EditorPage() {
 - Raw JSON escape hatch inside the modal.
 - Draft editing: Apply commits one criterion patch/undo step; Cancel discards
   local changes, and invalid local state never corrupts the canonical document.
+- Validation mirrors cyoda-go 0.8.4's import checks: JSON Path grammar
+  (`$.` leader required), `NOT` groups with exactly one condition, array
+  clauses on a trailing `[*]` path (written as `values` on the wire), `LIKE`
+  escapes, and the lifecycle fields `state`, `creationDate`, `lastUpdateTime`,
+  `previousTransition` / `transitionForLatestSave`, `transactionId`, `id`.
 
 **Processors** (on each transition)
 - Add / edit / delete / duplicate / reorder processors.

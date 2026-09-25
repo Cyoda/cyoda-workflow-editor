@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseCriterionJson } from "../src/inspector/criterionJson.js";
+import { criterionToJsonText, parseCriterionJson } from "../src/inspector/criterionJson.js";
 
 describe("parseCriterionJson", () => {
   it("accepts a valid criterion", () => {
@@ -54,5 +54,38 @@ describe("parseCriterionJson", () => {
     const r = parseCriterionJson('{"type":"function","function":{"name":"myFn","criterion":{"type":"simple","jsonPath":"","operation":"EQUALS"}}}');
     expect(r.criterion).toBeNull();
     expect(r.error).toBe("Choose a field for this condition.");
+  });
+});
+
+describe("array criterion wire key in the JSON editor", () => {
+  it("shows an array clause's list under `values`, nested ones included", () => {
+    const text = criterionToJsonText({
+      type: "group",
+      operator: "NOT",
+      conditions: [{ type: "array", jsonPath: "$.tags[*]", value: ["a", null] }],
+    });
+    const shown = JSON.parse(text);
+    expect(shown.conditions[0]).toEqual({ type: "array", jsonPath: "$.tags[*]", values: ["a", null] });
+  });
+
+  it("accepts a clause pasted from a cyoda-go export (`values`, `operatorType`)", () => {
+    const res = parseCriterionJson(
+      JSON.stringify({ type: "array", jsonPath: "$.tags[*]", operatorType: "EQUALS", values: ["a"] }),
+    );
+    expect(res.error).toBeNull();
+    expect(res.criterion).toEqual({ type: "array", jsonPath: "$.tags[*]", operation: "EQUALS", value: ["a"] });
+  });
+
+  it("round-trips its own display text unchanged", () => {
+    const c = { type: "array" as const, jsonPath: "$.tags[*]", value: ["a"] };
+    expect(parseCriterionJson(criterionToJsonText(c)).criterion).toEqual(c);
+  });
+
+  it("reports a value/values conflict instead of guessing", () => {
+    const res = parseCriterionJson(
+      JSON.stringify({ type: "array", jsonPath: "$.tags[*]", value: ["a"], values: ["b"] }),
+    );
+    expect(res.criterion).toBeNull();
+    expect(res.error).toMatch(/Conflicting/);
   });
 });

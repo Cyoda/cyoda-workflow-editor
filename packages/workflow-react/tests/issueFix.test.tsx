@@ -54,7 +54,7 @@ describe("offered validation fixes (spec §4)", () => {
     fireEvent.click(screen.getByTestId("toolbar-warnings"));
     const fix = screen.getByTestId("issues-drawer-fix-0");
     expect(fix.tagName).toBe("BUTTON");
-    expect(fix.textContent).toMatch(/1\.3/);
+    expect(fix.textContent).toMatch(/1\.4/);
   });
 
   it("applying the fix rewrites the tag, bumps the revision, and clears the warning", () => {
@@ -65,7 +65,7 @@ describe("offered validation fixes (spec §4)", () => {
     fireEvent.click(screen.getByTestId("issues-drawer-fix-0"));
 
     const latest = seen[seen.length - 1]!;
-    expect(latest.session.workflows[0]!.version).toBe("1.3");
+    expect(latest.session.workflows[0]!.version).toBe("1.4");
     expect(latest.meta.revision).toBeGreaterThan(initial.meta.revision);
     // The warning is gone from the re-derived issue set, not just from the DOM.
     expect(screen.getByTestId("issues-drawer-empty")).toBeTruthy();

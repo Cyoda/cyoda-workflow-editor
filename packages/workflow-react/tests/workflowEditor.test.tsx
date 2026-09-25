@@ -65,7 +65,7 @@ test("a new workflow carries the dialect's schema tag, not a hardcoded 1.0", () 
 
   const newWorkflow = lastDoc?.session.workflows.find((w) => w.name !== "wf");
   expect(newWorkflow).toBeTruthy();
-  expect(newWorkflow!.version).toBe("1.3");
+  expect(newWorkflow!.version).toBe("1.4");
 });
 
 test("toggling allowCycles suppresses the cycle warning", () => {

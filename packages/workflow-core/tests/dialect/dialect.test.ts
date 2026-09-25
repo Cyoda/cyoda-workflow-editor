@@ -44,8 +44,8 @@ describe("dialect registry", () => {
 
   test("the 0.8 dialect declares its schema tag and accepted range", () => {
     const d = getDialect("0.8");
-    expect(d.schemaVersionTag).toBe("1.3");
-    expect(d.acceptedSchemaVersions).toEqual([{ major: 1, minMinor: 1, maxMinor: 3 }]);
+    expect(d.schemaVersionTag).toBe("1.4");
+    expect(d.acceptedSchemaVersions).toEqual([{ major: 1, minMinor: 1, maxMinor: 4 }]);
   });
 
   test("an unknown version throws a clear, actionable error", () => {

@@ -54,8 +54,22 @@ describe("criterionBlockingError", () => {
     expect(criterionBlockingError(c)).toBe("Choose a field for this condition.");
   });
 
-  it("validates only jsonPath for array criteria", () => {
-    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags", operation: "CONTAINS", value: [] })).toBeNull();
+  it("validates jsonPath and the trailing [*] for array criteria", () => {
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags[*]", value: [] })).toBeNull();
     expect(criterionBlockingError({ type: "array", jsonPath: "", operation: "CONTAINS", value: [] })).toBe("Choose a field for this condition.");
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags", value: ["a"] })).toMatch(/must end in \[\*\]/);
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.items[*].sku", value: ["a"] })).toMatch(/must end in \[\*\]/);
+  });
+
+  it("blocks a NOT group without exactly one condition", () => {
+    const leaf: Criterion = { type: "simple", jsonPath: "$.a", operation: "EQUALS", value: 1 };
+    expect(criterionBlockingError({ type: "group", operator: "NOT", conditions: [leaf] })).toBeNull();
+    expect(criterionBlockingError({ type: "group", operator: "NOT", conditions: [leaf, leaf] })).toMatch(/exactly one/);
+  });
+
+  it("blocks a LIKE pattern ending in an unpaired escape", () => {
+    expect(criterionBlockingError({ type: "simple", jsonPath: "$.a", operation: "LIKE", value: "abc\\" })).toMatch(/unpaired escape/);
+    expect(criterionBlockingError({ type: "simple", jsonPath: "$.a", operation: "LIKE", value: "abc\\\\" })).toBeNull();
+    expect(criterionBlockingError({ type: "lifecycle", field: "state", operation: "LIKE", value: "a\\" })).toMatch(/unpaired escape/);
   });
 });

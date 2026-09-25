@@ -2,6 +2,7 @@ export { NAME_REGEX, NameSchema } from "./name.js";
 export { OperatorEnum } from "./operator.js";
 export {
   ArrayCriterionSchema,
+  LIFECYCLE_FIELDS,
   CriterionSchema,
   FunctionConfigSchema,
   FunctionCriterionSchema,
