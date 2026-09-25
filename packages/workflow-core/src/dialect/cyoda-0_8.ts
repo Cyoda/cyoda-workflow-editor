@@ -80,7 +80,9 @@ function countLegacyArrayValue(raw: unknown): number {
   while (stack.length > 0) {
     const node = stack.pop();
     if (Array.isArray(node)) {
-      stack.push(...node);
+      // Not `stack.push(...node)`: spreading passes every element as a call
+      // argument and overflows the stack past ~125k elements.
+      for (const item of node) stack.push(item);
       continue;
     }
     if (!isObj(node)) continue;

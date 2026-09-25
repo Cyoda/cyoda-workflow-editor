@@ -39,6 +39,15 @@ export const ANNOTATIONS_MAX_BYTES = 64 * 1024;
 const TAG_RE = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 /**
+ * Append `more` to `into` without `into.push(...more)`: spreading passes every
+ * element as a call argument, which overflows the stack once a rule list is
+ * large (~125k issues, e.g. one per leaf of a huge criterion).
+ */
+function append(into: ValidationIssue[], more: readonly ValidationIssue[]): void {
+  for (const issue of more) into.push(issue);
+}
+
+/**
  * Operator warnings for a criterion's `operation` (issue #22).
  * - Unknown operator (outside the editor's known catalogue): non-blocking
  *   `operator-not-recognized` — preserved for round-trip, can't be validated.
@@ -137,10 +146,10 @@ export function validateSemantics(
     });
   }
 
-  issues.push(...duplicateWorkflowNames(session));
+  append(issues, duplicateWorkflowNames(session));
 
   for (const wf of session.workflows) {
-    issues.push(...validateWorkflow(wf, doc, dialect));
+    append(issues, validateWorkflow(wf, doc, dialect));
 
     // unguarded-automated-cycle (spec §4): warning, not error — cyoda-go runs
     // cycle detection against the merged STORED result, not the payload, so a
@@ -178,10 +187,10 @@ export function validateSemantics(
     }
   }
 
-  issues.push(...criterionRules(session));
-  issues.push(...criterionDepthRules(session));
-  issues.push(...automatedOrderingRules(session, doc));
-  issues.push(...annotationsSizeIssues(session, doc));
+  append(issues, criterionRules(session));
+  append(issues, criterionDepthRules(session));
+  append(issues, automatedOrderingRules(session, doc));
+  append(issues, annotationsSizeIssues(session, doc));
 
   if (session.workflows.length === 1) {
     const only = session.workflows[0];
