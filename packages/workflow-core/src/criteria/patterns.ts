@@ -27,12 +27,8 @@ export function likePatternError(operand: unknown): string | null {
  */
 export function matchesPatternIssue(operand: unknown): string | null {
   if (typeof operand !== "string") return null;
-  if (/\(\?<?[=!]/.test(operand)) return "lookaround assertions are not supported by RE2";
-  if (/(^|[^\\])(\\\\)*\\[1-9]/.test(operand)) return "backreferences are not supported by RE2";
-  const q = operand.lastIndexOf("\\Q");
-  if (q !== -1 && operand.indexOf("\\E", q) === -1) {
-    return "an unterminated \\Q quotes the anchor cyoda-go wraps the pattern in";
-  }
+  const structural = re2StructuralIssue(operand);
+  if (structural) return structural;
   const js = operand
     .replace(/\\Q([\s\S]*?)\\E/g, (_m, lit: string) => lit.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&"))
     .replace(/\(\?P</g, "(?<")
@@ -44,6 +40,50 @@ export function matchesPatternIssue(operand: unknown): string | null {
   } catch (e) {
     return e instanceof Error ? e.message : "invalid regular expression";
   }
+}
+
+/**
+ * Scan for constructs RE2 rejects, honouring escapes (`\(` is a literal) and
+ * character classes (`[(?=]` is a set, not a lookahead).
+ */
+function re2StructuralIssue(p: string): string | null {
+  let inClass = false;
+  let i = 0;
+  while (i < p.length) {
+    const c = p[i];
+    if (c === "\\") {
+      const n = p[i + 1];
+      if (n === "Q") {
+        const end = p.indexOf("\\E", i + 2);
+        if (end === -1) return "an unterminated \\Q quotes the anchor cyoda-go wraps the pattern in";
+        i = end + 2;
+        continue;
+      }
+      if (!inClass && n !== undefined && n >= "1" && n <= "9") {
+        return "backreferences are not supported by RE2";
+      }
+      i += 2;
+      continue;
+    }
+    if (inClass) {
+      if (c === "]") inClass = false;
+      i += 1;
+      continue;
+    }
+    if (c === "[") {
+      inClass = true;
+      i += 1;
+      if (p[i] === "^") i += 1;
+      if (p[i] === "]") i += 1; // a leading `]` is a literal member
+      continue;
+    }
+    if (c === "(" && p[i + 1] === "?") {
+      const k = p[i + 2] === "<" ? p[i + 3] : p[i + 2];
+      if (k === "=" || k === "!") return "lookaround assertions are not supported by RE2";
+    }
+    i += 1;
+  }
+  return null;
 }
 
 // Shapes cyoda-go parses into a temporal type for `creationDate` /

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Criterion } from "@cyoda/workflow-core";
 import { registerCriterionSchema } from "@cyoda/workflow-monaco";
 import { JsonMonacoField } from "./JsonMonacoField.js";
-import { parseCriterionJson, criterionModelUri } from "./criterionJson.js";
+import { parseCriterionJson, criterionModelUri, criterionToJsonText, criterionWireShape } from "./criterionJson.js";
 import { sameJson } from "./annotationsJson.js";
 import { useMessages } from "../i18n/context.js";
 import { colors, fonts, radii, primaryBtnStyle, ghostBtnStyle, destructiveBtnStyle, metaChipStyle } from "../style/tokens.js";
@@ -21,7 +21,7 @@ export interface CriterionFieldProps {
   onRemove: () => void;
 }
 
-const pretty = (c: Criterion): string => JSON.stringify(c, null, 2);
+const pretty = criterionToJsonText;
 
 export function CriterionField(props: CriterionFieldProps) {
   const m = useMessages().criterion;
@@ -127,7 +127,7 @@ function CriterionEditor({ value, disabled, modelKey, onCommit, onRemove }: Crit
 }
 
 function CompactJson({ criterion }: { criterion: Criterion }) {
-  const text = JSON.stringify(criterion);
+  const text = JSON.stringify(criterionWireShape(criterion));
   const display = text.length > 140 ? `${text.slice(0, 137)}…` : text;
   return (
     <code data-testid="criterion-compact-json" style={{ display: "block", fontFamily: fonts.mono, fontSize: 11, color: colors.textSecondary, background: colors.surfaceMuted, padding: "6px 8px", borderRadius: radii.sm, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>

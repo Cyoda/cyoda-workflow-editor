@@ -69,6 +69,7 @@ when the editor's own model cannot represent it. Anything that hinges on
 | `matches-pattern-invalid` | criterion | — | A `MATCHES_PATTERN` operand is probably not valid RE2. A JS approximation of Go's RE2, so a warning; cyoda-go rejects invalid patterns at import. |
 | `lifecycle-temporal-operator` | criterion | — | A string/pattern operator on `creationDate` / `lastUpdateTime`; cyoda-go accepts only comparison, range and null-presence operators there. |
 | `lifecycle-temporal-operand` | criterion | — | A `creationDate` / `lastUpdateTime` operand doesn't look like a date, date-time or time. Heuristic, hence a warning. |
+| `array-criterion-legacy-value` | — | — | Import only. Array criteria stored their list under `value`, which cyoda-go ignores, so each such guard currently matches every entity. The editor reads them correctly and writes `values` on save. Also on `ParseResult.warnings`. |
 | `function-criterion-in-group` | criterion | — | A function criterion nested in a group; cyoda-go requires it to be the whole criterion and fails the evaluation otherwise (import accepts it). |
 | `async-result-unsupported` | processor | yes | `config.asyncResult` is `true`; rejected by cyoda-go, supported on Cyoda Cloud only. |
 | `crossover-unsupported` | processor | yes | `config.crossoverToAsyncMs` is set; rejected by cyoda-go, supported on Cyoda Cloud only. |

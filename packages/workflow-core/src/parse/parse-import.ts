@@ -76,6 +76,14 @@ export function dialectWarningToIssue(warning: string): ValidationIssue {
       detail,
     };
   }
+  if (code === "array-criterion-legacy-value") {
+    return {
+      severity: "warning",
+      code: "array-criterion-legacy-value",
+      message: `${keys} array criteria store their list under "value", which cyoda-go ignores — as stored, each of those guards matches every entity. The editor reads them correctly and writes "values" on save; save to fix the stored workflow.`,
+      detail: { count: Number(keys) },
+    };
+  }
   // Unknown warning shape (a host-registered dialect may emit its own):
   // surface it verbatim rather than swallowing it.
   return { severity: "info", code: "dialect-warning", message: warning };

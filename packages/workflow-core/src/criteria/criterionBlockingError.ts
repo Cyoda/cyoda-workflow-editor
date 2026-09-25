@@ -26,7 +26,7 @@ function jsonPathBlockingError(jsonPath: string): string | null {
 function likeBlockingError(operation: OperatorValue, value: unknown): string | null {
   if (operation !== "LIKE") return null;
   const reason = likePatternError(value);
-  return reason ? `LIKE pattern is invalid (${reason}); write a literal backslash as \\\\.` : null;
+  return reason ? `LIKE pattern is invalid (${reason}); for a literal trailing backslash, end the pattern with two backslash characters.` : null;
 }
 
 function rangeBlockingError(operation: OperatorValue, value: unknown): string | null {

@@ -82,6 +82,26 @@ describe("cyoda-go 0.8.4 wire format (dialect 0.8)", () => {
     expect(out).not.toHaveProperty("value");
   });
 
+  test("a stored array clause using the legacy `value` key raises a load-time warning", () => {
+    const legacy = payload({ type: "array", jsonPath: "$.tags[*]", value: ["a"] });
+    const issue = parseImportPayload(legacy).issues.find(
+      (i) => i.code === "array-criterion-legacy-value",
+    );
+    expect(issue?.severity).toBe("warning");
+    expect(issue?.detail).toEqual({ count: 1 });
+
+    const exported = JSON.parse(legacy) as { workflows: unknown[] };
+    const fromExport = parseExportPayload(
+      JSON.stringify({ entityName: "e", modelVersion: 1, workflows: exported.workflows }),
+    );
+    expect(fromExport.issues.map((i) => i.code)).toContain("array-criterion-legacy-value");
+
+    const current = payload({ type: "array", jsonPath: "$.tags[*]", values: ["a"] });
+    expect(parseImportPayload(current).issues.map((i) => i.code)).not.toContain(
+      "array-criterion-legacy-value",
+    );
+  });
+
   test("conflicting `value` and `values` on one array clause is an error, not a silent pick", () => {
     const parsed = parseImportPayload(
       payload({ type: "array", jsonPath: "$.tags[*]", value: ["a"], values: ["b"] }),

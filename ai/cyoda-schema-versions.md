@@ -607,7 +607,13 @@ are all in **criterion validation at import**, plus the tag bump.
   an always-true guard on cyoda-go.** Fixed: `normalizeOperatorAlias` maps wire
   `values` → canonical `value` (legacy `value` still parses; both present and
   different → `SchemaError`), and `outputCriterion` emits `values`. The canonical
-  field name stays `value` to avoid churn in downstream packages.
+  field name stays `value` to avoid churn in downstream packages — so every
+  surface that shows or validates *text* must use the wire key instead:
+  `workflow-monaco`'s generated JSON schemas are post-processed
+  (`withArrayCriterionWireKeys`), and the react criterion JSON editor displays
+  `values` and runs `normalizeOperatorAlias` before validating. A stored clause
+  that still uses `value` raises a load-time `array-criterion-legacy-value`
+  warning (it is an always-true guard on the server until re-saved).
 
   Other array-clause facts from the binary and `cyoda help search`:
   - `values` are **positional**: `values[i]` is compared (equality) against element

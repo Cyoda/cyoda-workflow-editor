@@ -1,6 +1,7 @@
 ---
 "@cyoda/workflow-core": minor
 "@cyoda/workflow-graph": patch
+"@cyoda/workflow-monaco": patch
 "@cyoda/workflow-react": patch
 "@cyoda/workflow-viewer": patch
 ---
@@ -13,7 +14,11 @@ Support cyoda-go 0.8.4 (workflow schema 1.4).
 - **Fix:** array criteria are now written as `values`, the only key cyoda-go
   reads. They were written as `value`, which cyoda-go ignores, so every array
   guard saved by the editor matched every entity. Files using `value` still
-  load and are migrated on save.
+  load, raise an `array-criterion-legacy-value` warning, and are fixed on save.
+  The workflow and criterion JSON editors (Monaco schemas and the inspector)
+  show and validate `values` too.
+- `parseExportPayload` now surfaces dialect load notices as issues, as
+  `parseImportPayload` already did.
 - Array criteria: `operation` is optional (cyoda-go ignores it) and entries may
   be strings, numbers, booleans or `null` (skip that index). The path must end
   in `[*]` (new error `array-path-not-wildcard`); object entries are an error

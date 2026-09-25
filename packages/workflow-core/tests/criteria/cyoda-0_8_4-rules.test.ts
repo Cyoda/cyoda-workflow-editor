@@ -165,7 +165,8 @@ describe("pattern helpers", () => {
     expect(likePatternError(5)).toBeNull();
   });
 
-  test.each(["^a.*$", "(?i)abc", "(?P<n>a)b", "\\Qa.b\\E", "(?s:a.b)", "[a-z]+\\d"])(
+  // Server-verified: cyoda-go 0.8.4 accepts `a\(?=b` and `a\\Q` (escaped chars).
+  test.each(["^a.*$", "(?i)abc", "(?P<n>a)b", "\\Qa.b\\E", "(?s:a.b)", "[a-z]+\\d", "a\\(?=b", "a\\\\Q", "[(?=]", "[]1]"])(
     "matchesPatternIssue accepts RE2-valid %j",
     (p) => {
       expect(matchesPatternIssue(p)).toBeNull();

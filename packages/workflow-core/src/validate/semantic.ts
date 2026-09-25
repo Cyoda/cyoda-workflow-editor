@@ -85,7 +85,7 @@ function patternIssues(operation: string, value: unknown, where: CriterionLoc): 
         {
           severity: "error",
           code: "like-pattern-invalid",
-          message: `LIKE pattern ${JSON.stringify(value)} is invalid: ${reason}. Write a literal trailing backslash as \\\\ (at ${describe(where)}).`,
+          message: `LIKE pattern ${JSON.stringify(value)} is invalid: ${reason}. For a literal trailing backslash, end the pattern with two backslash characters (at ${describe(where)}).`,
           detail: { operation, reason },
         },
       ];

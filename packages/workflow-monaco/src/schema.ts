@@ -1,6 +1,7 @@
 import { ImportPayloadSchema } from "@cyoda/workflow-core";
 import * as z from "zod";
 import type { JsonSchemaHandle, MonacoLike } from "./types.js";
+import { withArrayCriterionWireKeys } from "./wireKeys.js";
 
 export const WORKFLOW_SCHEMA_URI = "https://cyoda.dev/schemas/workflow-import.schema.json";
 
@@ -11,7 +12,7 @@ export const WORKFLOW_SCHEMA_URI = "https://cyoda.dev/schemas/workflow-import.sc
  * silently returns an empty definition when given a zod 4 schema at runtime.
  */
 export function workflowJsonSchema(): object {
-  return z.toJSONSchema(ImportPayloadSchema, { target: "draft-7" });
+  return withArrayCriterionWireKeys(z.toJSONSchema(ImportPayloadSchema, { target: "draft-7" }));
 }
 
 /**
