@@ -46,6 +46,8 @@ minimumReleaseAgeExclude:
   # The patched version may be <14 days old, so the cooldown is excluded here.
   - esbuild
   - "@esbuild/*"
+  # Renovate security update: pnpm@10.34.5
+  - pnpm@10.34.5
 # Only these packages may run install lifecycle scripts (pnpm 10 blocks all others).
 # Seeded with esbuild; add any package pnpm reports under "Ignored build scripts" in Step 5.
 onlyBuiltDependencies:
