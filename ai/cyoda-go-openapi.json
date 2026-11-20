@@ -29,7 +29,7 @@
             }
           }
         },
-        "description": "Not yet implemented — see https://github.com/Cyoda-platform/cyoda-go/issues/194.\nThe handler exists as a placeholder but returns 501 Not Implemented;\nreal implementation is tracked separately.\n"
+        "description": "Not yet implemented — see https://github.com/Cyoda/cyoda-go/issues/194.\nThe handler exists as a placeholder but returns 501 Not Implemented;\nreal implementation is tracked separately.\n"
       },
       "Unauthorized": {
         "content": {
@@ -442,7 +442,7 @@
       },
       "EdgeMessagePayload": {
         "additionalProperties": true,
-        "description": "Polymorphic by intent — accepts any JSON value. The contentType field\nin the message header is informational; it does not affect storage or\nretrieval format. Clients needing to store non-JSON content should\nstringify it (e.g. base64 for binary, plain string with escape for\nnon-JSON text). See https://github.com/Cyoda-platform/cyoda-go/issues/193\nfor proper content-type support as a future feature.\n"
+        "description": "Polymorphic by intent — accepts any JSON value. The contentType field\nin the message header is informational; it does not affect storage or\nretrieval format. Clients needing to store non-JSON content should\nstringify it (e.g. base64 for binary, plain string with escape for\nnon-JSON text). See https://github.com/Cyoda/cyoda-go/issues/193\nfor proper content-type support as a future feature.\n"
       },
       "EntityAuditEventsResponseDto": {
         "properties": {
