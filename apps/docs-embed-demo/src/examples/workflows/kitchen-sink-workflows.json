@@ -2,7 +2,7 @@
   "importMode": "MERGE",
   "workflows": [
     {
-      "version": "1.3",
+      "version": "1.5",
       "name": "OrderLifecycle",
       "desc": "Multi-path order lifecycle with warnings, anchors, and a manual review loop.",
       "initialState": "draft",

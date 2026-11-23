@@ -12,16 +12,19 @@ export const ScheduleFunctionSchema = z.object({
   calculationNodesTags: z.string().min(1),
   attachEntity: z.boolean().optional(),
   context: z.string().optional(),
-  // No lower bound — the server accepts a negative value (verified).
+  // No bound here: cyoda-go 0.9.0 refuses a negative value or one above its
+  // CYODA_CALLOUT_RESPONSE_TIMEOUT_MAX_MS, reported by semantic validation so
+  // the document still opens.
   responseTimeoutMs: z.number().int().optional(),
+  retryPolicy: z.string().optional(),
 });
 
 export const TransitionScheduleSchema = z
   .object({
     delayMs: z.number().int().positive().optional(),
     function: ScheduleFunctionSchema.optional(),
-    // Any integer: the server accepts timeoutMs: -1 despite the OpenAPI
-    // declaring minimum 0, and 0 is the strictest legal setting.
+    // Any integer: cyoda-go 0.9.0 refuses a negative value at import, but that
+    // is reported by `schedule-timeout-negative` so the document still opens.
     timeoutMs: z.number().int().optional(),
   })
   .refine(

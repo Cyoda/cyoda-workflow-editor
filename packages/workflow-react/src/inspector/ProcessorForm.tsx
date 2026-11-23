@@ -22,20 +22,12 @@ const EXECUTION_MODES: ExecutionMode[] = [
   "COMMIT_BEFORE_DISPATCH",
 ];
 
-function parseOptionalInteger(
-  value: string,
-  label: string,
-  opts: { allowNegative?: boolean } = {},
-): { value?: number; error?: string } {
+function parseOptionalInteger(value: string, label: string): { value?: number; error?: string } {
   const trimmed = value.trim();
   if (trimmed.length === 0) return { value: undefined };
   const parsed = Number(trimmed);
-  if (!Number.isInteger(parsed) || (!opts.allowNegative && parsed < 0)) {
-    return {
-      error: opts.allowNegative
-        ? `${label} must be an integer.`
-        : `${label} must be an integer greater than or equal to 0.`,
-    };
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return { error: `${label} must be an integer greater than or equal to 0.` };
   }
   return { value: parsed };
 }
@@ -49,7 +41,7 @@ type ProcessorDraft = {
   // inventing a value on Apply.
   executionMode: ExecutionMode | "";
   // Tri-state, mirroring attachEntity below: "" clears the key (no
-  // startNewTxOnDispatch in config), "true"/"false" write an explicit
+  // startNewTxOnDispatch on the processor), "true"/"false" write an explicit
   // boolean. A checkbox cannot represent an explicit `false`, and collapsing
   // it to absent would silently drop the field on a migrated legacy document
   // (see toProcessor).
@@ -68,11 +60,18 @@ type ProcessorDraft = {
   // so a checkbox that collapses `false` to absent silently drops the field.
   asyncResult: "" | "true" | "false";
   crossoverToAsyncMs: string;
+  // Tri-state: "" clears the key (server default: false), "true"/"false" write
+  // an explicit boolean (cyoda-go 0.9.0, schema 1.5).
+  idempotent: "" | "true" | "false";
   annotations?: Annotations;
 };
 
-// Reads every field regardless of `type` — cyoda-go 0.8.3 round-trips `type`
-// verbatim (EXTERNAL, SCHEDULED, internalized, ""), so a processor whose type
+function triState(value: boolean | undefined): "" | "true" | "false" {
+  return value === undefined ? "" : value ? "true" : "false";
+}
+
+// Reads every field regardless of `type` — the document keeps whatever type it
+// was given (EXTERNAL, SCHEDULED, internalized, ""), so a processor whose type
 // isn't the canonical "externalized" must still be visible, not blanked out.
 // The modal renders such drafts read-only (see `readOnly` below) rather than
 // guessing at a shape the editor doesn't actually know.
@@ -81,12 +80,7 @@ function toDraft(processor?: Processor): ProcessorDraft {
     type: processor?.type ?? "externalized",
     name: processor?.name ?? "",
     executionMode: processor?.executionMode ?? "",
-    startNewTxOnDispatch:
-      processor?.config?.startNewTxOnDispatch === undefined
-        ? ""
-        : processor.config.startNewTxOnDispatch
-          ? "true"
-          : "false",
+    startNewTxOnDispatch: triState(processor?.startNewTxOnDispatch),
     attachEntity:
       processor?.config?.attachEntity === undefined
         ? ""
@@ -110,6 +104,7 @@ function toDraft(processor?: Processor): ProcessorDraft {
       processor?.config?.crossoverToAsyncMs !== undefined
         ? String(processor.config.crossoverToAsyncMs)
         : "",
+    idempotent: triState(processor?.config?.idempotent),
     annotations: processor?.annotations,
   };
 }
@@ -125,28 +120,19 @@ const JSON_EDITOR_ESCAPE_HATCH =
   `anyway, switch to the JSON view, which edits the workflow directly.`;
 
 function nonCanonicalTypeMessage(type: string): string {
-  if (type === "internalized") {
-    return (
-      `This processor uses the reserved type "internalized". cyoda-go accepts it at import ` +
-      `but rejects it at dispatch with WORKFLOW_FAILED, so any transition firing this ` +
-      `processor will fail at runtime. ${JSON_EDITOR_ESCAPE_HATCH}`
-    );
-  }
+  const what =
+    type === "internalized"
+      ? `This processor uses the reserved type "internalized"`
+      : `This processor has the type "${type}"`;
   return (
-    `This processor has a non-canonical type "${type}". cyoda-go accepts it today and treats ` +
-    `it as externalized, but this permissiveness is documented as narrowing in a future ` +
-    `release. ${JSON_EDITOR_ESCAPE_HATCH}`
+    `${what}, which cyoda-go refuses at import: only "externalized" (or an empty type) is ` +
+    `accepted. ${JSON_EDITOR_ESCAPE_HATCH}`
   );
 }
 
 function toProcessor(draft: ProcessorDraft): Processor {
-  // No lower bound: the server accepts any integer, including negatives
-  // (spec §4a — the same over-constraint disagreement #2 diagnoses for
-  // schedule.timeoutMs). crossoverToAsyncMs keeps its >= 0 bound; only
-  // responseTimeoutMs is relaxed.
-  const responseTimeout = parseOptionalInteger(draft.responseTimeoutMs, "Response timeout", {
-    allowNegative: true,
-  });
+  // cyoda-go 0.9.0 refuses a negative responseTimeoutMs at import.
+  const responseTimeout = parseOptionalInteger(draft.responseTimeoutMs, "Response timeout");
   const crossover = parseOptionalInteger(draft.crossoverToAsyncMs, "Crossover to async");
   const config: NonNullable<ExternalizedProcessor["config"]> = {};
   if (draft.attachEntity !== "") config.attachEntity = draft.attachEntity === "true";
@@ -161,16 +147,7 @@ function toProcessor(draft: ProcessorDraft): Processor {
   // Emitted independently of `asyncResult` (spec §4a): a document that parses
   // with a `crossover-unsupported` warning must not lose the field on Apply.
   if (crossover.value !== undefined) config.crossoverToAsyncMs = crossover.value;
-  // cyoda-go 0.8.3 requires this INSIDE config, not on the processor.
-  // Emitted on !== "" regardless of executionMode: a `true` value paired
-  // with a non-COMMIT_BEFORE_DISPATCH mode is invalid (the
-  // start-new-tx-without-commit-before-dispatch rule hard-errors on exactly
-  // that combination), but a migrated legacy document could carry it, and
-  // silently dropping it here would re-lose the field the migration just
-  // restored. Let the validator do the complaining, not a silent Apply.
-  if (draft.startNewTxOnDispatch !== "") {
-    config.startNewTxOnDispatch = draft.startNewTxOnDispatch === "true";
-  }
+  if (draft.idempotent !== "") config.idempotent = draft.idempotent === "true";
 
   return {
     // Carries the draft's type through verbatim rather than hardcoding
@@ -181,6 +158,16 @@ function toProcessor(draft: ProcessorDraft): Processor {
     name: draft.name.trim(),
     // Omitted when the source had none — see ProcessorDraft.executionMode.
     ...(draft.executionMode !== "" ? { executionMode: draft.executionMode } : {}),
+    // On the processor, beside executionMode (cyoda-go 0.9.0). Written on
+    // !== "" regardless of executionMode: a `true` value paired with a
+    // non-COMMIT_BEFORE_DISPATCH mode is invalid (the
+    // start-new-tx-without-commit-before-dispatch rule hard-errors on exactly
+    // that combination), but a migrated legacy document could carry it, and
+    // silently dropping it here would lose the field the migration restored.
+    // Let the validator do the complaining, not a silent Apply.
+    ...(draft.startNewTxOnDispatch !== ""
+      ? { startNewTxOnDispatch: draft.startNewTxOnDispatch === "true" }
+      : {}),
     ...(Object.keys(config).length > 0 ? { config } : {}),
     ...(draft.annotations !== undefined ? { annotations: draft.annotations } : {}),
   };
@@ -200,9 +187,7 @@ function validateDraft(
     return `Processor "${name}" already exists on this transition.`;
   }
 
-  const responseTimeout = parseOptionalInteger(draft.responseTimeoutMs, "Response timeout", {
-    allowNegative: true,
-  });
+  const responseTimeout = parseOptionalInteger(draft.responseTimeoutMs, "Response timeout");
   if (responseTimeout.error) return responseTimeout.error;
   // Validated regardless of `asyncResult`, because it is now emitted
   // regardless of `asyncResult` (spec §4a).
@@ -406,6 +391,28 @@ export function ProcessorEditorModal({
               disabled={fieldsDisabled}
               onChange={(next) => setDraft((current) => ({ ...current, retryPolicy: next }))}
               testId="processor-retry-policy"
+            />
+          </FormField>
+
+          <FormField label="Idempotent">
+            {/* Three options, not a checkbox: an explicit `false` must survive
+                Apply. `true` declares that running the processor again on
+                another compute member (after one went silent) is safe. */}
+            <CustomSelectInput
+              value={draft.idempotent}
+              options={[
+                { value: "" as const, label: "Default (false)" },
+                { value: "true" as const, label: "True" },
+                { value: "false" as const, label: "False" },
+              ]}
+              disabled={fieldsDisabled}
+              onChange={(next) =>
+                setDraft((current) => ({
+                  ...current,
+                  idempotent: next as "" | "true" | "false",
+                }))
+              }
+              testId="processor-idempotent"
             />
           </FormField>
 

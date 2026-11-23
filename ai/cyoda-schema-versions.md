@@ -91,9 +91,9 @@ endpoint, and the in-document `version` tag is informational.
 5. **If the canonical model is unchanged → new dialect, minor/patch bump.**
    Write a new dialect in `packages/workflow-core/src/dialect/cyoda-<v>.ts`
    exporting a `CyodaDialect`. Implement only the **deltas** in `toCanonical`
-   (wire → canonical) and `workflowsToWire` (canonical → wire); reuse the 0.7/0.8
+   (wire → canonical) and `workflowsToWire` (canonical → wire); reuse the shared
    helpers (`normalizeOperatorAlias`, `coerceCanonicalDefaults`, `outputWorkflow`,
-   the 0.8 allowlist) where the shape matches. Register it with `registerDialect`
+   the current dialect's allowlist) where the shape matches. Register it with `registerDialect`
    in `src/dialect/index.ts`, and add it to `SUPPORTED_CYODA_VERSIONS`. Update
    `LATEST_CYODA_VERSION` only if this version is the new default. A new dialect
    with no canonical change is a **minor** (new default) or **patch** bump.
@@ -696,3 +696,207 @@ open with no warnings).
 
 No `cyoda-dev-console` `cyodaGoVersion` change is needed — the dialect key is still
 `"0.8"`; the console only needs the dependency bump.
+
+## v0.9.0 (dialect `"0.9"`; `"0.8"` removed)
+
+cyoda-go **0.9.0** (workflow schema tag `1.4` → `1.5`; `1.1`–`1.5` accepted,
+nothing retired) is targeted by a **new** dialect, `"0.9"`
+(`src/dialect/cyoda-0_9.ts`), which replaces `"0.8"`. `SUPPORTED_CYODA_VERSIONS`
+and `LATEST_CYODA_VERSION` are both `"0.9"`. Ships as a Changesets **`minor`**
+per the 0.x policy: the canonical model changes (`startNewTxOnDispatch` moves,
+`idempotent` and `ScheduleFunction.retryPolicy` are added, `ArrayCriterion.operation`
+becomes required).
+
+**Why a new dialect key, and why `"0.8"` is gone.** 0.9.0 reads a processor's
+`startNewTxOnDispatch` on the processor, beside `executionMode`, and refuses it
+inside `config` as an unknown member. 0.8.3/0.8.4 did the exact opposite (see
+v0.8.3 above). One serializer cannot satisfy both, so 0.8.x and 0.9.0 cannot
+share a dialect; keeping `"0.8"` would have meant two maintained wire formats
+for no known consumer. Decision (Paul Schleger, 2026-11-22): drop 0.8.x support,
+key the new dialect `"0.9"` so the key keeps matching the server's
+MAJOR.MINOR. `getDialect("0.8")` throws a removal message naming 0.9.0, like
+`"0.7"` does. **The `"0.9"` dialect still opens everything 0.8.x exported and
+this editor wrote for it** — the migrations are listed below.
+
+Every claim below was probed against a **running 0.9.0 binary** (`a824b3e`,
+built 2026-11-22) via `POST …/workflow/import` / `GET …/workflow/export`. The
+0.9.0 changelog is ~2,900 lines, almost all auth/IAM, storage SPI, callbacks,
+scheduler and clustering; the workflow-config deltas are the sixteen
+"tightenings" plus three additive fields in cyoda-go's
+`docs/workflow-schema-versioning.md` § "1.5 — v0.9.0 contract". The binary
+agreed with that doc on every point checked.
+
+- **Schema tag `1.5`.** `GET /help/workflows/schema-version/versions` →
+  `{"current":"1.5","supported":[{"major":1,"minMinor":1,"maxMinor":5}]}`. Export
+  restamps to `1.5`. `schema-features.ts` gains three 1.5 rows: processor
+  `config.idempotent`, `schedule.function.retryPolicy`, and a function condition
+  inside a group (a function condition at the *root* of a criterion is not
+  gated).
+
+- **`startNewTxOnDispatch` moves back onto the processor.** Canonical field moved
+  from `ExternalizedProcessorConfig` to `ExternalizedProcessor`; added to
+  `PROCESSOR_FIELDS` (after `executionMode`, the server's export order), removed
+  from `PROCESSOR_CONFIG_FIELDS`. `toCanonical` relocates a `config`-level value
+  (0.8.3/0.8.4 position) onto the processor; a processor-level value wins.
+  Export round-trips an explicit `false`. `start-new-tx-without-commit-before-dispatch`
+  now reads the processor-level field.
+
+  | Payload | 0.9.0 |
+  |---|---|
+  | processor-level, `COMMIT_BEFORE_DISPATCH` | 200 |
+  | inside `config` | 400 `BAD_REQUEST: … unknown member name "startNewTxOnDispatch"` |
+  | processor-level `true` on `SYNC` | 400 `only valid with executionMode=COMMIT_BEFORE_DISPATCH` |
+  | processor-level `false` on `SYNC` | 200 |
+
+  > Note the reversal history: the v0.8.3 section above says "probe the binary,
+  > not the OpenAPI" because the docs placed this field on the processor while
+  > the binary read it in `config`. In 0.9.0 cyoda-go fixed its implementation
+  > to match its docs. Both v0.8.3's lesson and this move are right for their
+  > version — the binary is still the authority.
+
+- **`idempotent` (schema 1.5)** — boolean on a processor's `config`, default
+  `false`; the server omits `false` on export, the editor keeps an explicit
+  `false` (round-trips). At processor level it is a 400 unknown member.
+  ProcessorForm gains a tri-state *Idempotent* select.
+
+- **`retryPolicy` on `schedule.function` (schema 1.5)** — `NONE` / `FIXED` /
+  empty, like a processor's. Added to `ScheduleFunction`, `SCHEDULE_FUNCTION_FIELDS`
+  (last, the export order) and the TransitionForm schedule-function controls.
+
+- **`retryPolicy` / `responseTimeoutMs` validated on every callout.**
+  `unknown-retry-policy` now also covers a criterion function's `config` and a
+  `schedule.function` (both were accepted-and-ignored before). New
+  `response-timeout-negative` (error) on a processor, criterion function or
+  schedule function. New `response-timeout-above-default-max` (**warning**)
+  above 60000 ms: the server refuses values above its
+  `CYODA_CALLOUT_RESPONSE_TIMEOUT_MAX_MS` (default 60000), a per-deployment
+  setting, so the editor cannot know the real bound. Zod stays unbounded so a
+  file carrying such a value still opens. `ProcessorForm` now refuses a negative
+  value at Apply (it was deliberately allowed for 0.8.3).
+
+- **`schedule`:** `delayMs` beside `function` is refused **whatever its value**,
+  `0` and `null` included → new error `schedule-delay-with-function`. On its
+  own, `delayMs <= 0` is still "no mode" (`schedule-mode-required`). The 0.8.3/0.8.4
+  exporters wrote `delayMs: 0` beside every function; the dialect's existing
+  `delayMs <= 0` drop keeps those exports opening and re-saving cleanly.
+  `timeoutMs < 0` is now refused → `schedule-timeout-negative` promoted from
+  warning to **error**. 0.9.0's own export no longer emits `delayMs: 0`.
+
+- **Processor `type`:** anything other than `externalized` or empty is refused
+  at import (`internalized` included); empty/omitted/`null` is stored and
+  exported as `externalized`. `processor-type-internalized` and
+  `processor-type-non-canonical` promoted to **errors**. Canonical `type` stays
+  an open string so a file with a bad type still opens (with the error) and can
+  be fixed.
+
+- **`manual` is required** (`true`/`false`; omitted or `null` → 400). The
+  canonical schema already required it and the serializer always emits it — no
+  change, now confirmed.
+
+- **Array criteria:** `operatorType` required and applied at every tested
+  position (`values[i] OP element i`). `operation` and `operator` are accepted
+  aliases (verified). Values must hold at least one non-null entry (empty or
+  all-`null` → 400) → new error `array-no-position`. A wildcard before the
+  trailing `[*]` (`$.x[*].y[*]`) → 400 → new error `array-path-inner-wildcard`.
+  `ArrayCriterion.operation` is now **required** in the canonical model;
+  `toCanonical` fills a missing one with `EQUALS` (what 0.8.x compared with, and
+  cyoda-go's own migration advice) and reports `array-criterion-operator-defaulted:<n>`.
+  Semantic shift worth knowing: 0.8.4 *ignored* an explicit non-`EQUALS`
+  operator on an array clause; 0.9.0 applies it.
+
+- **Operand rules (simple, lifecycle, and pre-checks):** a missing or `null`
+  operand is refused except under `IS_NULL` / `NOT_NULL` → new `operand-missing`;
+  an array operand outside `BETWEEN`/`BETWEEN_INCLUSIVE`, or an object operand →
+  new `operand-not-scalar`; a `BETWEEN` pair must be two non-null scalars →
+  `simple-between-shape` widened (and now applied to lifecycle too). `IS_NULL`
+  with a value is still accepted. Skipped for unknown / unsupported operators.
+
+- **Criterion size:** more than 10,000 entries → 400 → new
+  `criterion-entry-limit`. Counting (verified): an array clause counts one per
+  `values` entry (nulls included), a function condition 1 + its pre-check, any
+  other leaf 1; **groups count 0**.
+
+- **Function conditions:** allowed inside `AND`/`OR`/`NOT` groups at any depth
+  and evaluated in order with short-circuit → `function-criterion-in-group`
+  **removed**. A pre-check (`function.criterion`) is now evaluated, holds only
+  local conditions (a function at any depth inside it → 400 → new
+  `precheck-function`), and is held to every other criterion check (path
+  grammar, operands, patterns) — `walkCriteria` already descended into
+  pre-checks, so those rules apply there. A function condition without a name →
+  400 (already a Zod error).
+
+- **Strict member names** (encoding/json/v2): case-variant, duplicate and
+  undeclared members are refused everywhere, criteria included. The output
+  allowlist already guaranteed this for workflow/state/transition/processor/
+  schedule; criteria are emitted by construction. Two consequences for parsing:
+  `normalizeOperatorAlias` now also folds the `operator` spelling on typed
+  leaves (`simple`/`lifecycle`/`array`; never on a group, where `operator` is
+  AND/OR/NOT) — the export echoes whichever spelling was sent, so a server
+  file using `operator` previously failed to open.
+
+- **Unknown operators** are refused at import (`IN_SET`, lowercase `equals`).
+  `operator-not-recognized` / `unsupported-operator` deliberately **stay
+  warnings** (Cyoda Cloud's operator set is wider — backend-conditional policy
+  in `docs/validation-rules.md`). Same for `asyncResult: true` and any
+  `crossoverToAsyncMs` (refused by 0.9.0, honoured by Cloud).
+
+- **`criterionBlockingError`** (the React criterion editor's commit gate) gains
+  the array, operand and pre-check rules above.
+
+- **Array clause entries may be `[low, high]` pairs** under `BETWEEN` /
+  `BETWEEN_INCLUSIVE` (`"values":[[1,2],null,[3,4]]` → 200; each pair counts
+  one entry toward the 10,000 limit). Rules (verified): under a range operator
+  every non-null position must be a pair of two non-null scalars (a scalar, a
+  `null` bound, three bounds or a nested array → 400 → `simple-between-shape`);
+  under any other operator a pair → 400 → `operand-not-scalar`; an object entry
+  is always refused (`array-non-scalar-value`). `ArrayCriterionValue` widens to
+  `ArrayCriterionScalar | null | (ArrayCriterionScalar | null)[]` (new exported
+  `ArrayCriterionScalar`); the pair is typed loosely so a malformed one still
+  opens and is reported semantically.
+
+- **Undeclared criterion members** (strict member names): 0.9.0 refuses any
+  member a condition does not declare — on any leaf or group, on a function
+  condition, its `function` object and its `function.config` (where even
+  `idempotent` is unknown), and inside pre-checks (all verified). Zod strips
+  them silently, and dropping one can change meaning (`calculationNodesTags`
+  written beside `function.config` leaves the callout untagged), so
+  `toCanonical` now reports them via the shared
+  `findUnknownCriterionMembers` helper (`src/criteria/unknownMembers.ts`, run on
+  the alias-normalized tree, so operator spellings and `values` are never
+  flagged) as `criterion-keys-dropped:<location>:<keys>` → a **warning** naming
+  the workflow/transition and JSON Pointer. The React criterion JSON editor uses
+  the same helper to **block** such a criterion, since there the user is still
+  typing it.
+
+**Verified, not modelled — cyoda-go bug, reported as
+[Cyoda/cyoda-go#729](https://github.com/Cyoda/cyoda-go/issues/729):** 0.9.0's
+export **drops `attachEntity: false` from a processor's `config`**, and an
+absent `attachEntity` imports as `true`, so re-importing a 0.9.0 export flips
+the setting. Criterion-function and `schedule.function` configs keep `false`.
+Cause: `cyoda-go-spi` v0.9.0 `types.go`, `ProcessorConfig.AttachEntity` is
+tagged `json:"attachEntity,omitempty"` (`ScheduleFunction.AttachEntity` has no
+`omitempty`). The editor emits `false` faithfully; it cannot recover a value
+the server's export lost.
+
+**Runtime-only changes (nothing to model):** `CONDITION_TYPE_MISMATCH` (an
+operator applied to a field of the wrong type) is checked at evaluation and
+needs the model's field types; workflow import can answer a retryable `409
+CONFLICT` when it races the scheduler; model/workflow administration is refused
+with a transaction token (`MODEL_ADMIN_IN_JOINED_TRANSACTION`); every data call
+needs `ROLE_M2M`. The last three are host (`cyoda-dev-console`) concerns.
+
+Golden coverage: `tests/golden/fixtures/cyoda-0_9_0.json` (editor output,
+byte-identical round-trip, **accepted by the 0.9.0 server**),
+`tests/dialect/fixtures/cyoda-0_9_0-export.json` (a verbatim server export that
+must open with no warnings), and `tests/criteria/cyoda-0_9_0-rules.test.ts` — a
+table of every probed payload with its server verdict, asserting the editor
+blocks exactly what the server refused (deliberate divergences listed at the
+bottom of that file).
+
+**`cyoda-dev-console` follow-up:** the console does not pin a dialect — every
+`parseImportPayload` / `serializeImportPayload` call uses the default
+`LATEST_CYODA_VERSION`, and `model-editor-mcp` reads the schema tag from
+`getDialect(LATEST_CYODA_VERSION)` — so it needs the dependency bump plus a
+check of its fixtures and docs against the canonicalization changes above, not
+a version switch. (Step 8 of the runbook describes a `cyodaGoVersion` union the
+console no longer has.)

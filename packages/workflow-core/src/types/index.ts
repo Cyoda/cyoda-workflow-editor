@@ -8,6 +8,7 @@ export type {
   FunctionCriterion,
   LifecycleCriterion,
   ArrayCriterion,
+  ArrayCriterionScalar,
   ArrayCriterionValue,
   LifecycleField,
   FunctionConfig,

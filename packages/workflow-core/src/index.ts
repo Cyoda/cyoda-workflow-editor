@@ -5,6 +5,7 @@ export type {
   Annotations,
   AnnotationsTarget,
   ArrayCriterion,
+  ArrayCriterionScalar,
   ArrayCriterionValue,
   LifecycleField,
   CommentMeta,
@@ -172,6 +173,7 @@ export {
   UNSUPPORTED_OPERATORS,
   criterionBlockingError,
   describeCriterion,
+  findUnknownCriterionMembers,
   validateJsonPathSubset,
 } from "./criteria/index.js";
 export type {
@@ -180,4 +182,5 @@ export type {
   OperatorGroup,
   OperatorGroupId,
   OperatorValueShape,
+  UnknownCriterionMembers,
 } from "./criteria/index.js";

@@ -21,9 +21,9 @@ function wire(json: string, targetVersion: string) {
   return JSON.parse(out).workflows[0];
 }
 
-describe("0.8 dialect emits processor & criterion annotations", () => {
-  test("0.8 wire carries the three new fields", () => {
-    const wf = wire(PAYLOAD, "0.8");
+describe("0.9 dialect emits processor & criterion annotations", () => {
+  test("0.9 wire carries the three new fields", () => {
+    const wf = wire(PAYLOAD, "0.9");
     expect(wf.criterionAnnotations).toEqual({ displayName: "WF guard" });
     const t = wf.states.S.transitions[0];
     expect(t.criterionAnnotations).toEqual({ displayName: "T guard" });
@@ -35,7 +35,7 @@ describe("0.8 dialect emits processor & criterion annotations", () => {
       version: "1.2", name: "wf", initialState: "S", active: true,
       states: { S: { transitions: [{ name: "t", next: "S", manual: true }] } } }] });
     const { document } = parseImportPayload(plain);
-    const out = serializeImportPayload(document!, { targetVersion: "0.8" });
+    const out = serializeImportPayload(document!, { targetVersion: "0.9" });
     expect(JSON.parse(out).workflows[0].states.S.transitions[0]).not.toHaveProperty("annotations");
     expect(JSON.parse(out).workflows[0]).not.toHaveProperty("criterionAnnotations");
   });

@@ -45,6 +45,7 @@
                   {
                     "type": "array",
                     "jsonPath": "$.tags[*]",
+                    "operation": "EQUALS",
                     "values": ["a", null, "c"]
                   },
                   {

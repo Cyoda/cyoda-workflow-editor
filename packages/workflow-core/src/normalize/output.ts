@@ -75,10 +75,9 @@ export function outputTransition(
     next: t.next,
     manual: t.manual,
   };
-  // Emit `annotations` between `manual` and `disabled` to match V0_8_WIRE_FIELDS
-  // order (the 0.8 allowlist reorders regardless; this keeps emission readable
-  // and consistent). Omitted for 0.7 (no annotations option), which then emits
-  // the historical name/next/manual/disabled order unchanged.
+  // Emit `annotations` between `manual` and `disabled` to match V0_9_WIRE_FIELDS
+  // order (the dialect's allowlist reorders regardless; this keeps emission
+  // readable and consistent).
   if (options?.annotations && t.annotations !== undefined) out["annotations"] = t.annotations;
   out["disabled"] = t.disabled;
   if (t.criterion !== undefined) out["criterion"] = outputCriterion(t.criterion);
@@ -113,6 +112,7 @@ function outputScheduleFunction(f: ScheduleFunction): Record<string, unknown> {
   if (f.attachEntity !== undefined) out["attachEntity"] = f.attachEntity;
   if (f.context !== undefined && f.context !== "") out["context"] = f.context;
   if (f.responseTimeoutMs !== undefined) out["responseTimeoutMs"] = f.responseTimeoutMs;
+  if (f.retryPolicy !== undefined && f.retryPolicy !== "") out["retryPolicy"] = f.retryPolicy;
   return out;
 }
 
@@ -165,12 +165,15 @@ export function outputCriterion(c: Criterion): Record<string, unknown> {
     }
     case "array": {
       // Wire key is `values` — the only one cyoda-go's array parser reads. An
-      // array clause emitted as `value` imports cleanly but carries no
-      // positional tests, so it matches every entity.
-      const out: Record<string, unknown> = { type: "array", jsonPath: c.jsonPath };
-      if (c.operation !== undefined) out["operation"] = c.operation;
-      out["values"] = c.value;
-      return out;
+      // array clause emitted as `value` imports cleanly on 0.8.x but carries no
+      // positional tests, so it matches every entity. The operator is required
+      // since cyoda-go 0.9.0; `operation` is an accepted alias of `operatorType`.
+      return {
+        type: "array",
+        jsonPath: c.jsonPath,
+        operation: c.operation,
+        values: c.value,
+      };
     }
   }
 }
@@ -195,6 +198,11 @@ function outputExternalizedProcessor(
   // Omit when absent: the server's documented default at fire is SYNC, and
   // fabricating ASYNC_NEW_TX invents a mode the user never chose.
   if (p.executionMode !== undefined) out["executionMode"] = p.executionMode;
+  // Beside executionMode since cyoda-go 0.9.0, which refuses it inside config.
+  // An explicit false is kept: the server round-trips it.
+  if (p.startNewTxOnDispatch !== undefined) {
+    out["startNewTxOnDispatch"] = p.startNewTxOnDispatch;
+  }
   if (options?.annotations && p.annotations !== undefined) out["annotations"] = p.annotations;
   if (p.config !== undefined) {
     const cfg = outputExternalizedConfig(p.config);
@@ -216,9 +224,9 @@ function outputExternalizedConfig(cfg: ExternalizedProcessorConfig): Record<stri
     out["retryPolicy"] = cfg.retryPolicy;
   }
   if (cfg.context !== undefined && cfg.context !== "") out["context"] = cfg.context;
-  if (cfg.startNewTxOnDispatch !== undefined) {
-    out["startNewTxOnDispatch"] = cfg.startNewTxOnDispatch;
-  }
+  // An explicit false is kept so a deliberate "not idempotent" round-trips;
+  // the server omits false on its own export.
+  if (cfg.idempotent !== undefined) out["idempotent"] = cfg.idempotent;
   // The server round-trips an explicit false; only `true` is rejected, and that
   // is reported by the async-result-unsupported warning, not suppressed here.
   if (cfg.asyncResult !== undefined) out["asyncResult"] = cfg.asyncResult;

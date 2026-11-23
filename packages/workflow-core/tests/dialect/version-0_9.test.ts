@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { parseImportPayload, serializeImportPayload } from "../../src/index.js";
-import { V0_8_WIRE_FIELDS } from "../../src/dialect/cyoda-0_8.js";
+import { V0_9_WIRE_FIELDS } from "../../src/dialect/cyoda-0_9.js";
 
 function isObj(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -10,7 +10,7 @@ function importJson(workflow: Record<string, unknown>): string {
   return JSON.stringify({ importMode: "MERGE", workflows: [workflow] });
 }
 
-const v08Workflow = {
+const v09Workflow = {
   version: "1.3",
   name: "wf",
   initialState: "new",
@@ -31,10 +31,10 @@ const v08Workflow = {
   },
 };
 
-describe("0.8 dialect preserves transitions[].schedule", () => {
+describe("0.9 dialect preserves transitions[].schedule", () => {
   test("schedule survives parse and is present on the canonical transition", () => {
-    const result = parseImportPayload(importJson(v08Workflow), undefined, {
-      sourceVersion: "0.8",
+    const result = parseImportPayload(importJson(v09Workflow), undefined, {
+      sourceVersion: "0.9",
     });
     expect(result.ok).toBe(true);
     const t = result.value?.workflows[0]?.states["new"]?.transitions[0];
@@ -42,13 +42,13 @@ describe("0.8 dialect preserves transitions[].schedule", () => {
   });
 
   test("parse → serialize → parse → serialize is byte-identical (round-trip)", () => {
-    const first = parseImportPayload(importJson(v08Workflow), undefined, {
-      sourceVersion: "0.8",
+    const first = parseImportPayload(importJson(v09Workflow), undefined, {
+      sourceVersion: "0.9",
     });
-    const wire1 = serializeImportPayload(first.document!, { targetVersion: "0.8" });
+    const wire1 = serializeImportPayload(first.document!, { targetVersion: "0.9" });
 
-    const second = parseImportPayload(wire1, undefined, { sourceVersion: "0.8" });
-    const wire2 = serializeImportPayload(second.document!, { targetVersion: "0.8" });
+    const second = parseImportPayload(wire1, undefined, { sourceVersion: "0.9" });
+    const wire2 = serializeImportPayload(second.document!, { targetVersion: "0.9" });
 
     expect(wire2).toBe(wire1);
     expect(wire1).toContain('"schedule"');
@@ -57,10 +57,10 @@ describe("0.8 dialect preserves transitions[].schedule", () => {
   });
 });
 
-describe("0.8 wire output is provably allowlist-clean", () => {
-  test("every node only contains fields in the v0.8 allowlist, even with junk on the canonical model", () => {
-    const parsed = parseImportPayload(importJson(v08Workflow), undefined, {
-      sourceVersion: "0.8",
+describe("0.9 wire output is provably allowlist-clean", () => {
+  test("every node only contains fields in the v0.9 allowlist, even with junk on the canonical model", () => {
+    const parsed = parseImportPayload(importJson(v09Workflow), undefined, {
+      sourceVersion: "0.9",
     });
 
     // Inject editor metadata / unknown keys at every level to prove the
@@ -85,22 +85,22 @@ describe("0.8 wire output is provably allowlist-clean", () => {
     };
     (transition["processors"] as Record<string, unknown>[])[0]["__selected"] = true;
 
-    const wire = JSON.parse(serializeImportPayload(parsed.document!, { targetVersion: "0.8" }));
+    const wire = JSON.parse(serializeImportPayload(parsed.document!, { targetVersion: "0.9" }));
     const workflow = wire.workflows[0];
 
-    assertKeysSubset(workflow, V0_8_WIRE_FIELDS.workflow);
+    assertKeysSubset(workflow, V0_9_WIRE_FIELDS.workflow);
     for (const state of Object.values(workflow.states) as Record<string, unknown>[]) {
-      assertKeysSubset(state, V0_8_WIRE_FIELDS.state);
+      assertKeysSubset(state, V0_9_WIRE_FIELDS.state);
       for (const t of (state["transitions"] as Record<string, unknown>[]) ?? []) {
-        assertKeysSubset(t, V0_8_WIRE_FIELDS.transition);
+        assertKeysSubset(t, V0_9_WIRE_FIELDS.transition);
         if (isObj(t["schedule"])) {
-          assertKeysSubset(t["schedule"], V0_8_WIRE_FIELDS.schedule);
+          assertKeysSubset(t["schedule"], V0_9_WIRE_FIELDS.schedule);
           const fn = (t["schedule"] as Record<string, unknown>)["function"];
-          if (isObj(fn)) assertKeysSubset(fn, V0_8_WIRE_FIELDS.scheduleFunction);
+          if (isObj(fn)) assertKeysSubset(fn, V0_9_WIRE_FIELDS.scheduleFunction);
         }
         for (const p of (t["processors"] as Record<string, unknown>[]) ?? []) {
-          assertKeysSubset(p, V0_8_WIRE_FIELDS.processor);
-          if (p["config"]) assertKeysSubset(p["config"], V0_8_WIRE_FIELDS.processorConfig);
+          assertKeysSubset(p, V0_9_WIRE_FIELDS.processor);
+          if (p["config"]) assertKeysSubset(p["config"], V0_9_WIRE_FIELDS.processorConfig);
         }
       }
     }
@@ -141,7 +141,7 @@ const annotatedWorkflow = {
   },
 };
 
-describe("0.8 dialect emits schedule.function", () => {
+describe("0.9 dialect emits schedule.function", () => {
   test("emits schedule.function in wire order and strips unknown nested keys", () => {
     const raw = JSON.stringify({
       importMode: "MERGE",
@@ -154,6 +154,7 @@ describe("0.8 dialect emits schedule.function", () => {
             function: {
               name: "c", resultKind: "Schedule", calculationNodesTags: "s",
               attachEntity: false, context: "ctx", responseTimeoutMs: 5000,
+              retryPolicy: "NONE",
             },
           },
         }] } },
@@ -165,7 +166,7 @@ describe("0.8 dialect emits schedule.function", () => {
     expect(Object.keys(s)).toEqual(["timeoutMs", "function"]);
     expect(Object.keys(s.function)).toEqual([
       "name", "resultKind", "calculationNodesTags",
-      "attachEntity", "context", "responseTimeoutMs",
+      "attachEntity", "context", "responseTimeoutMs", "retryPolicy",
     ]);
     // attachEntity: false must survive — absent would mean true server-side.
     expect(s.function.attachEntity).toBe(false);
@@ -201,12 +202,12 @@ describe("0.8 dialect emits schedule.function", () => {
   });
 });
 
-describe("0.8 dialect round-trips annotations", () => {
+describe("0.9 dialect round-trips annotations", () => {
   test("annotations at all three levels survive parse -> serialize -> parse", () => {
-    const first = parseImportPayload(importJson(annotatedWorkflow), undefined, { sourceVersion: "0.8" });
-    const wire1 = serializeImportPayload(first.document!, { targetVersion: "0.8" });
-    const second = parseImportPayload(wire1, undefined, { sourceVersion: "0.8" });
-    const wire2 = serializeImportPayload(second.document!, { targetVersion: "0.8" });
+    const first = parseImportPayload(importJson(annotatedWorkflow), undefined, { sourceVersion: "0.9" });
+    const wire1 = serializeImportPayload(first.document!, { targetVersion: "0.9" });
+    const second = parseImportPayload(wire1, undefined, { sourceVersion: "0.9" });
+    const wire2 = serializeImportPayload(second.document!, { targetVersion: "0.9" });
 
     expect(wire2).toBe(wire1);
     const wf = JSON.parse(wire1).workflows[0];
@@ -216,8 +217,8 @@ describe("0.8 dialect round-trips annotations", () => {
   });
 
   test("opaque inner keys of annotations are NOT stripped by the allowlist", () => {
-    const parsed = parseImportPayload(importJson(annotatedWorkflow), undefined, { sourceVersion: "0.8" });
-    const wire = serializeImportPayload(parsed.document!, { targetVersion: "0.8" });
+    const parsed = parseImportPayload(importJson(annotatedWorkflow), undefined, { sourceVersion: "0.9" });
+    const wire = serializeImportPayload(parsed.document!, { targetVersion: "0.9" });
     expect(wire).toContain('"color"');
   });
 });

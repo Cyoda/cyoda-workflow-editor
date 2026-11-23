@@ -15,7 +15,8 @@ const registry = new Map<CyodaSchemaVersion, CyodaDialect>();
  * `Error: function Object() { [native code] }`.
  */
 const REMOVED_VERSIONS: Record<string, string> = Object.assign(Object.create(null), {
-  "0.7": 'cyoda-go schema dialect "0.7" was removed in the 0.8.3 release. Upgrade your workflow configs to the "0.8" dialect, or register a custom dialect with registerDialect().',
+  "0.7": 'cyoda-go schema dialect "0.7" was removed in the 0.8.3 release. Upgrade your workflow configs to the "0.9" dialect, or register a custom dialect with registerDialect().',
+  "0.8": 'cyoda-go schema dialect "0.8" was removed when cyoda-go 0.9.0 support was added: 0.9.0 refuses the 0.8.x wire format (startNewTxOnDispatch moved from a processor\'s config to the processor). Target the "0.9" dialect, which still opens 0.8.x files and exports, or register a custom dialect with registerDialect().',
 });
 
 /**

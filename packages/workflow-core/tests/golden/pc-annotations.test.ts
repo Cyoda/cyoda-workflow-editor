@@ -25,7 +25,7 @@ describe("golden round-trip: processor & criterion annotations (v0.8.2)", () => 
     expect(issues.filter((i) => i.severity === "error")).toEqual([]);
     expect(document).toBeDefined();
 
-    const out = serializeImportPayload(document!, { targetVersion: "0.8" });
+    const out = serializeImportPayload(document!, { targetVersion: "0.9" });
     const wireWf = JSON.parse(out).workflows[0];
     const wireTransition = wireWf.states.NONE.transitions[0];
     const wireProcessor = wireTransition.processors[0];

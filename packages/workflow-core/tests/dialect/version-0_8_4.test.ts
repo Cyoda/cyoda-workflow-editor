@@ -42,16 +42,21 @@ function criterionOut(json: string): Record<string, unknown> {
   return wire.workflows[0]!.states["A"]!.transitions[0]!.criterion as Record<string, unknown>;
 }
 
-describe("cyoda-go 0.8.4 wire format (dialect 0.8)", () => {
+// The "0.8" dialect was removed with cyoda-go 0.9.0 support; the 0.9 dialect
+// must still open everything 0.8.4 exported and this editor wrote for it.
+describe("cyoda-go 0.8.4 files and exports under the 0.9 dialect", () => {
   test("a real 0.8.4 export opens with no errors or warnings", () => {
     const parsed = parseExportPayload(serverExport);
     expect(parsed.document).toBeDefined();
     expect(parsed.issues.filter((i) => i.severity !== "info")).toEqual([]);
   });
 
-  test("new workflows are stamped with schema tag 1.4", () => {
-    // WorkflowEditor stamps new workflows with the dialect's schemaVersionTag.
-    expect(getDialect("0.8").schemaVersionTag).toBe("1.4");
+  test("a 0.8.4 export's 1.4 tag stays accepted (0.9.0 accepts 1.1–1.5)", () => {
+    const parsed = parseExportPayload(serverExport);
+    const codes = parsed.issues.map((i) => i.code);
+    expect(codes).not.toContain("workflow-schema-version-malformed");
+    expect(codes).not.toContain("workflow-schema-version-outdated");
+    expect(getDialect("0.9").acceptedSchemaVersions?.[0]?.maxMinor).toBe(5);
   });
 
   test("an array clause is read from `values` and written back as `values`", () => {
@@ -64,10 +69,17 @@ describe("cyoda-go 0.8.4 wire format (dialect 0.8)", () => {
     expect(out).not.toHaveProperty("value");
   });
 
-  test("an array clause without an operator round-trips without one", () => {
+  test("an array clause without an operator gets EQUALS (0.8.x semantics), with a warning", () => {
+    // 0.8.4 compared array positions with equality whatever the clause said;
+    // 0.9.0 requires the operator. EQUALS preserves what the clause meant.
     const parsed = parseImportPayload(payload({ type: "array", jsonPath: "$.tags[*]", values: ["a"] }));
+    expect(parsed.issues.filter((i) => i.severity === "error")).toEqual([]);
+    const issue = parsed.issues.find((i) => i.code === "array-criterion-operator-defaulted");
+    expect(issue?.severity).toBe("warning");
+    expect(issue?.detail).toEqual({ count: 1 });
+    expect(parsed.warnings).toContain("array-criterion-operator-defaulted:1");
     const out = criterionOut(serializeImportPayload(parsed.document!));
-    expect(out).toEqual({ type: "array", jsonPath: "$.tags[*]", values: ["a"] });
+    expect(out).toEqual({ type: "array", jsonPath: "$.tags[*]", operation: "EQUALS", values: ["a"] });
   });
 
   test("a legacy editor file using `value` on an array clause is migrated to `values`", () => {

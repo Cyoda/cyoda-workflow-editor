@@ -49,6 +49,8 @@ export interface CriterionVisit {
   criterion: Criterion;
   where: CriterionLocation;
   parent?: Criterion;
+  /** True for a node inside a function condition's pre-check (`function.criterion`). */
+  inPreCheck?: boolean;
 }
 
 function* walkInner(
@@ -56,8 +58,11 @@ function* walkInner(
   where: CriterionLocation,
   depth = 0,
   parent?: Criterion,
+  inPreCheck = false,
 ): Generator<CriterionVisit> {
-  yield parent ? { criterion: c, where, parent } : { criterion: c, where };
+  const visit: CriterionVisit = parent ? { criterion: c, where, parent } : { criterion: c, where };
+  if (inPreCheck) visit.inPreCheck = true;
+  yield visit;
   if (depth >= MAX_CRITERION_DEPTH) {
     // Tree already exceeds the engine limit. The iterative criterionMaxDepth
     // check in criterionDepthRules will report the error; stop here to
@@ -65,9 +70,9 @@ function* walkInner(
     return;
   }
   if (c.type === "group") {
-    for (const child of c.conditions) yield* walkInner(child, where, depth + 1, c);
+    for (const child of c.conditions) yield* walkInner(child, where, depth + 1, c, inPreCheck);
   } else if (c.type === "function" && c.function.criterion) {
-    yield* walkInner(c.function.criterion, where, depth + 1, c);
+    yield* walkInner(c.function.criterion, where, depth + 1, c, true);
   }
 }
 
