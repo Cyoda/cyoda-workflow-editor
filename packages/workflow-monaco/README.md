@@ -9,7 +9,28 @@ validation markers, patch lifting, and canvas ↔ JSON selection sync.
 npm install @cyoda/workflow-core @cyoda/workflow-monaco monaco-editor
 ```
 
-Supported `monaco-editor` versions: `>=0.45 <0.53` (the demo currently runs on `0.52.x`).
+Supported `monaco-editor` versions: `>=0.45 <0.58` (the demo runs on `0.57.x`).
+
+The JSON language defaults are found wherever the running monaco-editor keeps
+them: the top-level `monaco.json` namespace (0.55+, the only location from
+0.56) or the legacy `monaco.languages.json` (before 0.56). `jsonDefaultsOf(monaco)`
+exposes that lookup.
+
+**Workers with monaco-editor ≥ 0.56.** 0.56 added an `exports` map
+(`monaco-editor/<path>` → `esm/vs/<path>.js`), so the old deep imports such as
+`monaco-editor/esm/vs/editor/editor.worker` and
+`monaco-editor/min/vs/editor/editor.main.css` no longer resolve. With Vite:
+
+```ts
+import editorWorker from "monaco-editor/editor/editor.worker?worker";
+import jsonWorker from "monaco-editor/languages/features/json/json.worker?worker";
+
+self.MonacoEnvironment = {
+  getWorker: (_id, label) => (label === "json" ? new jsonWorker() : new editorWorker()),
+};
+```
+
+The ESM build imports its own CSS, so no stylesheet import is needed.
 
 ## Usage
 

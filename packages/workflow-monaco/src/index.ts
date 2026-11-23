@@ -1,5 +1,6 @@
 export { registerCriterionSchema, criterionJsonSchema, CRITERION_SCHEMA_URI } from "./criterionSchema.js";
 export { registerWorkflowSchema, workflowJsonSchema, WORKFLOW_SCHEMA_URI } from "./schema.js";
+export { jsonDefaultsOf } from "./jsonDefaults.js";
 export { issuesToMarkers, applyMarkers, rangeForPath } from "./markers.js";
 export {
   liftJsonToPatch,
@@ -26,6 +27,7 @@ export {
 export type {
   EditorLike,
   JsonDiagnosticsOptions,
+  JsonLanguageDefaults,
   JsonSchemaHandle,
   MarkerData,
   MonacoLike,

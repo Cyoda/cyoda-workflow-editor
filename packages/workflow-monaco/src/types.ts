@@ -50,26 +50,41 @@ export interface EditorLike {
 export interface JsonDiagnosticsOptions {
   validate?: boolean;
   allowComments?: boolean;
+  // `schema` optional and `unknown` to match monaco-editor's own
+  // `DiagnosticsOptions` (`readonly schema?: any`), so the real module is
+  // assignable to MonacoLike without a cast.
   schemas?: Array<{
     uri: string;
     fileMatch?: string[];
-    schema: object;
+    schema?: unknown;
   }>;
-  [k: string]: unknown;
+  // No `[k: string]: unknown` index signature: monaco's `DiagnosticsOptions`
+  // is an interface, which TypeScript won't match against one. Other options
+  // still survive registration — the existing object is spread through.
+}
+
+/** The JSON language service defaults the schema registration writes to. */
+export interface JsonLanguageDefaults {
+  diagnosticsOptions: JsonDiagnosticsOptions;
+  setDiagnosticsOptions(opts: JsonDiagnosticsOptions): void;
 }
 
 export interface MonacoLike {
   editor: {
     setModelMarkers(model: TextModelLike, owner: string, markers: MarkerData[]): void;
   };
-  languages: {
-    json: {
-      jsonDefaults: {
-        diagnosticsOptions: JsonDiagnosticsOptions;
-        setDiagnosticsOptions(opts: JsonDiagnosticsOptions): void;
-      };
-    };
-  };
+  /**
+   * monaco-editor >= 0.55: the JSON language feature is the top-level `json`
+   * namespace. 0.56 removed the `languages.json` alias below.
+   */
+  json?: { jsonDefaults: JsonLanguageDefaults };
+  /**
+   * monaco-editor < 0.56 (and `@monaco-editor/react` instances of those):
+   * `languages.json`. From 0.56 it is typed as a `{ deprecated: true }`
+   * tombstone with no `jsonDefaults`, hence optional. Either this or `json`
+   * must provide the defaults; see `jsonDefaultsOf`.
+   */
+  languages?: { json?: { jsonDefaults: JsonLanguageDefaults } | { deprecated: true } };
   MarkerSeverity: {
     Error: number;
     Warning: number;
