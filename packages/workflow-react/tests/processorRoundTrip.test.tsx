@@ -20,13 +20,17 @@ afterEach(() => cleanup());
  * a no-op — the dispatched-patch-only tests in processorContext.test.tsx
  * don't exercise that replace-wholesale hazard, this file does.
  */
-function loadDocWithProcessor(config: Record<string, unknown>, executionMode: string) {
+function loadDocWithProcessor(
+  config: Record<string, unknown>,
+  executionMode: string,
+  version = "1.3",
+) {
   const { document } = parseImportPayload(
     JSON.stringify({
       importMode: "MERGE",
       workflows: [
         {
-          version: "1.3",
+          version,
           name: "wf",
           initialState: "a",
           active: true,
@@ -82,21 +86,29 @@ function editAndApplyUntouched(doc: WorkflowEditorDocument): unknown {
   return JSON.parse(serializeImportPayload(current));
 }
 
-function wireConfig(wire: unknown): Record<string, unknown> {
+function wireProcessor(wire: unknown): Record<string, unknown> & { config?: Record<string, unknown> } {
   const w = wire as {
-    workflows: [{ states: { a: { transitions: [{ processors: [{ config?: Record<string, unknown> }] }] } } }];
+    workflows: [{ states: { a: { transitions: [{ processors: [Record<string, unknown>] }] } } }];
   };
-  return w.workflows[0]!.states["a"]!.transitions[0]!.processors[0]!.config ?? {};
+  return w.workflows[0]!.states["a"]!.transitions[0]!.processors[0]!;
+}
+
+function wireConfig(wire: unknown): Record<string, unknown> {
+  return wireProcessor(wire).config ?? {};
 }
 
 describe("processor modal round-trip fidelity (spec §4a, residual items 5-7)", () => {
+  // The fixtures carry `startNewTxOnDispatch` inside `config` — the cyoda-go
+  // 0.8.3/0.8.4 position — so these also prove the dialect's migration to the
+  // processor (0.9.0) survives an untouched Apply.
   it("preserves startNewTxOnDispatch: false through a full round trip", () => {
     const doc = loadDocWithProcessor(
       { startNewTxOnDispatch: false, calculationNodesTags: "t" },
       "COMMIT_BEFORE_DISPATCH",
     );
-    const config = wireConfig(editAndApplyUntouched(doc));
-    expect(config["startNewTxOnDispatch"]).toBe(false);
+    const processor = wireProcessor(editAndApplyUntouched(doc));
+    expect(processor["startNewTxOnDispatch"]).toBe(false);
+    expect(processor.config).not.toHaveProperty("startNewTxOnDispatch");
   });
 
   it("preserves an explicit startNewTxOnDispatch: true even when executionMode is not COMMIT_BEFORE_DISPATCH", () => {
@@ -105,8 +117,13 @@ describe("processor modal round-trip fidelity (spec §4a, residual items 5-7)", 
     // legacy document can carry it, and Apply must not be the thing that
     // silently deletes the field the migration restored.
     const doc = loadDocWithProcessor({ startNewTxOnDispatch: true }, "SYNC");
-    const config = wireConfig(editAndApplyUntouched(doc));
-    expect(config["startNewTxOnDispatch"]).toBe(true);
+    const processor = wireProcessor(editAndApplyUntouched(doc));
+    expect(processor["startNewTxOnDispatch"]).toBe(true);
+  });
+
+  it("preserves idempotent: false through a full round trip", () => {
+    const doc = loadDocWithProcessor({ idempotent: false, calculationNodesTags: "t" }, "SYNC", "1.5");
+    expect(wireConfig(editAndApplyUntouched(doc))["idempotent"]).toBe(false);
   });
 
   it("preserves asyncResult: false through a full round trip", () => {
@@ -118,12 +135,9 @@ describe("processor modal round-trip fidelity (spec §4a, residual items 5-7)", 
     expect(config["asyncResult"]).toBe(false);
   });
 
-  it("preserves a negative responseTimeoutMs through a full round trip", () => {
-    // Verified against a live cyoda-go 0.8.3: responseTimeoutMs: -1 is
-    // accepted with a 200, and the canonical schema was deliberately
-    // relaxed to any integer. The modal must not block Apply for it.
-    const doc = loadDocWithProcessor({ responseTimeoutMs: -1 }, "SYNC");
-    const config = wireConfig(editAndApplyUntouched(doc));
-    expect(config["responseTimeoutMs"]).toBe(-1);
+  it("preserves a zero responseTimeoutMs through a full round trip", () => {
+    // cyoda-go 0.9.0 refuses a negative value; 0 is the lowest it accepts.
+    const doc = loadDocWithProcessor({ responseTimeoutMs: 0 }, "SYNC");
+    expect(wireConfig(editAndApplyUntouched(doc))["responseTimeoutMs"]).toBe(0);
   });
 });

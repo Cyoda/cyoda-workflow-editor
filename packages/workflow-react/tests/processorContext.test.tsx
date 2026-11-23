@@ -125,25 +125,55 @@ describe("processor startNewTxOnDispatch field", () => {
     fireEvent.change(select, { target: { value: "true" } });
     fireEvent.click(screen.getByTestId("processor-modal-apply"));
 
-    expect(onApply.mock.calls[0]![0].config?.startNewTxOnDispatch).toBe(true);
+    // cyoda-go 0.9.0: on the processor, never inside config.
+    expect(onApply.mock.calls[0]![0].startNewTxOnDispatch).toBe(true);
+    expect(onApply.mock.calls[0]![0].config).toBeUndefined();
   });
 
   it("preserves an explicit startNewTxOnDispatch: false instead of collapsing it to absent", () => {
-    // Same bug class as attachEntity: false must survive, since the field is
-    // meaningful (and false is a real, distinct value from absent) once it's
-    // moved inside config (spec §4a / disagreement #3).
+    // Same bug class as attachEntity: false must survive, since false is a
+    // real, distinct value from absent (spec §4a / disagreement #3).
     const { onApply } = renderModal({
       ...base,
       executionMode: "COMMIT_BEFORE_DISPATCH",
-      config: { startNewTxOnDispatch: false },
+      startNewTxOnDispatch: false,
     });
     fireEvent.click(screen.getByTestId("processor-modal-apply"));
-    expect(onApply.mock.calls[0]![0].config?.startNewTxOnDispatch).toBe(false);
+    expect(onApply.mock.calls[0]![0].startNewTxOnDispatch).toBe(false);
   });
 
   it("keeps startNewTxOnDispatch absent when the source had none", () => {
     const { onApply } = renderModal({ ...base, executionMode: "COMMIT_BEFORE_DISPATCH" });
     fireEvent.click(screen.getByTestId("processor-modal-apply"));
     expect(onApply.mock.calls[0]![0].config).toBeUndefined();
+    expect(onApply.mock.calls[0]![0]).not.toHaveProperty("startNewTxOnDispatch");
+  });
+});
+
+describe("processor idempotent field (cyoda-go 0.9.0)", () => {
+  it("is a select limited to Default/True/False, not a checkbox", () => {
+    renderModal(base);
+    const select = screen.getByTestId("processor-idempotent") as HTMLSelectElement;
+    expect(select.tagName.toLowerCase()).toBe("select");
+    expect(Array.from(select.options).map((o) => o.value)).toEqual(["", "true", "false"]);
+  });
+
+  it("writes idempotent into config", () => {
+    const { onApply } = renderModal(base);
+    fireEvent.change(screen.getByTestId("processor-idempotent"), { target: { value: "true" } });
+    fireEvent.click(screen.getByTestId("processor-modal-apply"));
+    expect(onApply.mock.calls[0]![0].config?.idempotent).toBe(true);
+  });
+
+  it("preserves an explicit idempotent: false instead of collapsing it to absent", () => {
+    const { onApply } = renderModal({ ...base, config: { idempotent: false } });
+    fireEvent.click(screen.getByTestId("processor-modal-apply"));
+    expect(onApply.mock.calls[0]![0].config?.idempotent).toBe(false);
+  });
+
+  it("keeps idempotent absent when the source had none", () => {
+    const { onApply } = renderModal(base);
+    fireEvent.click(screen.getByTestId("processor-modal-apply"));
+    expect(onApply.mock.calls[0]![0].config?.idempotent).toBeUndefined();
   });
 });

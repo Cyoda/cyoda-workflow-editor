@@ -261,7 +261,8 @@ export function EditorPage() {
   round-trips through the editor. As of cyoda-go 0.8.3 the runtime **executes**
   scheduled transitions on their own; only firing one manually by name is
   rejected (400 `TRANSITION_NOT_FOUND`). A dedicated transition-inspector
-  control lets you configure a delay or a `ScheduleFunction` trigger.
+  control lets you configure a delay or a `ScheduleFunction` trigger
+  (including its `retryPolicy`, cyoda-go 0.9.0).
 
 **Criteria** (on each transition)
 - Add / edit / delete criterion.
@@ -273,11 +274,16 @@ export function EditorPage() {
 - Raw JSON escape hatch inside the modal.
 - Draft editing: Apply commits one criterion patch/undo step; Cancel discards
   local changes, and invalid local state never corrupts the canonical document.
-- Validation mirrors cyoda-go 0.8.4's import checks: JSON Path grammar
-  (`$.` leader required), `NOT` groups with exactly one condition, array
-  clauses on a trailing `[*]` path (written as `values` on the wire), `LIKE`
-  escapes, and the lifecycle fields `state`, `creationDate`, `lastUpdateTime`,
-  `previousTransition` / `transitionForLatestSave`, `transactionId`, `id`.
+- Validation mirrors cyoda-go 0.9.0's import checks: JSON Path grammar
+  (`$.` leader required, pre-checks included), `NOT` groups with exactly one
+  condition, array clauses on a trailing `[*]` path (written as `values` on
+  the wire) with a required operator and at least one non-null position,
+  operand shape (a missing/`null` operand only for `IS_NULL` / `NOT_NULL`, an
+  array only as a `BETWEEN` pair), the 10,000-entry criterion limit, local-only
+  function pre-checks, `LIKE` escapes, and the lifecycle fields `state`,
+  `creationDate`, `lastUpdateTime`, `previousTransition` /
+  `transitionForLatestSave`, `transactionId`, `id`. Function conditions may sit
+  inside `AND` / `OR` / `NOT` groups (schema 1.5).
 
 **Processors** (on each transition)
 - Add / edit / delete / duplicate / reorder processors.
@@ -289,8 +295,9 @@ export function EditorPage() {
   accepted by cyoda-go.)
 - Externalized processor editing covers `executionMode`
   (`SYNC`, `ASYNC_SAME_TX`, `ASYNC_NEW_TX`, `COMMIT_BEFORE_DISPATCH`),
-  `startNewTxOnDispatch`, `attachEntity`, `responseTimeoutMs`,
-  `calculationNodesTags` as a comma-separated string, `retryPolicy`,
+  `startNewTxOnDispatch` (on the processor, beside `executionMode`, as cyoda-go
+  0.9.0 reads it), `attachEntity`, `responseTimeoutMs`, `calculationNodesTags`
+  as a comma-separated string, `retryPolicy`, `idempotent` (cyoda-go 0.9.0),
   free-form string `context`, `asyncResult`, and `crossoverToAsyncMs`.
 - Arbitrary custom processor config JSON is intentionally not supported;
   unknown keys are stripped to match the documented contract.

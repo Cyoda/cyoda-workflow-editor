@@ -325,15 +325,15 @@ describe("processor modal round-trip fidelity (spec §4a)", () => {
   });
 
   it("preserves an explicit startNewTxOnDispatch: false instead of collapsing it to absent", () => {
-    // Same bug class as attachEntity, now that the field lives inside
-    // config (spec §4a / disagreement #3): an explicit `false` is a real,
-    // distinct value from absent and must survive an untouched Apply.
+    // Same bug class as attachEntity (spec §4a / disagreement #3): an
+    // explicit `false` is a real, distinct value from absent and must survive
+    // an untouched Apply.
     const { onDispatch, processorUuids } = renderTransitionForm([
       {
         type: "externalized",
         name: "notify",
         executionMode: "COMMIT_BEFORE_DISPATCH",
-        config: { startNewTxOnDispatch: false },
+        startNewTxOnDispatch: false,
       },
     ]);
 
@@ -345,7 +345,7 @@ describe("processor modal round-trip fidelity (spec §4a)", () => {
         type: "externalized",
         name: "notify",
         executionMode: "COMMIT_BEFORE_DISPATCH",
-        config: { startNewTxOnDispatch: false },
+        startNewTxOnDispatch: false,
       },
     });
   });
@@ -359,7 +359,7 @@ describe("processor modal round-trip fidelity (spec §4a)", () => {
         type: "externalized",
         name: "notify",
         executionMode: "SYNC",
-        config: { startNewTxOnDispatch: true },
+        startNewTxOnDispatch: true,
       },
     ]);
 
@@ -371,7 +371,7 @@ describe("processor modal round-trip fidelity (spec §4a)", () => {
         type: "externalized",
         name: "notify",
         executionMode: "SYNC",
-        config: { startNewTxOnDispatch: true },
+        startNewTxOnDispatch: true,
       },
     });
   });
@@ -401,11 +401,8 @@ describe("processor modal round-trip fidelity (spec §4a)", () => {
     });
   });
 
-  it("accepts a negative responseTimeoutMs instead of blocking Apply", () => {
-    // Verified against a live cyoda-go 0.8.3: responseTimeoutMs: -1 is
-    // accepted with a 200. The canonical schema was relaxed to any integer;
-    // the modal's own parseOptionalInteger must not re-impose the bound.
-    const { onDispatch, processorUuids } = renderTransitionForm([
+  it("blocks Apply for a negative responseTimeoutMs (cyoda-go 0.9.0 refuses it)", () => {
+    const { onDispatch } = renderTransitionForm([
       {
         type: "externalized",
         name: "notify",
@@ -415,19 +412,9 @@ describe("processor modal round-trip fidelity (spec §4a)", () => {
     ]);
 
     fireEvent.click(screen.getByTestId("processor-edit-0"));
-    expect(screen.queryByTestId("processor-modal-error")).toBeNull();
+    expect(screen.getByTestId("processor-modal-error").textContent).toMatch(/greater than or equal to 0/);
     fireEvent.click(screen.getByTestId("processor-modal-apply"));
-
-    expect(onDispatch).toHaveBeenCalledWith({
-      op: "updateProcessor",
-      processorUuid: processorUuids[0],
-      updates: {
-        type: "externalized",
-        name: "notify",
-        executionMode: "SYNC",
-        config: { responseTimeoutMs: -1 },
-      },
-    });
+    expect(onDispatch).not.toHaveBeenCalled();
   });
 
   it("does not fabricate an executionMode for a processor that had none", () => {
@@ -494,13 +481,13 @@ describe("processor modal with a non-canonical type (spec §1, task-4)", () => {
     expect(onDispatch).not.toHaveBeenCalled();
   });
 
-  it("shows a dispatch-specific warning for the reserved internalized type", () => {
+  it("names the reserved internalized type and says cyoda-go refuses it at import", () => {
     renderTransitionForm([{ type: "internalized", name: "p" }]);
 
     fireEvent.click(screen.getByTestId("processor-edit-0"));
-    expect(screen.getByTestId("processor-non-canonical-type-warning").textContent).toMatch(
-      /dispatch/i,
-    );
+    const text = screen.getByTestId("processor-non-canonical-type-warning").textContent ?? "";
+    expect(text).toMatch(/"internalized"/);
+    expect(text).toMatch(/refuses at import/);
   });
 
   it("treats an empty type as canonical and keeps the form editable", () => {

@@ -248,39 +248,42 @@ describe("0.8 dialect normalization (spec §2)", () => {
   });
 });
 
-describe("legacy processor-level startNewTxOnDispatch migration", () => {
-  const legacy = (extra: Record<string, unknown> = {}) => ({
+describe("legacy config-level startNewTxOnDispatch migration (0.8.3/0.8.4 → 0.9.0)", () => {
+  // cyoda-go 0.8.3/0.8.4 read `startNewTxOnDispatch` inside `config`, and this
+  // library wrote it there; 0.9.0 reads it on the processor, beside
+  // `executionMode`, and refuses it inside `config` as an unknown member.
+  const legacy = (config: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
     type: "externalized",
     name: "p",
     executionMode: "COMMIT_BEFORE_DISPATCH",
-    startNewTxOnDispatch: true,
+    config: { calculationNodesTags: "t", startNewTxOnDispatch: true, ...config },
     ...extra,
   });
 
-  test("relocates a legacy processor-level flag into config and round-trips it", () => {
-    // Every release of this library before 0.8.3 emitted `startNewTxOnDispatch`
-    // on the processor object. 0.8.3 hard-400s that shape, so without a
-    // migration these documents are broken against the server AND silently
-    // stripped here.
-    const parsed = parse({
-      name: "t", next: "A", manual: true,
-      processors: [legacy({ config: { calculationNodesTags: "t" } })],
-    });
+  test("relocates a legacy config-level flag onto the processor and round-trips it", () => {
+    const parsed = parse({ name: "t", next: "A", manual: true, processors: [legacy()] });
     expect(parsed.issues.filter((i) => i.severity === "error")).toEqual([]);
     const proc = parsed.document!.session.workflows[0]!.states["A"]!.transitions[0]!.processors![0]!;
-    expect(proc.config?.startNewTxOnDispatch).toBe(true);
-    expect(proc).not.toHaveProperty("startNewTxOnDispatch");
+    expect(proc.startNewTxOnDispatch).toBe(true);
+    expect(proc.config).not.toHaveProperty("startNewTxOnDispatch");
 
     const wire = JSON.parse(serializeImportPayload(parsed.document!));
     const wireProc = wire.workflows[0].states.A.transitions[0].processors[0];
-    expect(wireProc.config.startNewTxOnDispatch).toBe(true);
-    expect(wireProc).not.toHaveProperty("startNewTxOnDispatch");
+    expect(wireProc.startNewTxOnDispatch).toBe(true);
+    expect(wireProc.config).not.toHaveProperty("startNewTxOnDispatch");
+    // Emitted beside executionMode, where 0.9.0's export puts it.
+    expect(Object.keys(wireProc)).toEqual(["type", "name", "executionMode", "startNewTxOnDispatch", "config"]);
   });
 
-  test("creates config when the legacy document has none", () => {
-    const parsed = parse({ name: "t", next: "A", manual: true, processors: [legacy()] });
-    const proc = parsed.document!.session.workflows[0]!.states["A"]!.transitions[0]!.processors![0]!;
-    expect(proc.config?.startNewTxOnDispatch).toBe(true);
+  test("leaves no empty config behind when the flag was its only key", () => {
+    const parsed = parse({
+      name: "t", next: "A", manual: true,
+      processors: [{ type: "externalized", name: "p", executionMode: "COMMIT_BEFORE_DISPATCH", config: { startNewTxOnDispatch: true } }],
+    });
+    const wire = JSON.parse(serializeImportPayload(parsed.document!));
+    const wireProc = wire.workflows[0].states.A.transitions[0].processors[0];
+    expect(wireProc.startNewTxOnDispatch).toBe(true);
+    expect(wireProc).not.toHaveProperty("config");
   });
 
   test("relocates an explicit false as faithfully as a true", () => {
@@ -289,19 +292,20 @@ describe("legacy processor-level startNewTxOnDispatch migration", () => {
       processors: [legacy({ startNewTxOnDispatch: false })],
     });
     const proc = parsed.document!.session.workflows[0]!.states["A"]!.transitions[0]!.processors![0]!;
-    expect(proc.config?.startNewTxOnDispatch).toBe(false);
+    expect(proc.startNewTxOnDispatch).toBe(false);
   });
 
-  test("prefers the config value when both positions carry the key", () => {
+  test("prefers the processor-level value when both positions carry the key", () => {
     const parsed = parse({
       name: "t", next: "A", manual: true,
-      processors: [legacy({ config: { startNewTxOnDispatch: false } })],
+      processors: [legacy({ startNewTxOnDispatch: true }, { startNewTxOnDispatch: false })],
     });
     const proc = parsed.document!.session.workflows[0]!.states["A"]!.transitions[0]!.processors![0]!;
-    expect(proc.config?.startNewTxOnDispatch).toBe(false);
+    expect(proc.startNewTxOnDispatch).toBe(false);
+    expect(proc.config).not.toHaveProperty("startNewTxOnDispatch");
   });
 
-  test("does not report the migrated field as a dropped processor key", () => {
+  test("does not report the migrated field as a dropped config key", () => {
     const parsed = parse({ name: "t", next: "A", manual: true, processors: [legacy()] });
     expect(parsed.warnings ?? []).toEqual([]);
   });

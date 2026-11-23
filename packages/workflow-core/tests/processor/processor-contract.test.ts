@@ -49,13 +49,14 @@ describe("processor OpenAPI contract", () => {
           type: "externalized",
           name: "notify",
           executionMode: "ASYNC_NEW_TX",
+          startNewTxOnDispatch: true,
           config: {
             attachEntity: true,
             calculationNodesTags: "alpha,beta",
             context: "ctx",
             responseTimeoutMs: 2500,
             retryPolicy: "retry",
-            startNewTxOnDispatch: true,
+            idempotent: true,
             asyncResult: true,
             crossoverToAsyncMs: 500,
           },
@@ -71,8 +72,10 @@ describe("processor OpenAPI contract", () => {
       name: "notify",
       executionMode: "ASYNC_NEW_TX",
     });
-    expect(processor.config).toMatchObject({ startNewTxOnDispatch: true });
-    expect(processor).not.toHaveProperty("startNewTxOnDispatch");
+    // cyoda-go 0.9.0: processor-level, beside executionMode; refused in config.
+    expect(processor.startNewTxOnDispatch).toBe(true);
+    expect(processor.config).not.toHaveProperty("startNewTxOnDispatch");
+    expect(processor.config).toMatchObject({ idempotent: true });
   });
 
   test("missing processor type is normalized to externalized", () => {
@@ -136,7 +139,8 @@ describe("processor OpenAPI contract", () => {
           type: "externalized",
           name: "commit-proc",
           executionMode: "COMMIT_BEFORE_DISPATCH",
-          config: { calculationNodesTags: "probe", startNewTxOnDispatch: true },
+          startNewTxOnDispatch: true,
+          config: { calculationNodesTags: "probe" },
         },
       ]),
     );
@@ -150,7 +154,8 @@ describe("processor OpenAPI contract", () => {
           type: "externalized",
           name: "bad-proc",
           executionMode: "SYNC",
-          config: { calculationNodesTags: "probe", startNewTxOnDispatch: true },
+          startNewTxOnDispatch: true,
+          config: { calculationNodesTags: "probe" },
         },
       ]),
     );
@@ -166,7 +171,7 @@ describe("processor OpenAPI contract", () => {
     ).toBe("error");
   });
 
-  test("negative responseTimeoutMs parses cleanly; negative crossoverToAsyncMs is rejected", () => {
+  test("negative responseTimeoutMs parses but is a semantic error; negative crossoverToAsyncMs is rejected", () => {
     const responseTimeout = parseImportPayload(
       JSON.stringify(
         basePayload([
@@ -179,7 +184,11 @@ describe("processor OpenAPI contract", () => {
         ]),
       ),
     );
-    expect(responseTimeout.issues.some((issue) => issue.severity === "error")).toBe(false);
+    // The document still opens (no Zod bound), but cyoda-go 0.9.0 refuses it.
+    expect(responseTimeout.document).toBeDefined();
+    expect(
+      responseTimeout.issues.find((issue) => issue.code === "response-timeout-negative")?.severity,
+    ).toBe("error");
 
     const crossover = parseImportPayload(
       JSON.stringify(
@@ -196,7 +205,7 @@ describe("processor OpenAPI contract", () => {
     expect(crossover.issues.some((issue) => issue.severity === "error")).toBe(true);
   });
 
-  test("startNewTxOnDispatch round-trips inside config, not on the processor", () => {
+  test("startNewTxOnDispatch round-trips on the processor, not inside config", () => {
     const raw = JSON.stringify({
       importMode: "MERGE",
       workflows: [{
@@ -206,7 +215,8 @@ describe("processor OpenAPI contract", () => {
           processors: [{
             type: "externalized", name: "p",
             executionMode: "COMMIT_BEFORE_DISPATCH",
-            config: { calculationNodesTags: "t", startNewTxOnDispatch: true },
+            startNewTxOnDispatch: true,
+            config: { calculationNodesTags: "t" },
           }],
         }] } },
       }],
@@ -215,7 +225,7 @@ describe("processor OpenAPI contract", () => {
     expect(parsed.issues.filter((i) => i.severity === "error")).toEqual([]);
     const out = JSON.parse(serializeImportPayload(parsed.document!));
     const p = out.workflows[0].states.A.transitions[0].processors[0];
-    expect(p.config).toMatchObject({ startNewTxOnDispatch: true });
-    expect(p).not.toHaveProperty("startNewTxOnDispatch");
+    expect(p.startNewTxOnDispatch).toBe(true);
+    expect(p.config).not.toHaveProperty("startNewTxOnDispatch");
   });
 });

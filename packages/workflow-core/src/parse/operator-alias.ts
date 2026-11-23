@@ -11,6 +11,8 @@ const isObject = (v: unknown): v is UnknownRecord =>
  * If both are present and disagree, throw SchemaError.
  *
  * Only applies to criterion-shaped nodes (type: simple | lifecycle | array).
+ * On those typed leaves the third spelling cyoda-go accepts, `operator`, is
+ * folded in the same way.
  *
  * Array clauses additionally get `values` → `value`: cyoda-go reads the
  * positional list from `values` only (the OpenAPI's `value` is wrong), while
@@ -46,16 +48,12 @@ export function normalizeOperatorAlias(raw: unknown): unknown {
   const needsAlias =
     type === "simple" || type === "lifecycle" || type === "array" || type === undefined;
 
-  if (needsAlias && "operatorType" in result) {
-    const alias = result["operatorType"];
-    const existing = result["operation"];
-    if (existing !== undefined && existing !== alias) {
-      throw new SchemaError(
-        `Conflicting "operation" and "operatorType" values: ${JSON.stringify(existing)} vs ${JSON.stringify(alias)}`,
-      );
-    }
-    result["operation"] = existing ?? alias;
-    delete result["operatorType"];
+  if (needsAlias) aliasInto(result, "operatorType");
+  // cyoda-go also reads `operator` as a leaf condition's operator, and its
+  // export echoes whichever spelling was sent. Only on a typed leaf: on a
+  // `group` (and on an untyped node, which may be one) `operator` is AND/OR/NOT.
+  if (type === "simple" || type === "lifecycle" || type === "array") {
+    aliasInto(result, "operator");
   }
 
   if (type === "array" && "values" in result) {
@@ -70,4 +68,18 @@ export function normalizeOperatorAlias(raw: unknown): unknown {
     delete result["values"];
   }
   return result;
+}
+
+/** Fold the operator spelling `key` into `operation`; throw on a conflict. */
+function aliasInto(node: UnknownRecord, key: "operatorType" | "operator"): void {
+  if (!(key in node)) return;
+  const alias = node[key];
+  const existing = node["operation"];
+  if (existing !== undefined && existing !== alias) {
+    throw new SchemaError(
+      `Conflicting "operation" and "${key}" values: ${JSON.stringify(existing)} vs ${JSON.stringify(alias)}`,
+    );
+  }
+  node["operation"] = existing ?? alias;
+  delete node[key];
 }

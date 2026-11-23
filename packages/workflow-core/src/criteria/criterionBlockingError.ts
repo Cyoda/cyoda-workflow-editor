@@ -31,68 +31,111 @@ function likeBlockingError(operation: OperatorValue, value: unknown): string | n
 
 function rangeBlockingError(operation: OperatorValue, value: unknown): string | null {
   if (operation !== "BETWEEN" && operation !== "BETWEEN_INCLUSIVE") return null;
-  return Array.isArray(value) &&
-    value.length === 2 &&
-    formatScalar(value[0]).trim() !== "" &&
-    formatScalar(value[1]).trim() !== ""
-    ? null
-    : "BETWEEN requires both Low and High values.";
+  if (
+    !Array.isArray(value) ||
+    value.length !== 2 ||
+    formatScalar(value[0]).trim() === "" ||
+    formatScalar(value[1]).trim() === ""
+  ) {
+    return "BETWEEN requires both Low and High values.";
+  }
+  return value.some((b) => typeof b === "object")
+    ? "BETWEEN bounds must be scalars (string, number or boolean)."
+    : null;
+}
+
+/** cyoda-go 0.9.0: only BETWEEN takes an array, and no operator takes an object. */
+function operandShapeBlockingError(operation: OperatorValue, value: unknown): string | null {
+  if (shapeOf(operation) !== "scalar") return null;
+  if (Array.isArray(value)) {
+    return `${operation} takes a single value, not a list; only BETWEEN takes a [low, high] pair.`;
+  }
+  return value !== null && typeof value === "object"
+    ? "Value must be a string, number or boolean, not an object."
+    : null;
+}
+
+function leafBlockingError(operation: OperatorValue, value: unknown): string | null {
+  if (
+    shapeOf(operation) === "scalar" &&
+    (value === undefined || formatScalar(value).trim() === "")
+  ) {
+    return "Value is required.";
+  }
+  return (
+    operandShapeBlockingError(operation, value) ??
+    likeBlockingError(operation, value) ??
+    rangeBlockingError(operation, value)
+  );
+}
+
+function arrayBlockingError(
+  jsonPath: string,
+  operation: OperatorValue,
+  values: readonly unknown[],
+): string | null {
+  if (!jsonPath.endsWith("[*]")) {
+    return "Array criterion path must end in [*] (it addresses the array's elements).";
+  }
+  if (jsonPath.slice(0, -3).includes("[*]")) {
+    return "Array criterion path has a wildcard before its trailing [*]; index the outer array instead (e.g. $.orders[0].lines[*]).";
+  }
+  if (!values.some((v) => v !== null)) {
+    return "Array criterion must test at least one position: give at least one non-null value.";
+  }
+  if (shapeOf(operation) === "range") {
+    const ok = values.every(
+      (v) =>
+        v === null ||
+        (Array.isArray(v) && v.length === 2 && v.every((b) => b !== null && typeof b !== "object")),
+    );
+    return ok ? null : `${operation} needs each tested position to be a [low, high] pair of two scalars.`;
+  }
+  return values.some((v) => v !== null && typeof v === "object")
+    ? `${operation} takes a single value per position; only BETWEEN takes a [low, high] pair.`
+    : null;
 }
 
 /**
  * First human-readable reason this criterion may not be committed, or null if
  * it is committable. Recurses into `group.conditions` and `function.criterion`.
- * Mirrors the rules the old structured builder enforced; the JSON schema stays
- * deliberately permissive (issue #22), so this is where strictness lives.
+ * Mirrors the rules the old structured builder enforced plus the criterion
+ * checks cyoda-go 0.9.0 applies at import; the JSON schema stays deliberately
+ * permissive (issue #22), so this is where strictness lives.
  */
 export function criterionBlockingError(criterion: Criterion): string | null {
+  return blockingError(criterion, false);
+}
+
+function blockingError(criterion: Criterion, inPreCheck: boolean): string | null {
   switch (criterion.type) {
-    case "simple": {
-      const pathError = jsonPathBlockingError(criterion.jsonPath);
-      if (pathError) return pathError;
-      if (
-        shapeOf(criterion.operation) === "scalar" &&
-        (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
-      ) {
-        return "Value is required.";
-      }
+    case "simple":
       return (
-        likeBlockingError(criterion.operation, criterion.value) ??
-        rangeBlockingError(criterion.operation, criterion.value)
+        jsonPathBlockingError(criterion.jsonPath) ??
+        leafBlockingError(criterion.operation, criterion.value)
       );
-    }
     case "array":
       return (
         jsonPathBlockingError(criterion.jsonPath) ??
-        (criterion.jsonPath.endsWith("[*]")
-          ? null
-          : "Array criterion path must end in [*] (it addresses the array's elements).")
+        arrayBlockingError(criterion.jsonPath, criterion.operation, criterion.value)
       );
     case "lifecycle":
       if (!NAME_REGEX.test(criterion.field)) return null;
-      if (
-        shapeOf(criterion.operation) === "scalar" &&
-        (criterion.value === undefined || formatScalar(criterion.value).trim() === "")
-      ) {
-        return "Value is required.";
-      }
-      return (
-        likeBlockingError(criterion.operation, criterion.value) ??
-        rangeBlockingError(criterion.operation, criterion.value)
-      );
+      return leafBlockingError(criterion.operation, criterion.value);
     case "function":
+      if (inPreCheck) {
+        return "A pre-check holds only local conditions; move this function condition out of it.";
+      }
       if (!criterion.function.name || !NAME_REGEX.test(criterion.function.name)) {
         return "Function name is invalid.";
       }
-      return criterion.function.criterion
-        ? criterionBlockingError(criterion.function.criterion)
-        : null;
+      return criterion.function.criterion ? blockingError(criterion.function.criterion, true) : null;
     case "group":
       if (criterion.operator === "NOT" && criterion.conditions.length !== 1) {
         return "NOT takes exactly one condition; nest an AND/OR group to negate several.";
       }
       for (const child of criterion.conditions) {
-        const childError = criterionBlockingError(child);
+        const childError = blockingError(child, inPreCheck);
         if (childError) return childError;
       }
       return null;

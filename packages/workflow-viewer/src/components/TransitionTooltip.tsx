@@ -158,7 +158,7 @@ function ProcessorView({ processor }: { processor: Processor }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <code style={{ fontSize: 11, fontWeight: 600 }}>{processor.name}</code>
         {mode !== "ASYNC_NEW_TX" && <Chip color="blue">{mode.replace(/_/g, " ")}</Chip>}
-        {processor.config?.startNewTxOnDispatch === true && <Chip color="green">NEW TX</Chip>}
+        {processor.startNewTxOnDispatch === true && <Chip color="green">NEW TX</Chip>}
         {processor.config?.calculationNodesTags && (
           <Chip color="slate">{processor.config.calculationNodesTags}</Chip>
         )}

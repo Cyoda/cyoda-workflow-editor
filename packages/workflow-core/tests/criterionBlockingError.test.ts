@@ -55,10 +55,45 @@ describe("criterionBlockingError", () => {
   });
 
   it("validates jsonPath and the trailing [*] for array criteria", () => {
-    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags[*]", value: [] })).toBeNull();
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags[*]", operation: "EQUALS", value: ["a", null] })).toBeNull();
     expect(criterionBlockingError({ type: "array", jsonPath: "", operation: "CONTAINS", value: [] })).toBe("Choose a field for this condition.");
-    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags", value: ["a"] })).toMatch(/must end in \[\*\]/);
-    expect(criterionBlockingError({ type: "array", jsonPath: "$.items[*].sku", value: ["a"] })).toMatch(/must end in \[\*\]/);
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags", operation: "EQUALS", value: ["a"] })).toMatch(/must end in \[\*\]/);
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.items[*].sku", operation: "EQUALS", value: ["a"] })).toMatch(/must end in \[\*\]/);
+  });
+
+  it("blocks an array criterion that tests no position, or has an inner wildcard (cyoda-go 0.9.0)", () => {
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags[*]", operation: "EQUALS", value: [] })).toMatch(/at least one position/);
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.tags[*]", operation: "EQUALS", value: [null, null] })).toMatch(/at least one position/);
+    expect(criterionBlockingError({ type: "array", jsonPath: "$.x[*].y[*]", operation: "EQUALS", value: ["a"] })).toMatch(/wildcard before/);
+  });
+
+  it("blocks an array or object operand outside BETWEEN, and non-scalar BETWEEN bounds", () => {
+    expect(criterionBlockingError({ type: "simple", jsonPath: "$.a", operation: "EQUALS", value: ["a", "b"] })).toMatch(/single value/);
+    expect(criterionBlockingError({ type: "lifecycle", field: "state", operation: "EQUALS", value: ["A"] })).toMatch(/single value/);
+    expect(criterionBlockingError({ type: "simple", jsonPath: "$.a", operation: "EQUALS", value: { a: 1 } })).toMatch(/not an object/);
+    expect(criterionBlockingError({ type: "simple", jsonPath: "$.a", operation: "BETWEEN", value: [1, { a: 1 }] })).toMatch(/scalars/);
+    expect(criterionBlockingError({ type: "simple", jsonPath: "$.a", operation: "BETWEEN", value: [1, 5] })).toBeNull();
+  });
+
+  it("checks [low, high] pair entries of an array clause against its operator", () => {
+    const arr = (operation: string, value: unknown[]): Criterion =>
+      ({ type: "array", jsonPath: "$.s[*]", operation, value }) as Criterion;
+    expect(criterionBlockingError(arr("BETWEEN", [[1, 2], null]))).toBeNull();
+    expect(criterionBlockingError(arr("BETWEEN", [5]))).toMatch(/\[low, high\] pair/);
+    expect(criterionBlockingError(arr("BETWEEN", [[1, null]]))).toMatch(/\[low, high\] pair/);
+    expect(criterionBlockingError(arr("EQUALS", [[1, 2]]))).toMatch(/single value/);
+  });
+
+  it("blocks a function condition inside a pre-check, but not inside a group", () => {
+    const fn: Criterion = { type: "function", function: { name: "inner" } };
+    expect(criterionBlockingError({ type: "function", function: { name: "outer", criterion: fn } })).toMatch(/pre-check/);
+    expect(
+      criterionBlockingError({
+        type: "function",
+        function: { name: "outer", criterion: { type: "group", operator: "AND", conditions: [fn] } },
+      }),
+    ).toMatch(/pre-check/);
+    expect(criterionBlockingError({ type: "group", operator: "AND", conditions: [fn] })).toBeNull();
   });
 
   it("blocks a NOT group without exactly one condition", () => {

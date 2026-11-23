@@ -27,8 +27,26 @@ import { isValidName, walkCriteria } from "./helpers.js";
 
 const LIFECYCLE_FIELDS: ReadonlySet<string> = new Set(LIFECYCLE_FIELD_LIST);
 
-/** Processor config `retryPolicy` values cyoda-go accepts; anything else is a hard 400. */
+/**
+ * `retryPolicy` values cyoda-go accepts on a processor, a criterion function
+ * and (since 0.9.0) a schedule function; anything else is a hard 400.
+ */
 const RETRY_POLICIES = new Set(["NONE", "FIXED", ""]);
+
+/**
+ * cyoda-go 0.9.0's default `CYODA_CALLOUT_RESPONSE_TIMEOUT_MAX_MS`. Import
+ * refuses a `responseTimeoutMs` above the server's setting; the setting is per
+ * deployment, so exceeding the default is a warning, not an error.
+ */
+export const CALLOUT_RESPONSE_TIMEOUT_DEFAULT_MAX_MS = 60_000;
+
+/**
+ * cyoda-go 0.9.0 refuses a criterion that tests more than this many entries:
+ * an array clause counts one per entry in its values (nulls included), a
+ * function condition one plus its pre-check, every other leaf one; groups
+ * count nothing themselves.
+ */
+export const MAX_CRITERION_ENTRIES = 10_000;
 
 export const ANNOTATIONS_MAX_BYTES = 64 * 1024;
 
@@ -48,14 +66,177 @@ function append(into: ValidationIssue[], more: readonly ValidationIssue[]): void
 }
 
 /**
+ * The `retryPolicy` / `responseTimeoutMs` checks cyoda-go 0.9.0 applies at
+ * import to every callout: a processor's `config`, a criterion function's
+ * `config` and a `schedule.function`. `subject` names the callout in messages.
+ */
+function calloutConfigIssues(
+  subject: string,
+  retryPolicy: string | undefined,
+  responseTimeoutMs: number | undefined,
+  target: { targetId?: string } = {},
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  if (retryPolicy !== undefined && !RETRY_POLICIES.has(retryPolicy)) {
+    issues.push({
+      severity: "error",
+      code: "unknown-retry-policy",
+      message: `${subject}: unknown retryPolicy "${retryPolicy}" (allowed: NONE, FIXED, or empty).`,
+      ...target,
+    });
+  }
+  if (responseTimeoutMs !== undefined) {
+    if (responseTimeoutMs < 0) {
+      issues.push({
+        severity: "error",
+        code: "response-timeout-negative",
+        message: `${subject}: responseTimeoutMs must not be negative (got ${responseTimeoutMs}); cyoda-go refuses it at import.`,
+        ...target,
+      });
+    } else if (responseTimeoutMs > CALLOUT_RESPONSE_TIMEOUT_DEFAULT_MAX_MS) {
+      issues.push({
+        severity: "warning",
+        code: "response-timeout-above-default-max",
+        message: `${subject}: responseTimeoutMs ${responseTimeoutMs} exceeds cyoda-go's default upper bound of ${CALLOUT_RESPONSE_TIMEOUT_DEFAULT_MAX_MS} ms; import is refused unless the server's CYODA_CALLOUT_RESPONSE_TIMEOUT_MAX_MS is raised to at least this value.`,
+        detail: { responseTimeoutMs, defaultMax: CALLOUT_RESPONSE_TIMEOUT_DEFAULT_MAX_MS },
+        ...target,
+      });
+    }
+  }
+  return issues;
+}
+
+/**
+ * Entry checks cyoda-go 0.9.0 applies to an `array` clause's `values`: an
+ * object is never an operand; under `BETWEEN` / `BETWEEN_INCLUSIVE` each
+ * tested (non-null) position is a `[low, high]` pair of non-null scalars, and
+ * under any other operator it is a single scalar. One issue per clause.
+ */
+function arrayEntryIssues(
+  operation: string,
+  values: readonly unknown[],
+  where: CriterionLoc,
+): ValidationIssue[] {
+  const at = `(at ${describe(where)})`;
+  if (values.some((v) => v !== null && typeof v === "object" && !Array.isArray(v))) {
+    return [
+      {
+        severity: "error",
+        code: "array-non-scalar-value",
+        message: `Array criterion value contains an object; each entry must be a scalar, null, or (under BETWEEN) a [low, high] pair ${at}.`,
+      },
+    ];
+  }
+  if (!OPERATOR_TYPES.has(operation as OperatorType)) return [];
+  if (UNSUPPORTED_OPERATORS.has(operation as OperatorType)) return [];
+  const isRange = operation === "BETWEEN" || operation === "BETWEEN_INCLUSIVE";
+  if (isRange) {
+    const bad = values.find(
+      (v) =>
+        v !== null &&
+        (!Array.isArray(v) || v.length !== 2 || v.some((b) => b === null || typeof b === "object")),
+    );
+    return bad === undefined
+      ? []
+      : [
+          {
+            severity: "error",
+            code: "simple-between-shape",
+            message: `Operator "${operation}" on an array criterion needs each tested position to be a [low, high] pair of two non-null scalars; got ${JSON.stringify(bad)} ${at}.`,
+            detail: { operation },
+          },
+        ];
+  }
+  return values.some((v) => Array.isArray(v))
+    ? [
+        {
+          severity: "error",
+          code: "operand-not-scalar",
+          message: `Operator "${operation}" takes a single value per position, not an array; only BETWEEN and BETWEEN_INCLUSIVE take a [low, high] pair ${at}.`,
+          detail: { operation },
+        },
+      ]
+    : [];
+}
+
+/**
+ * Operand checks cyoda-go 0.9.0 applies at import to a `simple` or
+ * `lifecycle` leaf (in a criterion and in a pre-check alike). Skipped for an
+ * operator outside the editor's catalogue or one cyoda-go does not implement
+ * (`IS_CHANGED` / `IS_UNCHANGED`, which take no operand) — the operator itself
+ * is already reported.
+ */
+function operandIssues(operation: string, value: unknown, where: CriterionLoc): ValidationIssue[] {
+  if (!OPERATOR_TYPES.has(operation as OperatorType)) return [];
+  if (UNSUPPORTED_OPERATORS.has(operation as OperatorType)) return [];
+  if (operation === "IS_NULL" || operation === "NOT_NULL") return [];
+  const at = `(at ${describe(where)})`;
+  if (value === undefined || value === null) {
+    return [
+      {
+        severity: "error",
+        code: "operand-missing",
+        message: `Operator "${operation}" takes an operand, and value is missing or null; only IS_NULL and NOT_NULL take none ${at}.`,
+        detail: { operation },
+      },
+    ];
+  }
+  if (operation === "BETWEEN" || operation === "BETWEEN_INCLUSIVE") {
+    if (!Array.isArray(value) || value.length !== 2) {
+      return [
+        {
+          severity: "error",
+          code: "simple-between-shape",
+          message: `Operator "${operation}" requires a two-element [low, high] array value ${at}.`,
+          detail: { operation },
+        },
+      ];
+    }
+    if (value.some((b) => b === null || typeof b === "object")) {
+      return [
+        {
+          severity: "error",
+          code: "simple-between-shape",
+          message: `Operator "${operation}" bounds must be two non-null scalars (string, number or boolean) ${at}.`,
+          detail: { operation },
+        },
+      ];
+    }
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return [
+      {
+        severity: "error",
+        code: "operand-not-scalar",
+        message: `Operator "${operation}" takes a single value, not an array; only BETWEEN and BETWEEN_INCLUSIVE take a [low, high] pair ${at}.`,
+        detail: { operation },
+      },
+    ];
+  }
+  if (typeof value === "object") {
+    return [
+      {
+        severity: "error",
+        code: "operand-not-scalar",
+        message: `Operator "${operation}" operand is an object; an operand must be a string, number or boolean ${at}.`,
+        detail: { operation },
+      },
+    ];
+  }
+  return [];
+}
+
+/**
  * Operator warnings for a criterion's `operation` (issue #22).
  * - Unknown operator (outside the editor's known catalogue): non-blocking
  *   `operator-not-recognized` — preserved for round-trip, can't be validated.
  * - Known but not implemented by cyoda-go (`IS_CHANGED` / `IS_UNCHANGED`):
  *   `unsupported-operator`.
- * cyoda-go 0.8.4 rejects both at import (`unknown operatorType`), but Cyoda
- * Cloud's operator set is wider, so these stay warnings (backend-conditional —
- * see docs/validation-rules.md) and imports always round-trip.
+ * cyoda-go rejects both at import (`unknown operatorType`; its 0.9.0 OpenAPI
+ * lists only the 26 operators it implements), but Cyoda Cloud's operator set
+ * is wider, so these stay warnings (backend-conditional — see
+ * docs/validation-rules.md) and imports always round-trip.
  */
 function operatorWarnings(operation: string, where: CriterionLoc): ValidationIssue[] {
   if (!OPERATOR_TYPES.has(operation as OperatorType)) {
@@ -400,10 +581,7 @@ function validateWorkflow(
             });
           }
           issues.push(...nameLengthIssues(p.name, `Processor name "${p.name}"`));
-          if (
-            p.config?.startNewTxOnDispatch === true &&
-            p.executionMode !== "COMMIT_BEFORE_DISPATCH"
-          ) {
+          if (p.startNewTxOnDispatch === true && p.executionMode !== "COMMIT_BEFORE_DISPATCH") {
             issues.push({
               severity: "error",
               code: "start-new-tx-without-commit-before-dispatch",
@@ -411,14 +589,16 @@ function validateWorkflow(
               ...transitionTargetId(doc, wf.name, stateCode, index),
             });
           }
-          if (p.config?.retryPolicy !== undefined && !RETRY_POLICIES.has(p.config.retryPolicy)) {
-            issues.push({
-              severity: "error",
-              code: "unknown-retry-policy",
-              message: `Processor "${p.name}": unknown retryPolicy "${p.config.retryPolicy}" (allowed: NONE, FIXED, or empty).`,
-              ...transitionTargetId(doc, wf.name, stateCode, index),
-            });
-          }
+          const target = transitionTargetId(doc, wf.name, stateCode, index);
+          append(
+            issues,
+            calloutConfigIssues(
+              `Processor "${p.name}"`,
+              p.config?.retryPolicy,
+              p.config?.responseTimeoutMs,
+              target,
+            ),
+          );
           if (p.config?.asyncResult === true) {
             issues.push({
               severity: "warning",
@@ -437,16 +617,16 @@ function validateWorkflow(
           }
           if (p.type === "internalized") {
             issues.push({
-              severity: "warning",
+              severity: "error",
               code: "processor-type-internalized",
-              message: `Processor "${p.name}" uses the reserved type "internalized". cyoda-go accepts it at import but rejects it at dispatch with WORKFLOW_FAILED, so any transition firing this processor will fail at runtime.`,
+              message: `Processor "${p.name}" uses the reserved type "internalized", which cyoda-go refuses at import. Set the type to "externalized" (or leave it empty).`,
               ...transitionTargetId(doc, wf.name, stateCode, index),
             });
           } else if (p.type !== "externalized" && p.type !== "") {
             issues.push({
-              severity: "warning",
+              severity: "error",
               code: "processor-type-non-canonical",
-              message: `Processor "${p.name}" has a non-canonical type "${p.type}". cyoda-go accepts it today and treats it as externalized, but this permissiveness is documented as narrowing in a future release.`,
+              message: `Processor "${p.name}" has type "${p.type}"; cyoda-go refuses any type other than "externalized" (or empty) at import.`,
               ...transitionTargetId(doc, wf.name, stateCode, index),
             });
           }
@@ -479,18 +659,23 @@ function validateWorkflow(
         // model, which can arrive via `applyPatch` (a `Partial<Transition>`
         // that bypasses Zod) as well as the parse path, so it can't assume
         // Zod already ruled out `null`/missing string fields — nor that the
-        // dialect's `delayMs <= 0` drop has run. cyoda-go's own presence test
-        // is `> 0`, so a `delayMs: 0` reaching here via applyPatch is zero
-        // modes to the server and must be zero modes here too.
-        const modes = [
-          typeof t.schedule.delayMs === "number" && t.schedule.delayMs > 0,
-          t.schedule.function !== undefined && t.schedule.function !== null,
-        ].filter(Boolean).length;
-        if (modes !== 1) {
+        // dialect's `delayMs <= 0` drop has run. Mirrors cyoda-go 0.9.0:
+        // any `delayMs` beside a `function` is refused, whatever its value;
+        // on its own, a `delayMs <= 0` is no static delay.
+        const hasFunction = t.schedule.function !== undefined && t.schedule.function !== null;
+        const delay = t.schedule.delayMs;
+        if (hasFunction && typeof delay === "number") {
+          issues.push({
+            severity: "error",
+            code: "schedule-delay-with-function",
+            message: `Transition "${t.name}": schedule.delayMs and schedule.function are mutually exclusive; remove delayMs (cyoda-go refuses it beside a function whatever its value, 0 included).`,
+            ...transitionTargetId(doc, wf.name, stateCode, index),
+          });
+        } else if (!hasFunction && !(typeof delay === "number" && delay > 0)) {
           issues.push({
             severity: "error",
             code: "schedule-mode-required",
-            message: `Transition "${t.name}": exactly one of schedule.delayMs or schedule.function is required.`,
+            message: `Transition "${t.name}": exactly one of schedule.delayMs (at least 1) or schedule.function is required.`,
             ...transitionTargetId(doc, wf.name, stateCode, index),
           });
         }
@@ -514,11 +699,22 @@ function validateWorkflow(
             ...transitionTargetId(doc, wf.name, stateCode, index),
           });
         }
+        if (fn) {
+          append(
+            issues,
+            calloutConfigIssues(
+              `Transition "${t.name}" schedule.function`,
+              fn.retryPolicy,
+              fn.responseTimeoutMs,
+              transitionTargetId(doc, wf.name, stateCode, index),
+            ),
+          );
+        }
         if (t.schedule.timeoutMs !== undefined && t.schedule.timeoutMs < 0) {
           issues.push({
-            severity: "warning",
+            severity: "error",
             code: "schedule-timeout-negative",
-            message: `Transition "${t.name}": a negative timeoutMs behaves like 0 (drop on any lateness).`,
+            message: `Transition "${t.name}": schedule.timeoutMs must not be negative (got ${t.schedule.timeoutMs}); cyoda-go refuses it at import. Use 0 to drop the run on any lateness.`,
             ...transitionTargetId(doc, wf.name, stateCode, index),
           });
         }
@@ -592,16 +788,24 @@ function validateWorkflow(
 
 function criterionRules(session: WorkflowSession): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  for (const { criterion, where, parent } of walkCriteria(session)) {
+  for (const { criterion, where, inPreCheck } of walkCriteria(session)) {
     switch (criterion.type) {
       case "function":
-        if (parent?.type === "group") {
+        if (inPreCheck) {
           issues.push({
-            severity: "warning",
-            code: "function-criterion-in-group",
-            message: `Function criterion "${criterion.function.name}" is nested inside a group; cyoda-go requires a function criterion to be the whole criterion and fails the evaluation otherwise (at ${describe(where)}).`,
+            severity: "error",
+            code: "precheck-function",
+            message: `Function criterion "${criterion.function.name}" sits inside another function condition's pre-check; a pre-check holds only local conditions (simple, lifecycle, array and groups of those) (at ${describe(where)}).`,
           });
         }
+        append(
+          issues,
+          calloutConfigIssues(
+            `Function criterion "${criterion.function.name}" (at ${describe(where)})`,
+            criterion.function.config?.retryPolicy,
+            criterion.function.config?.responseTimeoutMs,
+          ),
+        );
         if (!criterion.function.name || criterion.function.name.length === 0) {
           issues.push({
             severity: "error",
@@ -640,19 +844,28 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
             detail: { jsonPath: criterion.jsonPath },
           });
         }
-        for (const v of criterion.value) {
-          if (v !== null && typeof v === "object") {
-            issues.push({
-              severity: "error",
-              code: "array-non-scalar-value",
-              message: `Array criterion value contains an object or array; each entry must be a scalar or null (at ${describe(where)}).`,
-            });
-            break;
-          }
+        if (
+          arrPathCheck.ok &&
+          criterion.jsonPath.endsWith("[*]") &&
+          criterion.jsonPath.slice(0, -3).includes("[*]")
+        ) {
+          issues.push({
+            severity: "error",
+            code: "array-path-inner-wildcard",
+            message: `Array criterion jsonPath "${criterion.jsonPath}" has a wildcard before its trailing [*]; an array clause tests the positions of one array — index the outer array instead, e.g. "$.orders[0].lines[*]" (at ${describe(where)}).`,
+            detail: { jsonPath: criterion.jsonPath },
+          });
         }
-        if (criterion.operation !== undefined) {
-          issues.push(...operatorWarnings(criterion.operation, where));
+        append(issues, arrayEntryIssues(criterion.operation, criterion.value, where));
+        if (criterion.value.every((v) => v === null)) {
+          issues.push({
+            severity: "error",
+            code: "array-no-position",
+            message: `Array criterion on "${criterion.jsonPath}" tests no position: values must hold at least one non-null entry (at ${describe(where)}).`,
+            detail: { jsonPath: criterion.jsonPath },
+          });
         }
+        issues.push(...operatorWarnings(criterion.operation, where));
         break;
       }
       case "lifecycle":
@@ -665,6 +878,7 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
         }
         issues.push(...operatorWarnings(criterion.operation, where));
         issues.push(...patternIssues(criterion.operation, criterion.value, where));
+        issues.push(...operandIssues(criterion.operation, criterion.value, where));
         if (TEMPORAL_LIFECYCLE_FIELDS.has(criterion.field)) {
           if (!TEMPORAL_OPERATORS.has(criterion.operation as OperatorType)) {
             // Warning, not error: cyoda-go rejects it at import, but a pushdown
@@ -723,17 +937,7 @@ function criterionRules(session: WorkflowSession): ValidationIssue[] {
 
         issues.push(...operatorWarnings(criterion.operation, where));
         issues.push(...patternIssues(criterion.operation, criterion.value, where));
-
-        if (criterion.operation === "BETWEEN" || criterion.operation === "BETWEEN_INCLUSIVE") {
-          if (!Array.isArray(criterion.value) || criterion.value.length !== 2) {
-            issues.push({
-              severity: "error",
-              code: "simple-between-shape",
-              message: `Operator "${criterion.operation}" requires a two-element [low, high] array value (at ${describe(where)}).`,
-              detail: { operation: criterion.operation },
-            });
-          }
-        }
+        issues.push(...operandIssues(criterion.operation, criterion.value, where));
 
         break;
       }
@@ -746,22 +950,23 @@ function criterionDepthRules(session: WorkflowSession): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   for (const wf of session.workflows) {
     if (wf.criterion) {
-      pushDepthIssue(issues, criterionMaxDepth(wf.criterion), {
-        kind: "workflow",
-        workflow: wf.name,
-      });
+      const where: CriterionLoc = { kind: "workflow", workflow: wf.name };
+      pushDepthIssue(issues, criterionMaxDepth(wf.criterion), where);
+      pushEntryIssue(issues, criterionEntryCount(wf.criterion), where);
     }
     for (const [stateCode, state] of Object.entries(wf.states)) {
       for (let i = 0; i < state.transitions.length; i++) {
         const t = state.transitions[i]!;
         if (!t.criterion) continue;
-        pushDepthIssue(issues, criterionMaxDepth(t.criterion), {
+        const where: CriterionLoc = {
           kind: "transition",
           workflow: wf.name,
           state: stateCode,
           transitionIndex: i,
           transitionName: t.name,
-        });
+        };
+        pushDepthIssue(issues, criterionMaxDepth(t.criterion), where);
+        pushEntryIssue(issues, criterionEntryCount(t.criterion), where);
       }
     }
   }
@@ -789,6 +994,41 @@ function pushDepthIssue(
       detail: { maxDepth, threshold: CRITERION_DEPTH_WARNING_THRESHOLD },
     });
   }
+}
+
+function pushEntryIssue(issues: ValidationIssue[], entries: number, where: CriterionLoc): void {
+  if (entries > MAX_CRITERION_ENTRIES) {
+    issues.push({
+      severity: "error",
+      code: "criterion-entry-limit",
+      message: `Criterion tests ${entries} entries; cyoda-go's limit is ${MAX_CRITERION_ENTRIES} (an array clause counts one per entry in its values, a function condition one plus its pre-check, every other condition one) (at ${describe(where)}).`,
+      detail: { entries, limit: MAX_CRITERION_ENTRIES },
+    });
+  }
+}
+
+/** The entry count cyoda-go 0.9.0 holds a criterion to — see MAX_CRITERION_ENTRIES. */
+function criterionEntryCount(root: Criterion): number {
+  const stack: Criterion[] = [root];
+  let count = 0;
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    switch (node.type) {
+      case "group":
+        for (const child of node.conditions) stack.push(child);
+        break;
+      case "array":
+        count += node.value.length;
+        break;
+      case "function":
+        count += 1;
+        if (node.function.criterion) stack.push(node.function.criterion);
+        break;
+      default:
+        count += 1;
+    }
+  }
+  return count;
 }
 
 function criterionMaxDepth(root: Criterion): number {

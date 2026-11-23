@@ -44,6 +44,8 @@ export interface ScheduleFunction {
   attachEntity?: boolean;
   context?: string;
   responseTimeoutMs?: number;
+  /** `NONE` / `FIXED` / empty (cyoda-go 0.9.0, schema 1.5). */
+  retryPolicy?: string;
 }
 
 /**
@@ -51,10 +53,10 @@ export interface ScheduleFunction {
  * present — enforced by a Zod refine and mirrored by the `schedule-mode-required`
  * semantic rule.
  *
- * `delayMs` is optional because cyoda-go's presence test is `> 0`, not "key
- * exists": the server treats any `delayMs <= 0` as absent, and its own export
- * emits `delayMs: 0` alongside `function`. The dialect strips those before the
- * schema sees them.
+ * cyoda-go 0.9.0 refuses `delayMs` beside `function` whatever its value, and
+ * `delayMs < 1` on its own. The v0.8.3/0.8.4 exporters wrote `delayMs: 0`
+ * beside every `function`; the dialect drops any `delayMs <= 0` on parse so
+ * those exports open and re-save cleanly.
  */
 export interface TransitionSchedule {
   delayMs?: number;

@@ -41,23 +41,23 @@ function nonInfo(criterion: Criterion) {
 }
 
 describe("array criteria", () => {
-  test("a trailing [*] path with no operator and null/number entries is clean", () => {
+  test("a trailing [*] path with null/number entries is clean", () => {
     expect(
-      nonInfo({ type: "array", jsonPath: "$.tags[*]", value: ["a", null, 1, true] }),
+      nonInfo({ type: "array", jsonPath: "$.tags[*]", operation: "EQUALS", value: ["a", null, 1, true] }),
     ).toEqual([]);
   });
 
   test.each(["$.tags", "$.tags[0]", "$.items[*].sku"])(
     "%s → array-path-not-wildcard error",
     (jsonPath) => {
-      expect(issue({ type: "array", jsonPath, value: ["a"] }, "array-path-not-wildcard")?.severity).toBe(
+      expect(issue({ type: "array", jsonPath, operation: "EQUALS", value: ["a"] }, "array-path-not-wildcard")?.severity).toBe(
         "error",
       );
     },
   );
 
   test("an object entry → array-non-scalar-value error", () => {
-    const c = { type: "array", jsonPath: "$.tags[*]", value: [{ a: 1 }] } as unknown as Criterion;
+    const c = { type: "array", jsonPath: "$.tags[*]", operation: "EQUALS", value: [{ a: 1 }] } as unknown as Criterion;
     expect(issue(c, "array-non-scalar-value")?.severity).toBe("error");
   });
 });
@@ -137,22 +137,19 @@ describe("pattern operands", () => {
 });
 
 describe("function criteria", () => {
-  test("a function nested in a group → function-criterion-in-group warning", () => {
-    const found = issue(
-      {
+  // cyoda-go 0.9.0 evaluates function conditions inside AND/OR/NOT groups (in
+  // 0.8.4 they imported and then failed every evaluation), so the former
+  // `function-criterion-in-group` warning is gone.
+  test("a function nested in a group raises no criterion warning or error", () => {
+    // Only the schema-tag floor fires: the session is tagged 1.4, and a
+    // function condition inside a group is a 1.5 feature.
+    expect(
+      nonInfo({
         type: "group",
         operator: "AND",
         conditions: [{ type: "function", function: { name: "f", config: { calculationNodesTags: "t" } } }],
-      },
-      "function-criterion-in-group",
-    );
-    expect(found?.severity).toBe("warning");
-  });
-
-  test("a root function criterion is not flagged", () => {
-    expect(
-      issue({ type: "function", function: { name: "f" } }, "function-criterion-in-group"),
-    ).toBeUndefined();
+      }).map((i) => i.code),
+    ).toEqual(["workflow-schema-version-below-features"]);
   });
 });
 

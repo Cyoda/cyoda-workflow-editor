@@ -6,7 +6,7 @@ import type { CyodaSchemaVersion } from "./version.js";
  *
  * - `value` is the canonical raw value handed to the Zod schema.
  * - `warnings` are human-readable notes about lossy or dropped content (e.g.
- *   `processor-config-keys-dropped:<name>:<keys>` when the 0.8 dialect strips
+ *   `processor-config-keys-dropped:<name>:<keys>` when the 0.9 dialect strips
  *   a processor-config key cyoda-go doesn't recognise, or
  *   `processor-keys-dropped:<name>:<keys>` for the same at processor level).
  *   Empty when none.
@@ -27,15 +27,14 @@ export interface ToCanonicalResult {
  * - `workflowsToWire` renders canonical workflows into the plain objects this
  *   cyoda-go version expects on the wire (consumed by the serializer).
  *
- * The shipped 0.8 dialect composes the `normalizeOperatorAlias` /
- * `coerceCanonicalDefaults` / `outputWorkflow` helpers and adds
- * `transitions[].schedule` plus a strict output allowlist. (The 0.7 dialect
- * these helpers originated in was removed in the 0.8.3 release — see
- * `ai/cyoda-schema-versions.md`.)
+ * The shipped 0.9 dialect composes the `normalizeOperatorAlias` /
+ * `coerceCanonicalDefaults` / `outputWorkflow` helpers and adds a strict output
+ * allowlist. (The 0.7 and 0.8 dialects were removed in the 0.8.3 and 0.9.0
+ * releases — see `ai/cyoda-schema-versions.md`.)
  */
 export interface CyodaDialect {
   /**
-   * The cyoda-go dialect key — e.g. `"0.8"`. This is the REGISTRY key.
+   * The cyoda-go dialect key — e.g. `"0.9"`. This is the REGISTRY key.
    *
    * NB: do not confuse with `schemaVersionTag` below. `version` identifies the
    * cyoda-go binary line; `schemaVersionTag` is the value written INSIDE a
@@ -46,7 +45,7 @@ export interface CyodaDialect {
 
   /**
    * The in-document `version` tag this dialect stamps on NEW workflows — e.g.
-   * `"1.4"` for the 0.8 dialect (cyoda-go 0.8.4). Required: a dialect that cannot say which tag
+   * `"1.5"` for the 0.9 dialect (cyoda-go 0.9.0). Required: a dialect that cannot say which tag
    * its wire contract uses is under-specified, and any default we invented for
    * an absent value would be the hardcoded literal this field exists to remove.
    */

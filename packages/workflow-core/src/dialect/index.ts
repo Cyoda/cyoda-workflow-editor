@@ -1,8 +1,8 @@
-import { cyoda08Dialect } from "./cyoda-0_8.js";
+import { cyoda09Dialect } from "./cyoda-0_9.js";
 import { registerDialect } from "./registry.js";
 
 // Register the shipped dialect on module load.
-registerDialect(cyoda08Dialect);
+registerDialect(cyoda09Dialect);
 
 export type { CyodaDialect, ToCanonicalResult } from "./dialect.js";
 export {
