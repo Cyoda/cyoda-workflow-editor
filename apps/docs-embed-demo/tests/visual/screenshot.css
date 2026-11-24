@@ -1,0 +1,8 @@
+/*
+ * Applied only while Playwright captures toHaveScreenshot images. The demo's
+ * sticky navigation header would otherwise overlay the top of whichever
+ * component is being captured once the page scrolls it into view.
+ */
+.app-shell__header {
+  position: static !important;
+}

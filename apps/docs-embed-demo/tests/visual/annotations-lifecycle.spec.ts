@@ -36,11 +36,28 @@ async function selectFirstState(page: Page) {
   await expect(page.getByTestId("inspector-state-name")).toBeVisible();
 }
 
-async function selectFirstTransition(page: Page) {
-  // The edge label is an SVG foreignObject child; it needs a synthetic click
-  // (matches the pattern in criteria-editor.spec.ts / criterion-delete-key.spec.ts).
-  await page.locator('[data-testid^="rf-edge-label-"]').first().dispatchEvent("click");
-  await expect(page.getByTestId("inspector-transition-delete")).toBeVisible();
+async function selectUnannotatedTransition(page: Page) {
+  // `auto_archive` carries no annotations (and no criterion), so its inspector
+  // shows the "Add annotations" affordance; the sample's first transition
+  // already has annotations. The edge label is an SVG foreignObject child; it
+  // needs a synthetic click (as in criteria-editor.spec.ts).
+  await page
+    .locator('[data-testid^="rf-edge-label-"]')
+    .filter({ hasText: /^auto_archive$/i })
+    .first()
+    .dispatchEvent("click");
+  await expect(page.getByTestId("inspector-transition-name")).toHaveValue("auto_archive");
+}
+
+/**
+ * A control of the selected node's OWN annotations field. Workflows and
+ * transitions also render a criterion-annotations field with the same test
+ * ids, under `inspector-criterion-annotations`; exclude it.
+ */
+function own(page: Page, testId: string) {
+  return page.locator(
+    `xpath=//*[@data-testid="${testId}"][not(ancestor::*[@data-testid="inspector-criterion-annotations"])]`,
+  );
 }
 
 async function selectWorkflow(page: Page) {
@@ -68,7 +85,7 @@ async function selectWorkflow(page: Page) {
  * Monaco's bracket auto-close, per the brief.
  */
 async function setAnnotationsJson(page: Page, json: string) {
-  const editor = page.getByTestId("annotations-json-editor");
+  const editor = own(page, "annotations-json-editor");
   await expect(editor).toBeVisible();
   const tagName = await editor.evaluate((el) => el.tagName);
   if (tagName === "TEXTAREA") {
@@ -92,16 +109,16 @@ async function setAnnotationsJson(page: Page, json: string) {
  * committed value disappears from the panel.
  */
 async function runAnnotationsLifecycle(page: Page, uniqueValue: string) {
-  const addButton = page.getByTestId("inspector-annotations-add");
+  const addButton = own(page, "inspector-annotations-add");
   await expect(addButton).toBeVisible();
   await addButton.click();
 
-  const editorLocator = page.getByTestId("annotations-json-editor");
+  const editorLocator = own(page, "annotations-json-editor");
   await expect(editorLocator).toBeVisible();
 
   await setAnnotationsJson(page, JSON.stringify({ role: uniqueValue }));
 
-  const applyButton = page.getByTestId("inspector-annotations-apply");
+  const applyButton = own(page, "inspector-annotations-apply");
   await expect(applyButton).toBeEnabled();
   await applyButton.click();
 
@@ -114,11 +131,11 @@ async function runAnnotationsLifecycle(page: Page, uniqueValue: string) {
 
   // Delete: the field collapses back to the "Add" affordance, and the value
   // drops out of the committed document.
-  const removeButton = page.getByTestId("inspector-annotations-remove");
+  const removeButton = own(page, "inspector-annotations-remove");
   await expect(removeButton).toBeVisible();
   await removeButton.click();
 
-  await expect(page.getByTestId("inspector-annotations-add")).toBeVisible();
+  await expect(own(page, "inspector-annotations-add")).toBeVisible();
   await expect(jsonBlock).not.toContainText(uniqueValue);
 }
 
@@ -147,7 +164,7 @@ test.describe("annotations editing lifecycle", () => {
     const errors = attachErrorCapture(page);
 
     await gotoEditor(page);
-    await selectFirstTransition(page);
+    await selectUnannotatedTransition(page);
     await runAnnotationsLifecycle(page, "tx-reviewer");
 
     expect(errors, errors.join("\n")).toEqual([]);
