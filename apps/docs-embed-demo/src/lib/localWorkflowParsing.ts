@@ -26,8 +26,14 @@ function normalizeStateMap(states: unknown): unknown {
 function normalizeWorkflowPayloadValue(value: unknown): unknown {
   if (!isRecord(value)) return value;
 
+  // Same rule as cyoda-dev-console's `synthesizeImportPayload`: anything
+  // with `workflows` but no `importMode` — a cyoda-go export
+  // (`entityName`/`modelVersion`/`workflows`) or a bare `{ workflows }` — gets
+  // `importMode: "MERGE"`; a standalone workflow object is wrapped.
   const payload = Array.isArray(value.workflows)
-    ? value
+    ? "importMode" in value
+      ? value
+      : { importMode: "MERGE", ...value }
     : {
         importMode: "MERGE",
         workflows: [value],
@@ -64,7 +70,20 @@ export function parseLocalWorkflowFile(text: string): {
   try {
     const parsed = parseImportPayload(prepareLocalWorkflowPayload(text));
     if (!parsed.document) {
-      throw new Error("Workflow JSON parsed without producing a document.");
+      const reasons = (parsed.issues ?? [])
+        .filter((issue) => issue.severity === "error")
+        .map((issue) => {
+          // Schema issues carry the failing location in `detail.path`.
+          const path = issue.detail?.["path"];
+          return Array.isArray(path) && path.length > 0
+            ? `${path.join(".")}: ${issue.message}`
+            : issue.message;
+        });
+      throw new Error(
+        reasons.length > 0
+          ? reasons.join("; ")
+          : "Workflow JSON parsed without producing a document.",
+      );
     }
     const issues = parsed.issues ?? [];
     return {
