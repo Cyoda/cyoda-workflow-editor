@@ -7,12 +7,13 @@ import {
   type PatchTransaction,
   type WorkflowEditorDocument,
 } from "@cyoda/workflow-core";
-import type {
-  EditorActions,
-  EditorMode,
-  EditorState,
-  Selection,
-  UndoEntry,
+import {
+  isDefinitionLocked,
+  type EditorActions,
+  type EditorMode,
+  type EditorState,
+  type Selection,
+  type UndoEntry,
 } from "./types.js";
 
 const MAX_UNDO = 100;
@@ -140,7 +141,7 @@ export function useEditorStore(
 
   const dispatch = useCallback((patch: DomainPatch, summary?: string) => {
     const current = stateRef.current;
-    if (current.mode === "viewer") return;
+    if (isDefinitionLocked(current.mode)) return;
     const nextDoc = applyPatch(current.document, patch);
     const inverse = computeExactInverse(current.document, nextDoc, patch);
     const entry: UndoEntry = {
@@ -162,7 +163,7 @@ export function useEditorStore(
 
   const dispatchTransaction = useCallback((tx: PatchTransaction) => {
     const current = stateRef.current;
-    if (current.mode === "viewer") return;
+    if (isDefinitionLocked(current.mode)) return;
     const nextDoc = tx.patches.reduce((d, p) => applyPatch(d, p), current.document);
     const entry: UndoEntry = {
       patches: tx.patches,

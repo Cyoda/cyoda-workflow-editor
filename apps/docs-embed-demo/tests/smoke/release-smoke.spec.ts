@@ -410,3 +410,105 @@ test.describe("criterion JSON editor", () => {
     await expect(page.getByTestId("criterion-compact-json")).toContainText("BETWEEN");
   });
 });
+
+test.describe('WorkflowEditor mode="layout" (#42)', () => {
+  test("locks the definition but keeps dragging, layout controls and a readable inspector", async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto("/editor");
+    await page.getByTestId("editor-mode-select").selectOption("layout");
+    const editor = page.getByTestId("workflow-editor");
+    const node = editor.locator(".react-flow__node").first();
+    await expect(node).toBeVisible();
+    // The canvas sits below the fold; mouse events need it on screen.
+    await page.getByTestId("workflow-editor-shell").scrollIntoViewIfNeeded();
+    const exported = page.locator("pre").last();
+    const exportedBefore = await exported.textContent();
+
+    // Definition affordances are off.
+    await expect(page.getByTestId("canvas-add-state")).toHaveCount(0);
+    await expect(page.getByTestId("canvas-undo")).toHaveCount(0);
+    await expect(page.getByTestId("toolbar-save")).toBeDisabled();
+    // Dragging from a handle onto another state creates no transition. (React
+    // Flow still styles the handles as connectable; onConnect is unwired.)
+    await node.hover();
+    const handle = node.locator(".react-flow__handle").first();
+    const hb = (await handle.boundingBox())!;
+    const target = (await editor.locator(".react-flow__node").nth(1).boundingBox())!;
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 15 });
+    await page.mouse.up();
+    await expect(page.getByTestId("dragconnect-name")).toHaveCount(0);
+    await expect(exported).toHaveText(exportedBefore ?? "");
+
+    // Layout controls are on.
+    await expect(page.getByTestId("canvas-auto-layout")).toBeVisible();
+    await page.getByTestId("canvas-layout-options").click();
+    await expect(page.getByTestId("layout-options-backdrop")).toBeVisible();
+    await page.getByTestId("layout-options-backdrop").click();
+
+    // A node drags, and stays where it was dropped.
+    const start = (await node.boundingBox())!;
+    const x = start.x + start.width / 2;
+    const y = start.y + start.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 60, y + 40, { steps: 10 });
+    await page.mouse.move(x + 120, y + 80, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+    const dropped = (await node.boundingBox())!;
+    expect(dropped.x - start.x).toBeGreaterThan(60);
+    expect(dropped.y - start.y).toBeGreaterThan(40);
+
+    // `L` re-arranges from scratch, which drops the pinned position.
+    await editor.focus();
+    await page.keyboard.press("l");
+    await expect
+      .poll(async () => Math.abs((await node.boundingBox())!.x - start.x), { timeout: 5_000 })
+      .toBeLessThan(5);
+
+    // The inspector opens for a state, readable, with every input disabled.
+    await node.click();
+    const inspector = page.getByTestId("inspector");
+    await expect(inspector).toBeVisible();
+    await expect(inspector.locator("input, textarea, select").first()).toBeVisible();
+    await expect(
+      inspector.locator(
+        "input:not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])",
+      ),
+    ).toHaveCount(0);
+
+    // `A` and Delete change nothing.
+    await page.keyboard.press("a");
+    await expect(page.getByTestId("add-state-name-input")).toHaveCount(0);
+    await page.keyboard.press("Delete");
+    await expect(exported).toHaveText(exportedBefore ?? "");
+    expect(errors, errors.join("\n")).toEqual([]);
+  });
+
+  test("viewer mode still refuses to drag", async ({ page }) => {
+    await page.goto("/editor");
+    await page.getByTestId("editor-mode-select").selectOption("viewer");
+    const nodes = page.getByTestId("workflow-editor").locator(".react-flow__node");
+    await expect(nodes.first()).toBeVisible();
+    await page.getByTestId("workflow-editor-shell").scrollIntoViewIfNeeded();
+    await expect(page.getByTestId("canvas-auto-layout")).toHaveCount(0);
+    // The pane may pan, moving every node together; only a node drag changes
+    // one node's offset from another.
+    const offset = async () => {
+      const a = (await nodes.nth(0).boundingBox())!;
+      const b = (await nodes.nth(1).boundingBox())!;
+      return { dx: Math.round(a.x - b.x), dy: Math.round(a.y - b.y) };
+    };
+    const before = await offset();
+    const start = (await nodes.nth(0).boundingBox())!;
+    const x = start.x + start.width / 2;
+    const y = start.y + start.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 120, y + 80, { steps: 20 });
+    await page.mouse.up();
+    expect(await offset()).toEqual(before);
+  });
+});
