@@ -7,6 +7,7 @@ import {
   parseImportPayload,
   registerDialect,
   serializeImportPayload,
+  SUPPORTED_CYODA_VERSIONS,
 } from "../../src/index.js";
 
 // Issue #24 — version-aware cyoda-go schema dialects.
@@ -36,16 +37,17 @@ const baseWorkflow = {
 };
 
 describe("dialect registry", () => {
-  test("0.8 ships and is the latest", () => {
-    expect(LATEST_CYODA_VERSION).toBe("0.8");
-    expect(listDialects()).toContain("0.8");
-    expect(getDialect("0.8").version).toBe("0.8");
+  test("0.9 ships, is the latest, and is the only shipped dialect", () => {
+    expect(LATEST_CYODA_VERSION).toBe("0.9");
+    expect(SUPPORTED_CYODA_VERSIONS).toEqual(["0.9"]);
+    expect(listDialects()).toContain("0.9");
+    expect(getDialect("0.9").version).toBe("0.9");
   });
 
-  test("the 0.8 dialect declares its schema tag and accepted range", () => {
-    const d = getDialect("0.8");
-    expect(d.schemaVersionTag).toBe("1.4");
-    expect(d.acceptedSchemaVersions).toEqual([{ major: 1, minMinor: 1, maxMinor: 4 }]);
+  test("the 0.9 dialect declares its schema tag and accepted range", () => {
+    const d = getDialect("0.9");
+    expect(d.schemaVersionTag).toBe("1.5");
+    expect(d.acceptedSchemaVersions).toEqual([{ major: 1, minMinor: 1, maxMinor: 5 }]);
   });
 
   test("an unknown version throws a clear, actionable error", () => {
@@ -55,6 +57,9 @@ describe("dialect registry", () => {
   test("getDialect names removed versions distinctly from unknown ones", () => {
     expect(() => getDialect("0.7")).toThrow(/removed/i);
     expect(() => getDialect("0.7")).toThrow(/0\.8\.3/);
+    expect(() => getDialect("0.8")).toThrow(/removed/i);
+    expect(() => getDialect("0.8")).toThrow(/0\.9\.0/);
+    expect(() => getDialect("0.8")).toThrow(/"0\.9" dialect/);
     expect(() => getDialect("9.9")).toThrow(/Unknown cyoda-go schema version/);
   });
 
@@ -76,29 +81,29 @@ describe("dialect registry", () => {
   );
 });
 
-describe("default dialect path records the latest version (0.8)", () => {
-  test("parse records 0.8 and serialize is identical with/without explicit 0.8", () => {
+describe("default dialect path records the latest version (0.9)", () => {
+  test("parse records 0.9 and serialize is identical with/without explicit 0.9", () => {
     const json = importJson(baseWorkflow);
 
     const def = parseImportPayload(json);
     expect(def.ok).toBe(true);
-    expect(def.document?.meta.cyodaVersion).toBe("0.8");
+    expect(def.document?.meta.cyodaVersion).toBe("0.9");
 
-    const explicit = parseImportPayload(json, undefined, { sourceVersion: "0.8" });
-    expect(explicit.document?.meta.cyodaVersion).toBe("0.8");
+    const explicit = parseImportPayload(json, undefined, { sourceVersion: "0.9" });
+    expect(explicit.document?.meta.cyodaVersion).toBe("0.9");
 
-    // Default serialize == explicit-0.8 serialize.
+    // Default serialize == explicit-0.9 serialize.
     const a = serializeImportPayload(def.document!);
-    const b = serializeImportPayload(explicit.document!, { targetVersion: "0.8" });
+    const b = serializeImportPayload(explicit.document!, { targetVersion: "0.9" });
     expect(a).toBe(b);
   });
 });
 
 describe("pluggability: a host-registered dialect round-trips", () => {
   // A synthetic dialect proving the seam without fabricating a real cyoda-go
-  // schema: it wraps 0.8 and uppercases processor `type` on the wire,
+  // schema: it wraps 0.9 and uppercases processor `type` on the wire,
   // lowercasing it back on the way in.
-  const base = getDialect("0.8");
+  const base = getDialect("0.9");
   const mapProcessorType = (
     workflows: Array<Record<string, unknown>>,
     fn: (t: string) => string,
@@ -124,7 +129,7 @@ describe("pluggability: a host-registered dialect round-trips", () => {
   };
 
   afterEach(() => {
-    // Re-register the real 0.8 dialect in case a test replaced it; "test-upper"
+    // Re-register the real 0.9 dialect in case a test replaced it; "test-upper"
     // is harmless to leave registered.
     registerDialect(base);
   });
@@ -148,12 +153,13 @@ describe("pluggability: a host-registered dialect round-trips", () => {
   });
 });
 
-describe("0.8: uppercase processor type (task-1-report.md)", () => {
-  // Task 4 widened `ExternalizedProcessorSchema.type` to an open string, so a
-  // raw uppercase `type` (which cyoda-go 0.8.3 stores and returns verbatim) is
-  // now preserved rather than rejected. See tests/processor/processor-type.test.ts
-  // for the full round-trip and warning coverage.
-  test("0.8 preserves a legacy uppercase processor type verbatim", () => {
+describe("0.9: uppercase processor type (task-1-report.md)", () => {
+  // `ExternalizedProcessorSchema.type` is an open string, so a raw uppercase
+  // `type` (which cyoda-go 0.8.3/0.8.4 stored and returned verbatim) is kept
+  // and the document opens; cyoda-go 0.9.0 refuses it at import, which the
+  // `processor-type-non-canonical` error reports. See
+  // tests/processor/processor-type.test.ts for the full coverage.
+  test("0.9 preserves a legacy uppercase processor type verbatim", () => {
     const raw = JSON.stringify({
       importMode: "MERGE",
       workflows: [{
@@ -165,7 +171,8 @@ describe("0.8: uppercase processor type (task-1-report.md)", () => {
       }],
     });
     const parsed = parseImportPayload(raw);
-    expect(parsed.ok).toBe(true);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.issues.map((i) => i.code)).toContain("processor-type-non-canonical");
     expect(parsed.document!.session.workflows[0]!.states["A"]!.transitions[0]!
       .processors![0]!.type).toBe("EXTERNAL");
   });

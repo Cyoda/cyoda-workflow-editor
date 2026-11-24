@@ -54,35 +54,35 @@ describe("transition tooltip processor execution-mode badge (spec §4a)", () => 
 });
 
 describe("transition tooltip startNewTxOnDispatch tag", () => {
-  test("renders a NEW TX tag when config.startNewTxOnDispatch is true", () => {
+  test("renders a NEW TX tag when startNewTxOnDispatch is true", () => {
     const withNewTx: Transition = {
       ...t,
       processors: [{
         type: "externalized",
         name: "notify",
         executionMode: "COMMIT_BEFORE_DISPATCH",
-        config: { startNewTxOnDispatch: true },
+        startNewTxOnDispatch: true,
       }],
     };
     render(<TransitionTooltip transition={withNewTx} x={0} y={0} />);
     expect(screen.getByText("NEW TX")).toBeTruthy();
   });
 
-  test("omits the NEW TX tag when config.startNewTxOnDispatch is false", () => {
+  test("omits the NEW TX tag when startNewTxOnDispatch is false", () => {
     const withoutNewTx: Transition = {
       ...t,
       processors: [{
         type: "externalized",
         name: "notify",
         executionMode: "COMMIT_BEFORE_DISPATCH",
-        config: { startNewTxOnDispatch: false },
+        startNewTxOnDispatch: false,
       }],
     };
     render(<TransitionTooltip transition={withoutNewTx} x={0} y={0} />);
     expect(screen.queryByText("NEW TX")).toBeNull();
   });
 
-  test("omits the NEW TX tag when config.startNewTxOnDispatch is unset", () => {
+  test("omits the NEW TX tag when startNewTxOnDispatch is unset", () => {
     render(<TransitionTooltip transition={t} x={0} y={0} />);
     expect(screen.queryByText("NEW TX")).toBeNull();
   });

@@ -114,3 +114,26 @@ describe("useEditorStore dispatch/undo for addProcessor", () => {
     expect(transition.processors?.map((p) => p.name)).toEqual(["first", "second"]);
   });
 });
+
+describe("useEditorStore in a locked mode", () => {
+  for (const mode of ["viewer", "inspect"] as const) {
+    it(`ignores dispatch and dispatchTransaction in ${mode} mode`, () => {
+      const doc = makeDoc(TWO_STATE);
+      const { result } = renderHook(() => useEditorStore(doc, mode));
+
+      act(() => {
+        result.current[1].dispatch({ op: "removeState", workflow: "wf", stateCode: "B" });
+      });
+      act(() => {
+        result.current[1].dispatchTransaction({
+          patches: [{ op: "removeState", workflow: "wf", stateCode: "B" }],
+          inverses: [],
+          summary: "remove B",
+        });
+      });
+
+      expect(result.current[0].document).toBe(doc);
+      expect(result.current[0].undoStack).toEqual([]);
+    });
+  }
+});

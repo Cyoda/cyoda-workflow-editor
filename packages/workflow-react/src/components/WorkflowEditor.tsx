@@ -10,6 +10,7 @@ import {
   type PatchTransaction,
   getDialect,
   invertPatch,
+  applyPatches,
   LATEST_CYODA_VERSION,
   SUPPORTED_CYODA_VERSIONS,
   parseImportPayload,
@@ -30,7 +31,7 @@ import {
 } from "../i18n/context.js";
 import { useEditorStore } from "../state/store.js";
 import { deriveFromDocument } from "../state/derive.js";
-import type { EditorMode, Selection } from "../state/types.js";
+import { isDefinitionLocked, isLayoutEditable, type EditorMode, type Selection } from "../state/types.js";
 import { Canvas } from "./Canvas.js";
 import { resolveConnection, type PendingConnect } from "./resolveConnection.js";
 import { Inspector } from "../inspector/Inspector.js";
@@ -419,7 +420,11 @@ export function WorkflowEditor({
     setIsFullscreen((v) => !v);
   }, []);
 
-  const readOnly = state.mode === "viewer";
+  // `readOnly` locks the workflow definition (viewer and inspect modes);
+  // `layoutEditable` governs node positions and the layout controls, which
+  // stay on in inspect mode (issue #42).
+  const readOnly = isDefinitionLocked(state.mode);
+  const layoutEditable = isLayoutEditable(state.mode);
   const derived = useMemo(
     () => deriveFromDocument(state.document),
     [state.document],
@@ -485,6 +490,23 @@ export function WorkflowEditor({
     jsonStatus.status === "invalid-json" || jsonStatus.status === "invalid-schema";
   const saveDisabled = readOnly || derived.errorCount > 0 || saveBlockedByJson;
 
+  // Position changes are undoable edits in editor modes. In inspect mode the
+  // store refuses dispatches (the definition is locked), so the layout-only
+  // patches are applied directly without touching the undo stack. Viewer
+  // persists no positions at all.
+  const commitLayoutPatches = useCallback(
+    (patches: DomainPatch[], summary: string) => {
+      if (!layoutEditable) return;
+      if (readOnly) {
+        actions.silentReplace(applyPatches(state.document, patches), { preserveEditorState: true });
+        return;
+      }
+      const inverses = patches.map((p) => invertPatch(state.document, p));
+      actions.dispatchTransaction({ patches, inverses, summary });
+    },
+    [readOnly, layoutEditable, state.document, actions],
+  );
+
   const handleNodeDragStop = useCallback(
     (nodeId: string, _x: number, _y: number, allPositions: ReadonlyArray<{ id: string; x: number; y: number }>) => {
       const ids = state.document.meta.ids.states;
@@ -507,10 +529,9 @@ export function WorkflowEditor({
           }
         }
       }
-      const inverses = patches.map((p) => invertPatch(state.document, p));
-      actions.dispatchTransaction({ patches, inverses, summary: "Move state" });
+      commitLayoutPatches(patches, "Move state");
     },
-    [state.document, derived.graph, actions],
+    [state.document, derived.graph, commitLayoutPatches],
   );
 
   const handleAutoLayout = useCallback(() => {
@@ -604,13 +625,12 @@ export function WorkflowEditor({
 
   const handleTransitionLabelDragEnd = useCallback(
     (edgeId: string, x: number, y: number) => {
-      actions.dispatchTransaction({
-        summary: "Move transition label",
-        patches: [{ op: "setTransitionBlockPosition", transitionId: edgeId, x, y }],
-        inverses: [{ op: "removeTransitionBlockPosition", transitionId: edgeId }],
-      });
+      commitLayoutPatches(
+        [{ op: "setTransitionBlockPosition", transitionId: edgeId, x, y }],
+        "Move transition label",
+      );
     },
-    [actions],
+    [commitLayoutPatches],
   );
 
   // No dedicated DomainPatch op targets session.allowCycles on its own — the
@@ -753,7 +773,7 @@ export function WorkflowEditor({
   );
 
   const workflows = state.document.session.workflows;
-  const showTabs = workflows.length > 1 || state.mode !== "viewer";
+  const showTabs = workflows.length > 1 || !readOnly;
 
   const handleSelectionChange = useCallback(
     (selection: Selection) => {
@@ -842,7 +862,7 @@ export function WorkflowEditor({
         }
         return;
       }
-      if (!readOnly && !mod && e.key === "l") {
+      if (layoutEditable && !mod && e.key === "l") {
         e.preventDefault();
         handleAutoLayout();
         return;
@@ -864,6 +884,7 @@ export function WorkflowEditor({
     [
       anyModalOpen,
       readOnly,
+      layoutEditable,
       state.undoStack.length,
       state.redoStack.length,
       state.document,
@@ -1026,18 +1047,19 @@ export function WorkflowEditor({
         }}
         onPaneDoubleClick={handlePaneDoubleClick}
         newStatePositionRef={newStatePositionRef}
-        onNodeDragStop={!readOnly ? handleNodeDragStop : undefined}
+        onNodeDragStop={layoutEditable ? handleNodeDragStop : undefined}
         layoutKey={layoutKey}
         readOnly={readOnly}
+        layoutEditable={layoutEditable}
         showMinimap={chrome?.minimap !== false && !inspectorVisible}
         showControls={chrome?.controls !== false}
         canUndo={state.undoStack.length > 0}
         canRedo={state.redoStack.length > 0}
         onUndo={!readOnly ? actions.undo : undefined}
         onRedo={!readOnly ? actions.redo : undefined}
-        onAutoLayout={!readOnly ? handleAutoLayout : undefined}
-        onSetLayoutOrientation={!readOnly ? (o) => applyLayoutPref({ orientation: o }) : undefined}
-        onSetLayoutDensity={!readOnly ? (p) => applyLayoutPref({ preset: p }) : undefined}
+        onAutoLayout={layoutEditable ? handleAutoLayout : undefined}
+        onSetLayoutOrientation={layoutEditable ? (o) => applyLayoutPref({ orientation: o }) : undefined}
+        onSetLayoutDensity={layoutEditable ? (p) => applyLayoutPref({ preset: p }) : undefined}
         isFullscreen={isFullscreen}
         onToggleFullscreen={handleToggleFullscreen}
         resizeKey={inspectorVisible ? 1 : 0}

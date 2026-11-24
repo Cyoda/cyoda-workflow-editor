@@ -2,6 +2,7 @@ import type { Criterion } from "@cyoda/workflow-core";
 import {
   CriterionSchema,
   criterionBlockingError,
+  findUnknownCriterionMembers,
   normalizeOperatorAlias,
 } from "@cyoda/workflow-core";
 
@@ -40,6 +41,13 @@ export function criterionWireShape(c: Criterion): unknown {
   }
 }
 
+function unknownMembersMessage({ pointer, keys }: { pointer: string; keys: string[] }): string {
+  const names = keys.map((k) => `"${k}"`).join(", ");
+  const where = pointer === "" ? "the top level" : pointer;
+  const hint = pointer.endsWith("/function") ? " Callout settings belong inside function.config." : "";
+  return `Unknown member${keys.length === 1 ? "" : "s"} ${names} at ${where}; cyoda-go refuses members a condition does not declare.${hint}`;
+}
+
 /** Map a zod error to a short, readable single-line message. */
 function zodMessage(error: { issues: Array<{ message: string; path: PropertyKey[] }> }): string {
   const first = error.issues[0];
@@ -76,6 +84,10 @@ export function parseCriterionJson(text: string): CriterionJsonResult {
 
   const res = CriterionSchema.safeParse(raw);
   if (res.success) {
+    // Zod strips undeclared members silently; cyoda-go 0.9.0 refuses them, and
+    // dropping one can change the criterion's meaning, so block instead.
+    const unknown = findUnknownCriterionMembers(raw)[0];
+    if (unknown) return { criterion: null, error: unknownMembersMessage(unknown) };
     const blocking = criterionBlockingError(res.data);
     if (blocking) return { criterion: null, error: blocking };
     return { criterion: res.data, error: null };

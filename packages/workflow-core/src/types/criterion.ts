@@ -56,23 +56,30 @@ export interface LifecycleCriterion {
   value?: JsonValue;
 }
 
+/** A scalar operand of an array criterion position. */
+export type ArrayCriterionScalar = string | number | boolean;
+
 /**
  * One positional test of an array criterion: `value[i]` is compared against
- * element `i`; a `null` entry tests nothing at that index.
+ * element `i`; a `null` entry tests nothing at that index. Under `BETWEEN` /
+ * `BETWEEN_INCLUSIVE` a tested position is a `[low, high]` pair (cyoda-go
+ * 0.9.0). The pair is typed loosely — as the bounds were written — so a file
+ * with a malformed pair still opens; the semantic validator checks it.
  */
-export type ArrayCriterionValue = string | number | boolean | null;
+export type ArrayCriterionValue = ArrayCriterionScalar | null | (ArrayCriterionScalar | null)[];
 
 /**
  * Positional array match. On the wire the list is `values` (cyoda-go's parser
  * reads nothing else — the OpenAPI's `value` is wrong); the canonical model
  * keeps the historical `value` name and the dialect maps between the two.
- * cyoda-go ignores `operation` on an array clause; it is optional and
- * preserved only for round-trip.
+ * cyoda-go 0.9.0 requires the operator and applies it at every tested
+ * position (`values[i]` OP element `i`). 0.8.x ignored it and compared with
+ * equality, so the dialect fills an absent one with `EQUALS` on parse.
  */
 export interface ArrayCriterion {
   type: "array";
   jsonPath: string;
-  operation?: OperatorValue;
+  operation: OperatorValue;
   value: ArrayCriterionValue[];
 }
 

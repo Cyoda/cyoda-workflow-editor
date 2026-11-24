@@ -25,6 +25,12 @@
                   }
                 }
               ]
+            },
+            {
+              "name": "auto_reject",
+              "next": "rejected",
+              "manual": false,
+              "disabled": false
             }
           ]
         },
@@ -49,6 +55,16 @@
         },
         "rejected": {
           "transitions": []
+        },
+        "on_hold": {
+          "transitions": [
+            {
+              "name": "resume",
+              "next": "reviewing",
+              "manual": true,
+              "disabled": false
+            }
+          ]
         }
       }
     }

@@ -139,8 +139,9 @@ export function TransitionForm({
   // used to write `delayMs: transition.schedule?.delayMs ?? 1` unconditionally,
   // which broke the delayMs/function XOR whenever the current mode was
   // "function"). `0` is deliberately accepted: the strictest legal setting
-  // ("drop on any lateness"), not an error — same for negative values, which
-  // the server also accepts (see TransitionScheduleSchema).
+  // ("drop on any lateness"), not an error. A negative value is committed too
+  // and reported by `schedule-timeout-negative` (cyoda-go 0.9.0 refuses it),
+  // rather than silently discarded here.
   const commitScheduleTimeout = (raw: string) => {
     const trimmed = raw.trim();
     if (trimmed.length === 0) {
@@ -204,8 +205,9 @@ export function TransitionForm({
     writeScheduleFunction(nextFn);
   };
 
-  // No lower bound: the server accepts any integer, including negatives
-  // (verified — see ScheduleFunctionSchema's comment on responseTimeoutMs).
+  // Any integer is committed; cyoda-go 0.9.0 refuses a negative value, and
+  // the `response-timeout-negative` rule reports it rather than this field
+  // silently discarding the input.
   const commitScheduleFunctionResponseTimeout = (raw: string) => {
     const currentFn = transition.schedule?.function;
     if (!currentFn) return;
@@ -221,6 +223,16 @@ export function TransitionForm({
     const parsed = Number(trimmed);
     if (!Number.isInteger(parsed)) return;
     writeScheduleFunction({ ...currentFn, responseTimeoutMs: parsed });
+  };
+
+  // "" clears retryPolicy (server default: FIXED); cyoda-go 0.9.0, schema 1.5.
+  const commitScheduleFunctionRetryPolicy = (raw: "" | "NONE" | "FIXED") => {
+    const currentFn = transition.schedule?.function;
+    if (!currentFn) return;
+    const nextFn: ScheduleFunction = { ...currentFn };
+    if (raw === "") delete nextFn.retryPolicy;
+    else nextFn.retryPolicy = raw;
+    writeScheduleFunction(nextFn);
   };
 
   const allStateNames = Object.keys(workflow.states);
@@ -620,6 +632,26 @@ export function TransitionForm({
                     onKeyDown={(e) => {
                       if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                     }}
+                  />
+                </label>
+                <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12, color: colors.textSecondary }}>
+                  <span style={{ fontWeight: 500 }}>Retry policy</span>
+                  <CustomSelectInput
+                    value={
+                      transition.schedule.function.retryPolicy === "NONE" ||
+                      transition.schedule.function.retryPolicy === "FIXED"
+                        ? transition.schedule.function.retryPolicy
+                        : ""
+                    }
+                    options={[
+                      { value: "" as const, label: "Default (FIXED)" },
+                      { value: "NONE" as const, label: "NONE" },
+                      { value: "FIXED" as const, label: "FIXED" },
+                    ]}
+                    disabled={disabled}
+                    testId="inspector-transition-schedule-function-retry-policy"
+                    onChange={commitScheduleFunctionRetryPolicy}
+                    small
                   />
                 </label>
               </div>

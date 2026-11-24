@@ -57,10 +57,15 @@ export function usePanZoom(initial?: Partial<ViewportTransform>): PanZoomHandler
   }, [transform.x, transform.y]);
 
   const onMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!dragStart.current) return;
-    const dx = e.clientX - dragStart.current.x;
-    const dy = e.clientY - dragStart.current.y;
-    setTransform((t) => ({ ...t, x: dragStart.current!.vx + dx, y: dragStart.current!.vy + dy }));
+    const start = dragStart.current;
+    if (!start) return;
+    // Compute the target now, from the event. The updater below may run later
+    // (React queues all but the first update on an idle component), by which
+    // time mouse-up has cleared `dragStart` — reading the ref inside it threw
+    // and unmounted the viewer.
+    const x = start.vx + (e.clientX - start.x);
+    const y = start.vy + (e.clientY - start.y);
+    setTransform((t) => ({ ...t, x, y }));
   }, []);
 
   const onMouseUp = useCallback(() => {

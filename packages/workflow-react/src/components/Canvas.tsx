@@ -74,7 +74,13 @@ export interface CanvasProps {
    * Useful for the "Auto Layout" toolbar button.
    */
   layoutKey?: number;
+  /** Locks the workflow definition: no connecting, reconnecting or deleting. */
   readOnly?: boolean;
+  /**
+   * Allows repositioning nodes and the layout controls even when `readOnly`
+   * (inspect mode). Defaults to `!readOnly`.
+   */
+  layoutEditable?: boolean;
   showMinimap?: boolean;
   showControls?: boolean;
   canUndo?: boolean;
@@ -1365,6 +1371,7 @@ function CanvasInner({
   onSetLayoutDensity,
   layoutKey = 0,
   readOnly,
+  layoutEditable = !readOnly,
   showMinimap = true,
   showControls = true,
   canUndo = false,
@@ -1811,7 +1818,7 @@ function CanvasInner({
             <CtrlBtn onClick={onToggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
               {isFullscreen ? <ExitFullscreenIcon /> : <EnterFullscreenIcon />}
             </CtrlBtn>
-            {!readOnly && onAutoLayout && (
+            {layoutEditable && onAutoLayout && (
               <>
                 <div style={{ height: 1, background: "#E2E8F0" }} />
                 <CtrlBtn onClick={onAutoLayout} title="Auto-arrange (L)" testId="canvas-auto-layout">
@@ -1872,7 +1879,7 @@ function CanvasInner({
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          onNodesChange={readOnly ? undefined : handleNodesChange}
+          onNodesChange={layoutEditable ? handleNodesChange : undefined}
           onNodeClick={onNodeClick}
           onEdgeClick={onEdgeClick}
           onPaneClick={() => {
@@ -1892,15 +1899,15 @@ function CanvasInner({
           onReconnectEnd={readOnly ? undefined : () => { setTimeout(() => { isReconnectingRef.current = false; }, 0); }}
           onNodesDelete={readOnly ? undefined : onNodesDelete}
           onEdgesDelete={readOnly ? undefined : onEdgesDelete}
-          onNodeDragStart={readOnly ? undefined : handleNodeDragStart}
-          onNodeDrag={readOnly ? undefined : handleNodeDrag}
-          onNodeDragStop={readOnly ? undefined : handleNodeDragStop}
+          onNodeDragStart={layoutEditable ? handleNodeDragStart : undefined}
+          onNodeDrag={layoutEditable ? handleNodeDrag : undefined}
+          onNodeDragStop={layoutEditable ? handleNodeDragStop : undefined}
           onNodeMouseEnter={onNodeMouseEnter}
           onNodeMouseLeave={onNodeMouseLeave}
           onEdgeMouseEnter={onEdgeMouseEnter}
           onEdgeMouseLeave={onEdgeMouseLeave}
           connectionMode={ConnectionMode.Loose}
-          nodesDraggable={!readOnly}
+          nodesDraggable={layoutEditable}
           nodesConnectable={!readOnly}
           edgesUpdatable={!readOnly}
           deleteKeyCode={null}

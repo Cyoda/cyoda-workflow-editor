@@ -5,7 +5,8 @@ function roundTrip(processor: Record<string, unknown>): Record<string, unknown> 
   const raw = JSON.stringify({
     importMode: "MERGE",
     workflows: [{
-      version: "1.3", name: "w", initialState: "A", active: true,
+      // 1.5: some cases use `idempotent`, a schema 1.5 field.
+      version: "1.5", name: "w", initialState: "A", active: true,
       states: { A: { transitions: [{
         name: "t", next: "A", manual: true, processors: [processor],
       }] } },
@@ -44,10 +45,22 @@ describe("pre-existing round-trip defects (spec §4a)", () => {
     expect(p.config).toMatchObject({ crossoverToAsyncMs: 100 });
   });
 
-  test("accepts a negative responseTimeoutMs (server does)", () => {
+  test("preserves a zero responseTimeoutMs (the lowest value cyoda-go 0.9.0 accepts)", () => {
     const p = roundTrip({
-      type: "externalized", name: "p", config: { responseTimeoutMs: -1 },
+      type: "externalized", name: "p", config: { responseTimeoutMs: 0 },
     });
-    expect(p.config).toMatchObject({ responseTimeoutMs: -1 });
+    expect(p.config).toMatchObject({ responseTimeoutMs: 0 });
+  });
+
+  test("preserves idempotent: false as well as true", () => {
+    for (const idempotent of [false, true]) {
+      const p = roundTrip({ type: "externalized", name: "p", config: { idempotent } });
+      expect(p.config).toEqual({ idempotent });
+    }
+  });
+
+  test("preserves startNewTxOnDispatch: false", () => {
+    const p = roundTrip({ type: "externalized", name: "p", startNewTxOnDispatch: false });
+    expect(p.startNewTxOnDispatch).toBe(false);
   });
 });

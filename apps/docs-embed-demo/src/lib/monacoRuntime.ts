@@ -1,8 +1,11 @@
-import editorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
-import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
+// monaco-editor >= 0.56 exposes its ESM build through an `exports` map
+// (`monaco-editor/<path>` -> `esm/vs/<path>.js`): the pre-0.56
+// `monaco-editor/esm/vs/...` worker paths no longer resolve. The ESM build
+// imports its own CSS, so no stylesheet import is needed with a bundler.
+import editorWorker from "monaco-editor/editor/editor.worker?worker";
+import jsonWorker from "monaco-editor/languages/features/json/json.worker?worker";
 import * as monaco from "monaco-editor";
 import type { WorkflowJsonMonacoRuntime } from "@cyoda/workflow-react";
-import "monaco-editor/min/vs/editor/editor.main.css";
 
 let configured = false;
 
@@ -22,5 +25,5 @@ export function getMonacoRuntime(): WorkflowJsonMonacoRuntime {
     };
     configured = true;
   }
-  return monaco as unknown as WorkflowJsonMonacoRuntime;
+  return monaco;
 }

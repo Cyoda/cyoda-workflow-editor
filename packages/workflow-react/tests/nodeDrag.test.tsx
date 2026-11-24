@@ -25,6 +25,8 @@ const { rfCallbacks } = vi.hoisted(() => ({
     onNodeDrag: undefined as undefined | ((e: unknown, node: unknown) => void),
     onNodeDragStop:  undefined as undefined | ((e: unknown, node: unknown) => void),
     onNodesChange: undefined as undefined | ((changes: unknown[]) => void),
+    nodesDraggable: undefined as undefined | boolean,
+    nodesConnectable: undefined as undefined | boolean,
     latestNodes: undefined as undefined | {
       id: string;
       position: { x: number; y: number };
@@ -125,6 +127,8 @@ vi.mock("reactflow", () => {
     onNodeDrag,
     onNodeDragStop,
     onEdgeClick,
+    nodesDraggable,
+    nodesConnectable,
   }: {
     nodes?: MockNode[];
     edges?: MockEdge[];
@@ -134,7 +138,11 @@ vi.mock("reactflow", () => {
     onNodeDrag?: (e: unknown, node: unknown) => void;
     onNodeDragStop?:  (e: unknown, node: unknown) => void;
     onEdgeClick?: (e: unknown, edge: MockEdge) => void;
+    nodesDraggable?: boolean;
+    nodesConnectable?: boolean;
   }) => {
+    rfCallbacks.nodesDraggable = nodesDraggable;
+    rfCallbacks.nodesConnectable = nodesConnectable;
     rfCallbacks.onNodesChange = onNodesChange;
     rfCallbacks.onNodeDragStart = onNodeDragStart;
     rfCallbacks.onNodeDrag = onNodeDrag;
@@ -1020,5 +1028,59 @@ describe("viewer mode", () => {
     // In viewer mode, onNodeDragStart and onNodeDragStop should not be wired.
     expect(rfCallbacks.onNodeDragStart).toBeUndefined();
     expect(rfCallbacks.onNodeDragStop).toBeUndefined();
+  });
+});
+
+// ── Tests: inspect mode (issue #42) ──────────────────────────────────────────
+
+describe("inspect mode", () => {
+  it("wires drag handlers but not connections", async () => {
+    const doc = fixture(TWO_STATE_CONNECTED);
+    vi.mocked(layoutGraph).mockResolvedValue(buildLayout(doc));
+
+    render(<WorkflowEditor document={doc} mode="inspect" />);
+
+    await waitFor(() => expect(rfCallbacks.latestEdges).toBeDefined());
+    expect(rfCallbacks.onNodeDragStart).toBeTypeOf("function");
+    expect(rfCallbacks.onNodeDragStop).toBeTypeOf("function");
+    expect(rfCallbacks.onNodesChange).toBeTypeOf("function");
+    expect(rfCallbacks.nodesDraggable).toBe(true);
+    expect(rfCallbacks.nodesConnectable).toBe(false);
+  });
+
+  it("viewer keeps nodes undraggable", async () => {
+    const doc = fixture(TWO_STATE_CONNECTED);
+    render(<WorkflowEditor document={doc} mode="viewer" />);
+    await waitFor(() => expect(rfCallbacks.latestEdges).toBeDefined());
+    expect(rfCallbacks.nodesDraggable).toBe(false);
+    expect(rfCallbacks.nodesConnectable).toBe(false);
+    expect(rfCallbacks.onNodesChange).toBeUndefined();
+  });
+
+  it("persists a dragged position through onLayoutMetadataChange", async () => {
+    const doc = fixture(TWO_STATE_CONNECTED);
+    const startId = stateUuid(doc, "wf", "start");
+    const onLayoutMetadataChange = vi.fn();
+    vi.mocked(layoutGraph).mockResolvedValue(buildLayout(doc));
+
+    render(
+      <WorkflowEditor
+        document={doc}
+        mode="inspect"
+        onLayoutMetadataChange={onLayoutMetadataChange}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(rfCallbacks.onNodeDragStop).toBeDefined();
+      expect(rfCallbacks.latestNodes?.length ?? 0).toBeGreaterThan(0);
+    });
+
+    await act(async () => {
+      rfCallbacks.onNodeDragStop?.(null, { id: startId, position: { x: 250, y: 150 }, data: {} });
+    });
+
+    const last = onLayoutMetadataChange.mock.calls.at(-1)?.[0];
+    expect(last?.layout?.nodes?.start).toEqual({ x: 250, y: 150, pinned: true });
   });
 });

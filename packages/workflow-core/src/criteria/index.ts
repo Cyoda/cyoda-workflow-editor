@@ -15,3 +15,6 @@ export type { JsonPathRejectReason, JsonPathValidationResult } from "./jsonPathS
 export { describeCriterion } from "./describe.js";
 
 export { criterionBlockingError } from "./criterionBlockingError.js";
+
+export { findUnknownCriterionMembers } from "./unknownMembers.js";
+export type { UnknownCriterionMembers } from "./unknownMembers.js";

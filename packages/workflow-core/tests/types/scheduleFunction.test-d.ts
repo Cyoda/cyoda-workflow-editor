@@ -33,6 +33,7 @@ describe("public export surface", () => {
       attachEntity?: boolean;
       context?: string;
       responseTimeoutMs?: number;
+      retryPolicy?: string;
     }>();
   });
 });

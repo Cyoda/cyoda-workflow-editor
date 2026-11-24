@@ -141,6 +141,7 @@
                   {
                     "type": "array",
                     "jsonPath": "$.confirmation.matchedFields[*]",
+                    "operation": "EQUALS",
                     "values": [
                       "notional",
                       "fixedRate",
@@ -273,6 +274,7 @@
                   {
                     "type": "array",
                     "jsonPath": "$.tradeDates.businessCenters[*]",
+                    "operation": "EQUALS",
                     "values": ["USNY"]
                   },
                   {

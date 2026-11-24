@@ -6,7 +6,7 @@ import { fixtureBySlug, fixturesFor } from "../examples/fixtureCatalog.js";
 import { getMonacoRuntime } from "../lib/monacoRuntime.js";
 import { loadFixture, serializeDocument } from "../lib/workflowDemo.js";
 
-type EditorModeOption = "viewer" | "playground" | "editor";
+type EditorModeOption = "viewer" | "inspect" | "playground" | "editor";
 type JsonPlacement = "tab" | "split";
 
 const chromeKeys: Array<keyof ChromeOptions> = ["toolbar", "tabs", "inspector", "minimap", "controls"];
@@ -87,8 +87,14 @@ export function EditorShowcasePage() {
             <p className="muted-text">Switch modes, trim chrome, and reset the editor state to the selected fixture.</p>
           </div>
           <div className="panel-actions">
-            <select value={mode} onChange={(event) => setMode(event.target.value as EditorModeOption)} className="control-select">
+            <select
+              value={mode}
+              onChange={(event) => setMode(event.target.value as EditorModeOption)}
+              className="control-select"
+              data-testid="editor-mode-select"
+            >
               <option value="viewer">viewer</option>
+              <option value="inspect">inspect</option>
               <option value="playground">playground</option>
               <option value="editor">editor</option>
             </select>

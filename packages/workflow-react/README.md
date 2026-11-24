@@ -66,7 +66,7 @@ export function App() {
 | Prop | Type | Default | Notes |
 |---|---|---|---|
 | `document` | `WorkflowEditorDocument` | required | From `parseImportPayload`. |
-| `mode` | `"viewer" \| "playground" \| "editor"` | `"editor"` | `"viewer"` hides edit affordances. |
+| `mode` | `"viewer" \| "inspect" \| "playground" \| "editor"` | `"editor"` | See [Modes](#modes). |
 | `messages` | `PartialMessages` | English | i18n overrides. |
 | `layoutOptions` | `LayoutOptions` | – | ELK preset and orientation. |
 | `chrome` | `ChromeOptions` | all true | Toggle toolbar / tabs / inspector / minimap / controls. |
@@ -81,6 +81,30 @@ export function App() {
 | `onJsonStatusChange` | `(status: JsonEditStatus) => void` | – | Reports JSON parse/schema/apply state for host UX. |
 | `hintProvider` | `EntityFieldHintProvider` | – | Optional model-schema autocomplete source for criterion `jsonPath` inputs. Omit for plain free-text `jsonPath` fields. |
 | `developerMode` | `boolean` | `false` | Show developer-oriented affordances (raw JSON tab in the inspector). Defaults to `false`. Opt in to restore the JSON tab for developer/admin surfaces. |
+
+## Modes
+
+`mode` is read once, when the editor mounts. To switch modes, remount the
+editor (for example with a `key` that includes the mode).
+
+| Mode | Workflow definition | Node positions and layout controls | Undo / redo / save |
+|---|---|---|---|
+| `"editor"` | editable | editable | on |
+| `"playground"` | editable | editable | on |
+| `"inspect"` | locked | editable | off |
+| `"viewer"` | locked | locked | off |
+
+- **`"inspect"`** is for read-only inspectors that still let the user arrange a
+  large diagram. Nodes and transition labels can be dragged, and auto-arrange
+  (toolbar and `L`), orientation and density work. Position changes are not
+  undoable: they persist through `onLayoutMetadataChange` (and `onChange`,
+  and `localStorageKey` when set). Connecting, re-anchoring, deleting,
+  "Add State" (`A`) and save are off.
+- In both `"inspect"` and `"viewer"`, clicking a state or transition opens the
+  inspector with its inputs disabled, so the user can read descriptions,
+  criteria and processors without changing them.
+- `"playground"` currently behaves exactly like `"editor"`. It is not a
+  read-only mode: use `"inspect"` or `"viewer"` for that.
 
 ## JSON editor
 

@@ -24,7 +24,7 @@ function sessionWithVersion(version: string): WorkflowSession {
 }
 
 describe("workflow schema version tag (spec §4)", () => {
-  test.each(["1", "1.0.0", "1.03", "2.0", "1.5"])("%j is a blocking error", (v) => {
+  test.each(["1", "1.0.0", "1.03", "2.0", "1.6"])("%j is a blocking error", (v) => {
     const issue = parse(v).issues.find((i) => i.code === "workflow-schema-version-malformed");
     expect(issue?.severity).toBe("error");
   });
@@ -32,7 +32,7 @@ describe("workflow schema version tag (spec §4)", () => {
   test("1.0 is a warning carrying a fix, not an error", () => {
     const issue = parse("1.0").issues.find((i) => i.code === "workflow-schema-version-outdated");
     expect(issue?.severity).toBe("warning");
-    expect(issue?.fix?.label).toMatch(/1\.4/);
+    expect(issue?.fix?.label).toMatch(/1\.5/);
   });
 
   test("the fix rewrites the tag to the dialect's and bumps meta.revision", () => {
@@ -40,7 +40,7 @@ describe("workflow schema version tag (spec §4)", () => {
     const issue = parsed.issues.find((i) => i.code === "workflow-schema-version-outdated")!;
     const before = parsed.document!.meta.revision;
     const fixed = issue.fix!.apply(parsed.document!);
-    expect(fixed.session.workflows[0]!.version).toBe("1.4");
+    expect(fixed.session.workflows[0]!.version).toBe("1.5");
     expect(fixed.meta.revision).toBe(before + 1);
   });
 
@@ -50,7 +50,7 @@ describe("workflow schema version tag (spec §4)", () => {
     expect(issue?.severity).toBe("error");
   });
 
-  test.each(["1.1", "1.2", "1.3", "1.4"])("%j is clean", (v) => {
+  test.each(["1.1", "1.2", "1.3", "1.4", "1.5"])("%j is clean", (v) => {
     const codes = parse(v).issues.map((i) => i.code);
     expect(codes).not.toContain("workflow-schema-version-malformed");
     expect(codes).not.toContain("workflow-schema-version-outdated");
@@ -136,6 +136,47 @@ describe("the tag must cover the features the workflow uses", () => {
     const issue = parsed.issues.find((i) => i.code === "workflow-schema-version-below-features");
     expect(issue?.detail).toMatchObject({ required: "1.2" });
     expect(issue!.fix!.apply(parsed.document!).session.workflows[0]!.version).toBe("1.2");
+  });
+
+  test.each([
+    [
+      "processor config idempotent",
+      { name: "t", next: "A", manual: true, processors: [{ type: "externalized", name: "p", config: { idempotent: false } }] },
+    ],
+    [
+      "schedule.function retryPolicy",
+      {
+        name: "t", next: "A", manual: false,
+        schedule: { function: { name: "f", resultKind: "Schedule", calculationNodesTags: "t", retryPolicy: "NONE" } },
+      },
+    ],
+    [
+      "function condition inside a group",
+      {
+        name: "t", next: "A", manual: true,
+        criterion: { type: "group", operator: "AND", conditions: [{ type: "function", function: { name: "f" } }] },
+      },
+    ],
+  ])("%s requires 1.5", (feature, transition) => {
+    const json = (version: string) =>
+      JSON.stringify({
+        importMode: "MERGE",
+        workflows: [{ version, name: "w", initialState: "A", active: true, states: { A: { transitions: [transition] } } }],
+      });
+    const issue = parseImportPayload(json("1.4")).issues.find(
+      (i) => i.code === "workflow-schema-version-below-features",
+    );
+    expect(issue?.severity).toBe("error");
+    expect(issue?.detail).toMatchObject({ required: "1.5", features: [feature] });
+    expect(parseImportPayload(json("1.5")).issues.map((i) => i.code)).not.toContain(
+      "workflow-schema-version-below-features",
+    );
+  });
+
+  test("a function condition at the root of a criterion is not a 1.5 feature", () => {
+    const codes = parseImportPayload(wf("1.1", { criterion: { type: "function", function: { name: "f" } } }))
+      .issues.map((i) => i.code);
+    expect(codes).not.toContain("workflow-schema-version-below-features");
   });
 
   test("a workflow using no gated feature is clean under 1.1", () => {

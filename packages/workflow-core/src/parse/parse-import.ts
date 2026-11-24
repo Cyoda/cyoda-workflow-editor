@@ -80,7 +80,23 @@ export function dialectWarningToIssue(warning: string): ValidationIssue {
     return {
       severity: "warning",
       code: "array-criterion-legacy-value",
-      message: `${keys} array criteria store their list under "value", which cyoda-go ignores — as stored, each of those guards matches every entity. The editor reads them correctly and writes "values" on save; save to fix the stored workflow.`,
+      message: `${keys} array criteria store their list under "value", which cyoda-go ignores — as stored, each of those guards matches every entity (cyoda-go 0.9.0 refuses them at import). The editor reads them correctly and writes "values" on save; save to fix the stored workflow.`,
+      detail: { count: Number(keys) },
+    };
+  }
+  if (code === "criterion-keys-dropped") {
+    return {
+      severity: "warning",
+      code: "criterion-keys-dropped",
+      message: `${name}: members not part of the cyoda-go criterion format were dropped on import and will not be saved: ${keys}. cyoda-go 0.9.0 refuses them, so the criterion may no longer mean what it was written to — e.g. calculationNodesTags belongs inside function.config.`,
+      detail: { location: name, keys: keys.split(",").filter((k) => k.length > 0) },
+    };
+  }
+  if (code === "array-criterion-operator-defaulted") {
+    return {
+      severity: "warning",
+      code: "array-criterion-operator-defaulted",
+      message: `${keys} array criteria had no operator; cyoda-go 0.9.0 requires one. The editor set EQUALS — the comparison cyoda-go 0.8.x applied to them — and writes it on save; check that EQUALS is what each clause means.`,
       detail: { count: Number(keys) },
     };
   }

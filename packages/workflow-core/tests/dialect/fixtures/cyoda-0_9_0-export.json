@@ -1,0 +1,143 @@
+{
+  "entityName": "probe",
+  "modelVersion": 1,
+  "workflows": [
+    {
+      "version": "1.5",
+      "name": "orders",
+      "desc": "0.9.0 wire-format coverage",
+      "initialState": "A",
+      "active": true,
+      "criterion": {
+        "type": "group",
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "simple",
+            "jsonPath": "$.name",
+            "operator": "EQUALS",
+            "value": "x"
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "select",
+              "config": {
+                "calculationNodesTags": "t",
+                "retryPolicy": "NONE",
+                "responseTimeoutMs": 500
+              },
+              "criterion": {
+                "type": "lifecycle",
+                "field": "state",
+                "operatorType": "IS_NULL",
+                "value": null
+              }
+            }
+          }
+        ]
+      },
+      "states": {
+        "A": {
+          "transitions": [
+            {
+              "name": "go",
+              "next": "B",
+              "manual": true,
+              "criterion": {
+                "type": "group",
+                "operator": "OR",
+                "conditions": [
+                  {
+                    "type": "array",
+                    "jsonPath": "$.scores[*]",
+                    "operatorType": "GREATER_THAN",
+                    "values": [
+                      1,
+                      null
+                    ]
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.amount",
+                    "operatorType": "BETWEEN",
+                    "value": [
+                      1,
+                      5
+                    ]
+                  }
+                ]
+              },
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "commit",
+                  "executionMode": "COMMIT_BEFORE_DISPATCH",
+                  "startNewTxOnDispatch": true,
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "t",
+                    "responseTimeoutMs": 1000,
+                    "retryPolicy": "FIXED",
+                    "idempotent": true
+                  },
+                  "annotations": {
+                    "label": "Commit"
+                  }
+                },
+                {
+                  "type": "externalized",
+                  "name": "enrich",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "t"
+                  }
+                },
+                {
+                  "type": "externalized",
+                  "name": "audit",
+                  "startNewTxOnDispatch": false,
+                  "config": {
+                    "attachEntity": true
+                  }
+                }
+              ]
+            },
+            {
+              "name": "tick",
+              "next": "B",
+              "manual": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.flag",
+                "operatorType": "EQUALS",
+                "value": true
+              },
+              "schedule": {
+                "timeoutMs": 0,
+                "function": {
+                  "name": "when",
+                  "resultKind": "Schedule",
+                  "calculationNodesTags": "t",
+                  "attachEntity": true,
+                  "retryPolicy": "NONE"
+                }
+              }
+            },
+            {
+              "name": "later",
+              "next": "B",
+              "manual": false,
+              "schedule": {
+                "delayMs": 5000,
+                "timeoutMs": 60000
+              }
+            }
+          ]
+        },
+        "B": {}
+      }
+    }
+  ]
+}

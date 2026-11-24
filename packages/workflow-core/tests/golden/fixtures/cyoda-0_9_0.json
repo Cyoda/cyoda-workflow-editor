@@ -1,0 +1,159 @@
+{
+  "importMode": "MERGE",
+  "workflows": [
+    {
+      "version": "1.5",
+      "name": "orders",
+      "desc": "0.9.0 wire-format coverage",
+      "initialState": "A",
+      "active": true,
+      "criterion": {
+        "type": "group",
+        "operator": "AND",
+        "conditions": [
+          {
+            "type": "simple",
+            "jsonPath": "$.name",
+            "operation": "EQUALS",
+            "value": "x"
+          },
+          {
+            "type": "function",
+            "function": {
+              "name": "select",
+              "config": {
+                "calculationNodesTags": "t",
+                "responseTimeoutMs": 500,
+                "retryPolicy": "NONE"
+              },
+              "criterion": {
+                "type": "lifecycle",
+                "field": "state",
+                "operation": "IS_NULL",
+                "value": null
+              }
+            }
+          }
+        ]
+      },
+      "states": {
+        "A": {
+          "transitions": [
+            {
+              "name": "go",
+              "next": "B",
+              "manual": true,
+              "disabled": false,
+              "criterion": {
+                "type": "group",
+                "operator": "OR",
+                "conditions": [
+                  {
+                    "type": "array",
+                    "jsonPath": "$.scores[*]",
+                    "operation": "GREATER_THAN",
+                    "values": [
+                      1,
+                      null
+                    ]
+                  },
+                  {
+                    "type": "simple",
+                    "jsonPath": "$.amount",
+                    "operation": "BETWEEN",
+                    "value": [
+                      1,
+                      5
+                    ]
+                  },
+                  {
+                    "type": "array",
+                    "jsonPath": "$.scores[*]",
+                    "operation": "BETWEEN_INCLUSIVE",
+                    "values": [
+                      [
+                        1,
+                        2
+                      ],
+                      null
+                    ]
+                  }
+                ]
+              },
+              "processors": [
+                {
+                  "type": "externalized",
+                  "name": "commit",
+                  "executionMode": "COMMIT_BEFORE_DISPATCH",
+                  "startNewTxOnDispatch": true,
+                  "annotations": {
+                    "label": "Commit"
+                  },
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "t",
+                    "responseTimeoutMs": 1000,
+                    "retryPolicy": "FIXED",
+                    "idempotent": true
+                  }
+                },
+                {
+                  "type": "externalized",
+                  "name": "enrich",
+                  "executionMode": "SYNC",
+                  "config": {
+                    "attachEntity": true,
+                    "calculationNodesTags": "t"
+                  }
+                },
+                {
+                  "type": "externalized",
+                  "name": "audit",
+                  "startNewTxOnDispatch": false,
+                  "config": {
+                    "attachEntity": true
+                  }
+                }
+              ]
+            },
+            {
+              "name": "tick",
+              "next": "B",
+              "manual": false,
+              "disabled": false,
+              "criterion": {
+                "type": "simple",
+                "jsonPath": "$.flag",
+                "operation": "EQUALS",
+                "value": true
+              },
+              "schedule": {
+                "timeoutMs": 0,
+                "function": {
+                  "name": "when",
+                  "resultKind": "Schedule",
+                  "calculationNodesTags": "t",
+                  "attachEntity": true,
+                  "retryPolicy": "NONE"
+                }
+              }
+            },
+            {
+              "name": "later",
+              "next": "B",
+              "manual": false,
+              "disabled": false,
+              "schedule": {
+                "delayMs": 5000,
+                "timeoutMs": 60000
+              }
+            }
+          ]
+        },
+        "B": {
+          "transitions": []
+        }
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { CriterionSchema } from "@cyoda/workflow-core";
 import * as z from "zod";
 import type { JsonSchemaHandle, MonacoLike } from "./types.js";
+import { jsonDefaultsOf } from "./jsonDefaults.js";
 import { withArrayCriterionWireKeys } from "./wireKeys.js";
 
 export const CRITERION_SCHEMA_URI = "https://cyoda.dev/schemas/criterion.schema.json";
@@ -27,10 +28,11 @@ export function registerCriterionSchema(
   const schemaUri = opts.schemaUri ?? CRITERION_SCHEMA_URI;
   const schema = criterionJsonSchema();
 
-  const existing = monaco.languages.json.jsonDefaults.diagnosticsOptions.schemas ?? [];
+  const json = jsonDefaultsOf(monaco);
+  const existing = json.diagnosticsOptions.schemas ?? [];
   const kept = existing.filter((s) => s.uri !== schemaUri);
-  monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-    ...monaco.languages.json.jsonDefaults.diagnosticsOptions,
+  json.setDiagnosticsOptions({
+    ...json.diagnosticsOptions,
     validate: true,
     allowComments: false,
     schemas: [...kept, { uri: schemaUri, fileMatch: [`${fileMatchPrefix}*`], schema }],
@@ -40,9 +42,9 @@ export function registerCriterionSchema(
     schemaUri,
     fileMatchPrefix,
     dispose: () => {
-      const current = monaco.languages.json.jsonDefaults.diagnosticsOptions.schemas ?? [];
-      monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-        ...monaco.languages.json.jsonDefaults.diagnosticsOptions,
+      const current = json.diagnosticsOptions.schemas ?? [];
+      json.setDiagnosticsOptions({
+        ...json.diagnosticsOptions,
         schemas: current.filter((s) => s.uri !== schemaUri),
       });
     },

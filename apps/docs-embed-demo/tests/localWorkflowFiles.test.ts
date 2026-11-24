@@ -59,3 +59,54 @@ describe("downloadWorkflowJson", () => {
     removeChild.mockRestore();
   });
 });
+
+describe("openWorkflowFile — <input type=file> fallback (no File System Access API)", () => {
+  let input: HTMLInputElement | null = null;
+  const realCreate = document.createElement.bind(document);
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    input = null;
+    vi.spyOn(document, "createElement").mockImplementation((tag: string, options?: ElementCreationOptions) => {
+      const el = realCreate(tag, options);
+      if (tag === "input") {
+        input = el as HTMLInputElement;
+        vi.spyOn(input, "click").mockImplementation(() => {});
+      }
+      return el;
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const choose = (file: File) => {
+    Object.defineProperty(input!, "files", { value: [file], configurable: true });
+    input!.dispatchEvent(new Event("change"));
+  };
+
+  // Firefox fires the window `focus` (dialog closed) before the input's
+  // `change`. A focus-based cancel heuristic resolved `null` first and the
+  // chosen file was dropped — "choose a file, nothing happens".
+  it("returns the chosen file even when window focus arrives before change", async () => {
+    const { openWorkflowFile } = await import("../src/lib/localWorkflowFiles.js");
+    const pending = openWorkflowFile();
+    window.dispatchEvent(new Event("focus"));
+    await vi.advanceTimersByTimeAsync(10);
+    choose(new File(['{"importMode":"MERGE","workflows":[]}'], "wf.json", { type: "application/json" }));
+    await expect(pending).resolves.toEqual({
+      name: "wf.json",
+      text: '{"importMode":"MERGE","workflows":[]}',
+      handle: null,
+    });
+  });
+
+  it("resolves null when the picker is cancelled", async () => {
+    const { openWorkflowFile } = await import("../src/lib/localWorkflowFiles.js");
+    const pending = openWorkflowFile();
+    input!.dispatchEvent(new Event("cancel"));
+    await expect(pending).resolves.toBeNull();
+  });
+});

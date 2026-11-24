@@ -16,14 +16,14 @@ catalog:
   "@typescript-eslint/eslint-plugin": 8.61.0
   "@typescript-eslint/parser": 8.61.0
   "@vitejs/plugin-react": 6.0.2
-  "@vitest/coverage-v8": 4.1.8
+  "@vitest/coverage-v8": 4.1.12
   eslint: 10.4.1
   fast-check: 4.8.0
   elkjs: 0.11.1
   immer: 11.1.8
   jsdom: 29.1.1
   jsonc-parser: 3.3.1
-  monaco-editor: 0.55.1
+  monaco-editor: 0.57.0
   prettier: 3.8.4
   typescript-eslint: 8.61.0
   react: 19.2.7
@@ -32,9 +32,9 @@ catalog:
   tsup: 8.5.1
   typescript: 6.0.3
   uuid: 14.0.0
-  vite: 8.0.16
-  vitest: 4.1.8
-  zod: 4.4.3
+  vite: 8.1.6
+  vitest: 4.1.12
+  zod: 4.6.7
 
 # Supply-chain hardening (pnpm 10)
 # 14 days = 14*24*60 = 20160 minutes. No version younger than this enters the lockfile.
@@ -46,6 +46,12 @@ minimumReleaseAgeExclude:
   # The patched version may be <14 days old, so the cooldown is excluded here.
   - esbuild
   - "@esbuild/*"
+# Exception note: `dompurify` is forced to >=3.4.17 via pnpm.overrides in
+# package.json. monaco-editor 0.57.0 pins dompurify 3.4.15 exactly, which
+# carries five low-severity advisories (GHSA-p98j-92pf-mc4p, GHSA-6688-9rhm-gjv2,
+# GHSA-c6gr-qvv4-5v3f, GHSA-mrv2-3pqr-j5jr, GHSA-cg2g-xh64-v4q7) and fails
+# dependency-review. 3.4.17 is past the cooldown, so no exclusion is needed.
+# Drop the override once a monaco-editor release bundles >=3.4.17.
 # Only these packages may run install lifecycle scripts (pnpm 10 blocks all others).
 # Seeded with esbuild; add any package pnpm reports under "Ignored build scripts" in Step 5.
 onlyBuiltDependencies:

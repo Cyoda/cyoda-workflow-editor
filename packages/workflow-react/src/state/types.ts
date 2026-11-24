@@ -5,7 +5,26 @@ import type {
   WorkflowEditorDocument,
 } from "@cyoda/workflow-core";
 
-export type EditorMode = "viewer" | "playground" | "editor";
+/**
+ * How much of the workflow the user may change.
+ *
+ * - `"editor"` / `"playground"`: everything.
+ * - `"inspect"`: the definition is locked, but nodes and transition labels can
+ *   be repositioned and the layout controls (auto-arrange, orientation,
+ *   density) work. Position changes persist through `onLayoutMetadataChange`.
+ * - `"viewer"`: nothing, not even positions.
+ */
+export type EditorMode = "viewer" | "inspect" | "playground" | "editor";
+
+/** True when the mode forbids changes to the workflow definition. */
+export function isDefinitionLocked(mode: EditorMode): boolean {
+  return mode === "viewer" || mode === "inspect";
+}
+
+/** True when the mode lets the user reposition nodes and re-run the layout. */
+export function isLayoutEditable(mode: EditorMode): boolean {
+  return mode !== "viewer";
+}
 
 /** What the user currently has selected on the canvas or inspector. */
 export type Selection =

@@ -23,8 +23,9 @@ const OperatorParseSchema = z.string().min(1);
 export const FunctionConfigSchema = z.object({
   attachEntity: z.boolean().optional(),
   calculationNodesTags: z.string().optional(),
-  // No lower bound: cyoda-go accepts responseTimeoutMs: -1 (verified). A
-  // .nonnegative() here would reject a payload the server round-trips.
+  // No bound here: cyoda-go 0.9.0 refuses a negative value or one above its
+  // CYODA_CALLOUT_RESPONSE_TIMEOUT_MAX_MS, reported by semantic validation so
+  // the document still opens.
   responseTimeoutMs: z.number().int().optional(),
   retryPolicy: z.string().optional(),
   context: z.string().optional(),
@@ -47,12 +48,23 @@ export const LifecycleCriterionSchema = z.object({
 export const ArrayCriterionSchema = z.object({
   type: z.literal("array"),
   jsonPath: z.string().min(1),
-  // cyoda-go ignores the operator on an array clause (positional equality);
-  // optional so a server-authored clause without one parses.
-  operation: OperatorParseSchema.optional(),
-  // Positional scalars; `null` skips that index. cyoda-go rejects object
-  // entries at import ("condition value is an object").
-  value: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+  // Required since cyoda-go 0.9.0, which applies it at every tested position.
+  // The dialect fills `EQUALS` (0.8.x semantics) when a legacy clause has none.
+  operation: OperatorParseSchema,
+  // Positional scalars; `null` skips that index. Under BETWEEN /
+  // BETWEEN_INCLUSIVE an entry is a `[low, high]` pair (cyoda-go 0.9.0); the
+  // pair's arity and bounds are checked semantically so a malformed one still
+  // opens. Object entries are refused by cyoda-go ("condition value is an
+  // object") and by this schema.
+  value: z.array(
+    z.union([
+      z.string(),
+      z.number(),
+      z.boolean(),
+      z.null(),
+      z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])),
+    ]),
+  ),
 });
 
 // Recursive shapes. Typed as `z.ZodType<Criterion>` via cast because zod's

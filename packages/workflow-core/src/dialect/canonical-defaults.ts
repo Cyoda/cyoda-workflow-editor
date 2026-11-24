@@ -5,8 +5,10 @@
  * Fills an ABSENT (or `null`) processor `type` with `"externalized"` — the
  * server's own documented default, so this is not lossy. Present values are
  * never rewritten:
- * cyoda-go 0.8.3 stores and returns `type` verbatim (`"EXTERNAL"`, `"SCHEDULED"`,
- * `""`, `"internalized"`), and rewriting one would discard user data.
+ * a non-canonical value (`"EXTERNAL"`, `"internalized"`, …) is kept so the
+ * document opens and the `processor-type-*` rules can point at it; cyoda-go
+ * 0.9.0 refuses it at import. `""` is kept too (0.9.0 accepts it and stores
+ * it as `externalized`).
  */
 export function coerceCanonicalDefaults(value: unknown): unknown {
   if (!isObj(value)) return value;

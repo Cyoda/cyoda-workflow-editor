@@ -108,13 +108,14 @@ async function openWorkflowFileInput(): Promise<OpenedWorkflowFile | null> {
     const finalize = (value: OpenedWorkflowFile | null) => {
       if (settled) return;
       settled = true;
-      window.removeEventListener("focus", onWindowFocus);
       resolve(value);
     };
 
-    const onWindowFocus = () => {
-      window.setTimeout(() => finalize(null), 0);
-    };
+    // A dismissed picker fires `cancel` on the input (Chrome 113+, Firefox 91+,
+    // Safari 16.4+). Do not infer cancellation from the window regaining focus:
+    // Firefox fires that `focus` before the input's `change`, so a chosen file
+    // was dropped as if the dialog had been cancelled.
+    input.addEventListener("cancel", () => finalize(null));
 
     input.addEventListener("change", async () => {
       const file = input.files?.[0];
@@ -130,7 +131,6 @@ async function openWorkflowFileInput(): Promise<OpenedWorkflowFile | null> {
       });
     });
 
-    window.addEventListener("focus", onWindowFocus, { once: true });
     input.click();
   });
 }

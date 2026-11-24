@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { validateSemantics } from "../../src/validate/semantic.js";
-import { cyoda08Dialect } from "../../src/dialect/cyoda-0_8.js";
+import { cyoda09Dialect } from "../../src/dialect/cyoda-0_9.js";
 import type { WorkflowSession } from "../../src/types/session.js";
 
 function session(transition: Record<string, unknown>): WorkflowSession {
@@ -47,12 +47,57 @@ describe("schedule semantic rules (spec §4)", () => {
     },
   );
 
-  test("flags a schedule with both modes, as an error", () => {
+  test.each([5, 0, -1])(
+    "flags delayMs: %s beside a function as schedule-delay-with-function (cyoda-go 0.9.0)",
+    (delayMs) => {
+      // 0.9.0 refuses any delayMs beside a function, whatever its value —
+      // the v0.8.3/0.8.4 exporters' `delayMs: 0` included.
+      const c = issuesFor({
+        name: "t", next: "A", manual: false, schedule: { delayMs, function: FN },
+      });
+      const issue = c.find((i) => i.code === "schedule-delay-with-function");
+      expect(issue?.severity).toBe("error");
+      expect(c.map((i) => i.code)).not.toContain("schedule-mode-required");
+    },
+  );
+
+  test("a function-only schedule raises neither mode rule", () => {
+    const c = codes({ name: "t", next: "A", manual: false, schedule: { function: FN } });
+    expect(c).not.toContain("schedule-mode-required");
+    expect(c).not.toContain("schedule-delay-with-function");
+  });
+
+  test("schedule.function retryPolicy outside NONE/FIXED/empty is an error", () => {
     const issues = issuesFor({
-      name: "t", next: "A", manual: false, schedule: { delayMs: 5, function: FN },
+      name: "t", next: "A", manual: false,
+      schedule: { function: { ...FN, retryPolicy: "EXPONENTIAL" } },
     });
-    const issue = issues.find((i) => i.code === "schedule-mode-required");
-    expect(issue?.severity).toBe("error");
+    expect(issues.find((i) => i.code === "unknown-retry-policy")?.severity).toBe("error");
+    expect(
+      codes({
+        name: "t", next: "A", manual: false, schedule: { function: { ...FN, retryPolicy: "FIXED" } },
+      }),
+    ).not.toContain("unknown-retry-policy");
+  });
+
+  test("schedule.function responseTimeoutMs: negative is an error, above 60000 a warning", () => {
+    const neg = issuesFor({
+      name: "t", next: "A", manual: false,
+      schedule: { function: { ...FN, responseTimeoutMs: -1 } },
+    });
+    expect(neg.find((i) => i.code === "response-timeout-negative")?.severity).toBe("error");
+    const high = issuesFor({
+      name: "t", next: "A", manual: false,
+      schedule: { function: { ...FN, responseTimeoutMs: 60_001 } },
+    });
+    expect(high.find((i) => i.code === "response-timeout-above-default-max")?.severity)
+      .toBe("warning");
+    expect(
+      codes({
+        name: "t", next: "A", manual: false,
+        schedule: { function: { ...FN, responseTimeoutMs: 60_000 } },
+      }),
+    ).not.toContain("response-timeout-above-default-max");
   });
 
   test("flags schedule together with manual: true, as an error", () => {
@@ -90,12 +135,12 @@ describe("schedule semantic rules (spec §4)", () => {
     expect(issue?.severity).toBe("error");
   });
 
-  test("warns on a negative timeoutMs without blocking", () => {
+  test("a negative timeoutMs is an error (cyoda-go 0.9.0 refuses it at import)", () => {
     const issues = validateSemantics(session({
       name: "t", next: "A", manual: false, schedule: { delayMs: 5, timeoutMs: -1 },
     }));
     const issue = issues.find((i) => i.code === "schedule-timeout-negative");
-    expect(issue?.severity).toBe("warning");
+    expect(issue?.severity).toBe("error");
   });
 
   test("accepts a valid static schedule", () => {
@@ -120,11 +165,11 @@ describe("schedule semantic rules (spec §4)", () => {
   });
 
   test("end-to-end: normalization strips a lone delayMs: 0, and the rule then fires as zero-mode", () => {
-    // Proves normalize08 (Task 7) and schedule-mode-required (this task)
+    // Proves normalize09 and schedule-mode-required
     // compose correctly rather than each being right in isolation. The wire
     // payload has delayMs: 0 and no function — a shape the server itself
     // emits (delayMs: 0 beside a function it considers absent) and reads as
-    // "no mode". normalize08 strips the 0 because its presence test is `> 0`,
+    // "no mode". normalize09 strips the 0 because its presence test is `> 0`,
     // not "key exists".
     //
     // This deliberately calls the dialect's toCanonical() directly rather
@@ -152,7 +197,7 @@ describe("schedule semantic rules (spec §4)", () => {
         },
       }],
     };
-    const { value: canonical } = cyoda08Dialect.toCanonical(raw);
+    const { value: canonical } = cyoda09Dialect.toCanonical(raw);
     const workflows = (canonical as { workflows: unknown[] }).workflows;
     const normalizedTransition = (
       (workflows[0] as Record<string, unknown>)["states"] as Record<string, unknown>
