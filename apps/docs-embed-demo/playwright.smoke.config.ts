@@ -2,8 +2,9 @@ import { defineConfig, devices } from "@playwright/test";
 
 /**
  * Release smoke suite (tests/smoke): every demo route, viewer drag, the local
- * file editor (open / migrate / save), Monaco schema validation and the
- * criterion JSON editor — in Chromium, Firefox and WebKit.
+ * file editor (open / migrate / save), Monaco schema validation, the
+ * criterion JSON editor and WorkflowEditor's layout mode — in Chromium,
+ * Firefox and WebKit.
  *
  *   pnpm test:smoke                        # all three browsers
  *   pnpm test:smoke --project=firefox      # one browser
