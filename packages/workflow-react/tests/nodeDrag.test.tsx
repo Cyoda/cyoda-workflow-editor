@@ -1031,14 +1031,14 @@ describe("viewer mode", () => {
   });
 });
 
-// ── Tests: layout mode (issue #42) ───────────────────────────────────────────
+// ── Tests: inspect mode (issue #42) ──────────────────────────────────────────
 
-describe("layout mode", () => {
+describe("inspect mode", () => {
   it("wires drag handlers but not connections", async () => {
     const doc = fixture(TWO_STATE_CONNECTED);
     vi.mocked(layoutGraph).mockResolvedValue(buildLayout(doc));
 
-    render(<WorkflowEditor document={doc} mode="layout" />);
+    render(<WorkflowEditor document={doc} mode="inspect" />);
 
     await waitFor(() => expect(rfCallbacks.latestEdges).toBeDefined());
     expect(rfCallbacks.onNodeDragStart).toBeTypeOf("function");
@@ -1066,7 +1066,7 @@ describe("layout mode", () => {
     render(
       <WorkflowEditor
         document={doc}
-        mode="layout"
+        mode="inspect"
         onLayoutMetadataChange={onLayoutMetadataChange}
       />,
     );

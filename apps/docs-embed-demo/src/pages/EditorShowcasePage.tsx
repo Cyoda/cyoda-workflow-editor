@@ -6,7 +6,7 @@ import { fixtureBySlug, fixturesFor } from "../examples/fixtureCatalog.js";
 import { getMonacoRuntime } from "../lib/monacoRuntime.js";
 import { loadFixture, serializeDocument } from "../lib/workflowDemo.js";
 
-type EditorModeOption = "viewer" | "layout" | "playground" | "editor";
+type EditorModeOption = "viewer" | "inspect" | "playground" | "editor";
 type JsonPlacement = "tab" | "split";
 
 const chromeKeys: Array<keyof ChromeOptions> = ["toolbar", "tabs", "inspector", "minimap", "controls"];
@@ -94,7 +94,7 @@ export function EditorShowcasePage() {
               data-testid="editor-mode-select"
             >
               <option value="viewer">viewer</option>
-              <option value="layout">layout</option>
+              <option value="inspect">inspect</option>
               <option value="playground">playground</option>
               <option value="editor">editor</option>
             </select>

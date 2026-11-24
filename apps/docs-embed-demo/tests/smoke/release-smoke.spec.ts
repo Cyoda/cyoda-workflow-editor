@@ -411,11 +411,11 @@ test.describe("criterion JSON editor", () => {
   });
 });
 
-test.describe('WorkflowEditor mode="layout" (#42)', () => {
+test.describe('WorkflowEditor mode="inspect" (#42)', () => {
   test("locks the definition but keeps dragging, layout controls and a readable inspector", async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto("/editor");
-    await page.getByTestId("editor-mode-select").selectOption("layout");
+    await page.getByTestId("editor-mode-select").selectOption("inspect");
     const editor = page.getByTestId("workflow-editor");
     const node = editor.locator(".react-flow__node").first();
     await expect(node).toBeVisible();

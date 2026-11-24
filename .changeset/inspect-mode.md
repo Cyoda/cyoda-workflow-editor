@@ -2,7 +2,7 @@
 "@cyoda/workflow-react": minor
 ---
 
-Add a `"layout"` `EditorMode` (#42): the workflow definition is locked as in
+Add an `"inspect"` `EditorMode` (#42): the workflow definition is locked as in
 `"viewer"`, but nodes and transition labels can be repositioned and the layout
 controls (auto-arrange, `L`, orientation, density) stay on. Position changes
 persist through `onLayoutMetadataChange` without entering the undo stack.

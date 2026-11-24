@@ -116,7 +116,7 @@ describe("useEditorStore dispatch/undo for addProcessor", () => {
 });
 
 describe("useEditorStore in a locked mode", () => {
-  for (const mode of ["viewer", "layout"] as const) {
+  for (const mode of ["viewer", "inspect"] as const) {
     it(`ignores dispatch and dispatchTransaction in ${mode} mode`, () => {
       const doc = makeDoc(TWO_STATE);
       const { result } = renderHook(() => useEditorStore(doc, mode));

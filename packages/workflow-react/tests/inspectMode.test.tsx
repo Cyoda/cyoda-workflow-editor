@@ -1,5 +1,5 @@
 /**
- * `mode="layout"` (issue #42): the workflow definition is locked exactly as in
+ * `mode="inspect"` (issue #42): the workflow definition is locked exactly as in
  * `viewer`, but nodes can be repositioned and the layout controls stay on, and
  * position changes persist through `onLayoutMetadataChange`.
  */
@@ -120,7 +120,7 @@ afterEach(() => {
 });
 
 function renderMode(
-  mode: "layout" | "viewer",
+  mode: "inspect" | "viewer",
   extra: {
     onChange?: (d: WorkflowEditorDocument) => void;
     onLayoutMetadataChange?: (m: WorkflowUiMeta) => void;
@@ -133,9 +133,9 @@ function renderMode(
   return document;
 }
 
-describe('mode="layout": canvas wiring', () => {
+describe('mode="inspect": canvas wiring', () => {
   it("locks the definition but keeps the position and layout controls", () => {
-    renderMode("layout");
+    renderMode("inspect");
     const p = canvas();
     expect(p.readOnly).toBe(true);
     expect(p.layoutEditable).toBe(true);
@@ -162,11 +162,11 @@ describe('mode="layout": canvas wiring', () => {
   });
 });
 
-describe('mode="layout": position persistence', () => {
+describe('mode="inspect": position persistence', () => {
   it("persists a node drag through onLayoutMetadataChange and onChange", () => {
     const onLayoutMetadataChange = vi.fn();
     let latest: WorkflowEditorDocument | undefined;
-    const doc = renderMode("layout", {
+    const doc = renderMode("inspect", {
       onLayoutMetadataChange,
       onChange: (d) => { latest = d; },
     });
@@ -189,7 +189,7 @@ describe('mode="layout": position persistence', () => {
 
   it("persists a transition label drag", () => {
     let latest: WorkflowEditorDocument | undefined;
-    const doc = renderMode("layout", { onChange: (d) => { latest = d; } });
+    const doc = renderMode("inspect", { onChange: (d) => { latest = d; } });
     const tId = transitionId(doc, "wf", "start");
 
     act(() => {
@@ -213,7 +213,7 @@ describe('mode="layout": position persistence', () => {
 
   it("does not record position changes on the undo stack", () => {
     let latest: WorkflowEditorDocument | undefined;
-    const doc = renderMode("layout", { onChange: (d) => { latest = d; } });
+    const doc = renderMode("inspect", { onChange: (d) => { latest = d; } });
     const startId = stateId(doc, "wf", "start");
 
     act(() => {
@@ -226,9 +226,9 @@ describe('mode="layout": position persistence', () => {
   });
 });
 
-describe('mode="layout": keyboard shortcuts', () => {
+describe('mode="inspect": keyboard shortcuts', () => {
   it("'l' re-runs auto-layout", () => {
-    renderMode("layout");
+    renderMode("inspect");
     const before = canvas().layoutKey;
     fireEvent.keyDown(screen.getByTestId("workflow-editor"), { key: "l", code: "KeyL" });
     expect(canvas().layoutKey).toBe((before ?? 0) + 1);
@@ -242,35 +242,35 @@ describe('mode="layout": keyboard shortcuts', () => {
   });
 
   it("'a' does not open Add State", () => {
-    renderMode("layout");
+    renderMode("inspect");
     fireEvent.keyDown(screen.getByTestId("workflow-editor"), { key: "a", code: "KeyA" });
     expect(screen.queryByTestId("add-state-name-input")).toBeNull();
   });
 
   it("Delete on a selected transition does not remove it", () => {
     let latest: WorkflowEditorDocument | undefined;
-    const doc = renderMode("layout", { onChange: (d) => { latest = d; } });
+    const doc = renderMode("inspect", { onChange: (d) => { latest = d; } });
     fireEvent.click(screen.getByTestId("select-transition"));
     fireEvent.keyDown(screen.getByTestId("workflow-editor"), { key: "Delete", code: "Delete" });
     expect(latest?.session).toEqual(doc.session);
   });
 });
 
-describe('mode="layout": editing chrome', () => {
+describe('mode="inspect": editing chrome', () => {
   it("hides Add State and disables save", () => {
-    renderMode("layout", { onSave: vi.fn() });
+    renderMode("inspect", { onSave: vi.fn() });
     expect(screen.queryByTestId("canvas-add-state")).toBeNull();
     const save = screen.queryByTestId("toolbar-save") as HTMLButtonElement | null;
     if (save) expect(save.disabled).toBe(true);
   });
 
   it("hides the tab strip for a single workflow, like viewer", () => {
-    renderMode("layout");
+    renderMode("inspect");
     expect(screen.queryByTestId("workflow-tabs")).toBeNull();
   });
 
   it("shows a readable inspector with disabled inputs for a transition", () => {
-    renderMode("layout");
+    renderMode("inspect");
     fireEvent.click(screen.getByTestId("select-transition"));
     expect(screen.getByTestId("inspector")).toBeTruthy();
     const name = screen.getByTestId("inspector-transition-name") as HTMLInputElement;
@@ -279,7 +279,7 @@ describe('mode="layout": editing chrome', () => {
   });
 
   it("shows a readable inspector with disabled inputs for a state", () => {
-    renderMode("layout");
+    renderMode("inspect");
     fireEvent.click(screen.getByTestId("select-state"));
     const inspector = screen.getByTestId("inspector");
     const inputs = Array.from(inspector.querySelectorAll("input, textarea, select")) as HTMLInputElement[];
