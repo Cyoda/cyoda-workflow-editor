@@ -420,9 +420,9 @@ export function WorkflowEditor({
     setIsFullscreen((v) => !v);
   }, []);
 
-  // `readOnly` locks the workflow definition (viewer and layout modes);
+  // `readOnly` locks the workflow definition (viewer and inspect modes);
   // `layoutEditable` governs node positions and the layout controls, which
-  // stay on in layout mode (issue #42).
+  // stay on in inspect mode (issue #42).
   const readOnly = isDefinitionLocked(state.mode);
   const layoutEditable = isLayoutEditable(state.mode);
   const derived = useMemo(
@@ -490,7 +490,7 @@ export function WorkflowEditor({
     jsonStatus.status === "invalid-json" || jsonStatus.status === "invalid-schema";
   const saveDisabled = readOnly || derived.errorCount > 0 || saveBlockedByJson;
 
-  // Position changes are undoable edits in editor modes. In layout mode the
+  // Position changes are undoable edits in editor modes. In inspect mode the
   // store refuses dispatches (the definition is locked), so the layout-only
   // patches are applied directly without touching the undo stack. Viewer
   // persists no positions at all.

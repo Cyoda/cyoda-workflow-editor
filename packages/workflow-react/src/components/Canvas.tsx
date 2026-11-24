@@ -78,7 +78,7 @@ export interface CanvasProps {
   readOnly?: boolean;
   /**
    * Allows repositioning nodes and the layout controls even when `readOnly`
-   * (layout mode). Defaults to `!readOnly`.
+   * (inspect mode). Defaults to `!readOnly`.
    */
   layoutEditable?: boolean;
   showMinimap?: boolean;

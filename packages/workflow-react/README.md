@@ -66,7 +66,7 @@ export function App() {
 | Prop | Type | Default | Notes |
 |---|---|---|---|
 | `document` | `WorkflowEditorDocument` | required | From `parseImportPayload`. |
-| `mode` | `"viewer" \| "layout" \| "playground" \| "editor"` | `"editor"` | See [Modes](#modes). |
+| `mode` | `"viewer" \| "inspect" \| "playground" \| "editor"` | `"editor"` | See [Modes](#modes). |
 | `messages` | `PartialMessages` | English | i18n overrides. |
 | `layoutOptions` | `LayoutOptions` | – | ELK preset and orientation. |
 | `chrome` | `ChromeOptions` | all true | Toggle toolbar / tabs / inspector / minimap / controls. |
@@ -91,20 +91,20 @@ editor (for example with a `key` that includes the mode).
 |---|---|---|---|
 | `"editor"` | editable | editable | on |
 | `"playground"` | editable | editable | on |
-| `"layout"` | locked | editable | off |
+| `"inspect"` | locked | editable | off |
 | `"viewer"` | locked | locked | off |
 
-- **`"layout"`** is for read-only inspectors that still let the user arrange a
+- **`"inspect"`** is for read-only inspectors that still let the user arrange a
   large diagram. Nodes and transition labels can be dragged, and auto-arrange
   (toolbar and `L`), orientation and density work. Position changes are not
   undoable: they persist through `onLayoutMetadataChange` (and `onChange`,
   and `localStorageKey` when set). Connecting, re-anchoring, deleting,
   "Add State" (`A`) and save are off.
-- In both `"layout"` and `"viewer"`, clicking a state or transition opens the
+- In both `"inspect"` and `"viewer"`, clicking a state or transition opens the
   inspector with its inputs disabled, so the user can read descriptions,
   criteria and processors without changing them.
 - `"playground"` currently behaves exactly like `"editor"`. It is not a
-  read-only mode: use `"layout"` or `"viewer"` for that.
+  read-only mode: use `"inspect"` or `"viewer"` for that.
 
 ## JSON editor
 
