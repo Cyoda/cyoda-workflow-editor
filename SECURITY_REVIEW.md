@@ -8,6 +8,7 @@
 > - **HIGH-001 FIXED** — All four actions in `release.yml` pinned to full commit SHAs (see [HIGH-001] below for details).
 > - **HIGH-002 FIXED** — Criteria traversal depth guards and JSON size/depth limits added to `parseImportPayload`, `normalizeCriterion`, and `walkInner`. 12 new regression tests added.
 > - **LOW-001 FIXED** — Unused variables removed from `ProcessorForm.tsx`.
+> - **NPM_TOKEN findings resolved (2026-11)** — `release.yml` no longer uses an npm token. Publishing goes through npm OIDC trusted publishing with *staged publishing*: CI can only `npm stage publish`, and a maintainer approves each version with 2FA. The `NPM_TOKEN` secret has been deleted. The token-related notes below are historical. See `ai/npm-release-mechanism.md`.
 > - Remaining open: MEDIUM-001 (devDep audit), MEDIUM-002, MEDIUM-003, LOW-002, LOW-003.
 
 | Severity | Count | Status |

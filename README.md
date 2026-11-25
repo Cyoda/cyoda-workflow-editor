@@ -567,16 +567,21 @@ CI run.
 ## Release model
 
 Uses [Changesets](https://github.com/changesets/changesets) for versioning;
-CI is the only publisher.
+CI is the only publisher, and it publishes through npm *staged publishing*
+(OIDC trusted publishing, no token).
 
 ```sh
-# 1. Add a changeset in your PR
+# 1. Add a changeset in your PR (PRs target `staging`)
 pnpm changeset
 
-# 2. Merge PRs to main; CI maintains the Version Packages PR
+# 2. Merge staging → main; CI maintains the Version Packages PR
 
-# 3. Merge the Version Packages PR to publish
+# 3. Merge the Version Packages PR; CI stages the new versions on npm
+
+# 4. A maintainer approves the staged versions on npmjs.com (2FA)
 ```
+
+See [RELEASE.md](RELEASE.md) for the full steps.
 
 Rules:
 - Do not run `npm publish` from a laptop.
