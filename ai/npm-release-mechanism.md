@@ -145,7 +145,7 @@ Use this most of the time.
 2. When you want to ship, open or update the Changesets release PR.
 3. Review the generated version bumps and changelog entries.
 4. Merge the release PR.
-5. CI publishes the changed public packages to npm under latest.
+5. CI publishes the changed public packages to npm under latest — as *staged* versions that a maintainer must approve on npmjs.com before they go live (see "Approving a staged release").
 6. CI optionally creates a Git tag and/or GitHub Release representing that release batch.
 
 Option B — release branch flow
@@ -294,21 +294,37 @@ That is the main conceptual shift from the original doc.  ￼
 
 Provenance and authentication
 
-Preferred
+Current setup: OIDC trusted publishing + staged publishing (no token)
 
-Use OIDC trusted publishing per package on npm.
+Since 2026-11 `release.yml` publishes with **npm trusted publishing**. No npm token is stored anywhere.
 
-Bootstrap exception
+Why we moved off tokens: npm has revoked classic (Automation) tokens. The granular "Bypass 2FA" tokens that replaced them expire after at most 90 days, so a release would quietly break at the next publish. An expired token shows up as `E404 Not Found - PUT https://registry.npmjs.org/@cyoda%2f… — '…' is not in this registry`. That happened to the 0.4.0 and 0.8.0 releases.
 
-Use NPM_TOKEN only to get the first publish through if the packages do not yet exist and trusted publisher UI is unavailable.
+How it is wired:
 
-After first publish:
+* `release.yml` has `permissions: id-token: write`. GitHub mints an OIDC token, and npm swaps it for a short-lived publish credential.
+* `release.yml` upgrades npm to an exact 11.x version, because trusted publishing needs npm ≥ 11.5.1 and Node 22 ships npm 10. `changeset publish` → `pnpm publish` calls this npm.
+* `NPM_TOKEN` is **not** passed to the Changesets action. Without it, changesets/action (≥ 1.6) logs "using npm trusted publishing" and leaves `.npmrc` alone. `setup-node` gets no `registry-url`, so it doesn't write a placeholder-token `.npmrc` either.
+* Provenance (`publishConfig.provenance: true`) works as before.
 
-1. go to each package on npm
-2. configure GitHub Actions trusted publisher
-3. remove token-based publishing from the workflow
+Settings for each package on npmjs.com (all six: core, graph, layout, monaco, react, viewer), under package → Settings → Trusted Publisher → GitHub Actions:
 
-That preserves the “no long-lived publish secret” goal from the original doc, while acknowledging the first-publish bootstrap problem.  ￼
+* Organization: `Cyoda`; repository: `cyoda-workflow-editor`; workflow filename: `release.yml`; environment: blank.
+* **"Allow npm publish": unchecked.** That makes publishes from CI *staged*: npm holds them until a maintainer approves them. If the workflow or one of its dependencies is compromised, it still can't put a version live by itself.
+* **"Allow npm dist-tag": unchecked.** CI never runs `npm dist-tag`. Normal releases get `latest`, and prereleases get `rc`/`next`, as part of `npm publish --tag`. Move a dist-tag by hand if you ever need to.
+
+The trusted-publisher config refers to the workflow by **filename**. Renaming `release.yml` breaks publishing until every package's config is updated.
+
+Approving a staged release (a step in every release)
+
+1. Merge the "Version packages" PR. The Release workflow publishes and should go green. Changesets also creates its git tags and GitHub releases at this point.
+2. The new versions are **staged, not live**. `npm view @cyoda/<pkg> version` still shows the old version, and consumers can't install the new one yet. This is expected, not a broken release.
+3. A maintainer with publish rights on the `@cyoda` packages signs in to npmjs.com and approves the staged version of each package in the batch. Two-factor auth is required.
+4. Then check the registry. Allow about 3 minutes for it to update, then run `npm view @cyoda/<pkg> version` for each package. Only after that, bump downstream consumers such as `cyoda-dev-console`.
+
+Bootstrap exception (new packages only)
+
+A trusted publisher can only be set on a package that already exists on npm. To publish a **brand-new** `@cyoda/*` package for the first time, use a short-lived granular token: read/write on the `@cyoda` scope, "Bypass 2FA" ticked, and the shortest expiry. Put it in a temporary `NPM_TOKEN` secret and pass it to the Changesets action. Then set up the new package's trusted publisher, remove the token from the workflow, and delete the secret.
 
 ⸻
 
@@ -336,8 +352,8 @@ First release checklist for Cyoda Workflow Editor
 * release.yml is Changesets-aware
 * release-preflight.yml is committed
 * pnpm pack / publish dry-run succeeds for affected packages
-* NPM_TOKEN exists only if still needed for bootstrap
-* npm trusted publishers configured after first successful publish
+* NPM_TOKEN exists only if still needed for bootstrap (brand-new packages only)
+* npm trusted publishers (staged publishing) configured after first successful publish
 * no manual npm publish from any laptop
 * .nvmrc or equivalent pins Node version
 * prerelease flow tested if you want RCs before stable
@@ -388,8 +404,9 @@ integration target. It refines the policy above:
 * To cut a release, open a PR `staging → main` and merge it as a merge commit
   (not squash), so the changeset files reach `main`.
 * On `main`, the Changesets action opens/updates the "Version Packages" PR;
-  merging it publishes the changed public packages to `latest`. `main` remains
-  the only publisher.
+  merging it publishes the changed public packages to `latest` as staged
+  versions, which go live once a maintainer approves them on npmjs.com. `main`
+  remains the only publisher.
 * Dependency updates are handled by **Renovate**, not Dependabot (which mangled
   the pnpm `catalog:` lockfile specifiers and could not `--frozen-lockfile`). See
   the "Dependency updates (Renovate)" section below.
@@ -428,7 +445,7 @@ The fix (in `release.yml`):
 The GitHub App needs repository permissions **Contents: read & write** (push the
 `changeset-release/main` branch, create tags/releases) and **Pull requests: read
 & write** (open/update the Version PR), and must be installed on this repo. It
-does **not** publish to npm — that still uses `NPM_TOKEN` / trusted publishing —
+does **not** publish to npm — that uses npm trusted publishing (OIDC) —
 and it never pushes to `main` (the Version PR is still merged by a human).
 
 Companion change (in `release-preflight.yml`): the `preflight` job guard also
