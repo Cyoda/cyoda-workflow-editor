@@ -303,28 +303,33 @@ Why we moved off tokens: npm has revoked classic (Automation) tokens. The granul
 How it is wired:
 
 * `release.yml` has `permissions: id-token: write`. GitHub mints an OIDC token, and npm swaps it for a short-lived publish credential.
-* `release.yml` upgrades npm to an exact 11.x version, because trusted publishing needs npm ≥ 11.5.1 and Node 22 ships npm 10. `changeset publish` → `pnpm publish` calls this npm.
+* `release.yml` upgrades npm to an exact 11.x version. Trusted publishing needs npm ≥ 11.5.1, `npm stage publish` needs a recent 11.x, and Node 22 ships npm 10.
+* `pnpm release` (`scripts/release-publish.mjs`) does **not** run `changeset publish`. That command can only run plain `npm publish` (through `pnpm publish`), which the trusted publisher refuses with `E403 OIDC permission denied for this action` because only staged publishing is allowed. For each public package whose version is not on npm yet, the script:
+  1. runs `pnpm pack`, which rewrites `workspace:`/`catalog:` specifiers to real versions, the same as `pnpm publish`;
+  2. runs `npm stage publish <tarball> --tag <latest|pre tag> --access public --provenance`;
+  3. creates the git tag `<name>@<version>` and prints `New tag: <name>@<version>`. changesets/action reads those lines to push the tags and create the GitHub releases, as it did after `changeset publish`.
+  Run `node scripts/release-publish.mjs --dry-run` with npm ≥ 11.21 to check packing and staging without changing anything.
 * `NPM_TOKEN` is **not** passed to the Changesets action. Without it, changesets/action (≥ 1.6) logs "using npm trusted publishing" and leaves `.npmrc` alone. `setup-node` gets no `registry-url`, so it doesn't write a placeholder-token `.npmrc` either.
 * Provenance (`publishConfig.provenance: true`) works as before.
 
 Settings for each package on npmjs.com (all six: core, graph, layout, monaco, react, viewer), under package → Settings → Trusted Publisher → GitHub Actions:
 
 * Organization: `Cyoda`; repository: `cyoda-workflow-editor`; workflow filename: `release.yml`; environment: blank.
-* **"Allow npm publish": unchecked.** That makes publishes from CI *staged*: npm holds them until a maintainer approves them. If the workflow or one of its dependencies is compromised, it still can't put a version live by itself.
-* **"Allow npm dist-tag": unchecked.** CI never runs `npm dist-tag`. Normal releases get `latest`, and prereleases get `rc`/`next`, as part of `npm publish --tag`. Move a dist-tag by hand if you ever need to.
+* **"Allow npm publish": unchecked.** CI may then only *stage* versions with `npm stage publish`, and they stay held until a maintainer approves them. If the workflow or one of its dependencies is compromised, it still can't put a version live by itself.
+* **"Allow npm dist-tag": unchecked.** CI never runs `npm dist-tag`. Normal releases get `latest`, and prereleases get `rc`/`next`, as part of `npm stage publish --tag`. A staged version's tag can't be changed afterwards; to change it, reject the staged version and stage it again. Move a dist-tag by hand if you ever need to.
 
 The trusted-publisher config refers to the workflow by **filename**. Renaming `release.yml` breaks publishing until every package's config is updated.
 
 Approving a staged release (a step in every release)
 
-1. Merge the "Version packages" PR. The Release workflow publishes and should go green. Changesets also creates its git tags and GitHub releases at this point.
+1. Merge the "Version packages" PR. The Release workflow stages the versions and should go green. The git tags and GitHub releases are created at this point, before npm approval. If a staged version is rejected, delete its tag and release.
 2. The new versions are **staged, not live**. `npm view @cyoda/<pkg> version` still shows the old version, and consumers can't install the new one yet. This is expected, not a broken release.
-3. A maintainer with publish rights on the `@cyoda` packages signs in to npmjs.com and approves the staged version of each package in the batch. Two-factor auth is required.
+3. A maintainer with publish rights on the `@cyoda` packages approves the staged version of each package in the batch. Two-factor auth is required. Do it on npmjs.com or from a laptop with npm ≥ 11.21: `npm stage list @cyoda/<pkg>` to get the stage id, `npm stage download <id>` to inspect the tarball if you want, then `npm stage approve <id>`. The short-lived CI credential can't run `npm stage` subcommands, so approval always needs a person.
 4. Then check the registry. Allow about 3 minutes for it to update, then run `npm view @cyoda/<pkg> version` for each package. Only after that, bump downstream consumers such as `cyoda-dev-console`.
 
 Bootstrap exception (new packages only)
 
-A trusted publisher can only be set on a package that already exists on npm. To publish a **brand-new** `@cyoda/*` package for the first time, use a short-lived granular token: read/write on the `@cyoda` scope, "Bypass 2FA" ticked, and the shortest expiry. Put it in a temporary `NPM_TOKEN` secret and pass it to the Changesets action. Then set up the new package's trusted publisher, remove the token from the workflow, and delete the secret.
+A trusted publisher can only be set on a package that already exists on npm. To publish a **brand-new** `@cyoda/*` package for the first time, use a short-lived granular token: read/write on the `@cyoda` scope, with the shortest expiry. "Bypass 2FA" is **not** needed, because `npm stage publish` works with any token type and staging can create a new package. Put the token in a temporary `NPM_TOKEN` secret and pass it to the Changesets action, which writes it to `~/.npmrc`. Approve the staged first version, then set up the new package's trusted publisher, remove the token from the workflow, and delete the secret.
 
 ⸻
 

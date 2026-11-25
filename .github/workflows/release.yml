@@ -79,9 +79,11 @@ jobs:
           publish: pnpm release
           commit: Version packages
           title: Version packages
-        # No NPM_TOKEN: with it unset and OIDC available, changesets/action uses
-        # npm trusted publishing. Each package's trusted publisher on npmjs.com
-        # requires *staged publishing*, so new versions are not live until a
-        # maintainer approves them on npmjs.com (see ai/npm-release-mechanism.md).
+        # No NPM_TOKEN: with it unset and OIDC available, changesets/action leaves
+        # .npmrc alone and npm uses trusted publishing. Each package's trusted
+        # publisher allows only *staged* publishing, so `pnpm release`
+        # (scripts/release-publish.mjs) runs `npm stage publish` instead of
+        # `changeset publish`. New versions are not live until a maintainer
+        # approves them on npmjs.com (see ai/npm-release-mechanism.md).
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
