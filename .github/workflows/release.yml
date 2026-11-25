@@ -48,7 +48,16 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          # No `registry-url`: that would write an .npmrc with a placeholder
+          # `_authToken`. Publishing authenticates via npm trusted publishing
+          # (OIDC, `id-token: write` above), not a token — see
+          # ai/npm-release-mechanism.md "Provenance and authentication".
+
+      # npm trusted publishing needs npm >= 11.5.1; Node 22 bundles npm 10.x.
+      # `pnpm publish` (via `changeset publish`) shells out to this npm.
+      # Exact pin, >= 14 days old (supply-chain cooldown, like pnpm-workspace.yaml).
+      - name: Upgrade npm for trusted publishing
+        run: npm install -g npm@11.21.2 && npm --version
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -70,7 +79,9 @@ jobs:
           publish: pnpm release
           commit: Version packages
           title: Version packages
+        # No NPM_TOKEN: with it unset and OIDC available, changesets/action uses
+        # npm trusted publishing. Each package's trusted publisher on npmjs.com
+        # requires *staged publishing*, so new versions are not live until a
+        # maintainer approves them on npmjs.com (see ai/npm-release-mechanism.md).
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
