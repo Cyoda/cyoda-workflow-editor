@@ -32,7 +32,7 @@ Goals
 * Stable and prerelease releases are both supported.
 * Release branches can isolate a release bundle when needed.
 * Preflight checks gate the release PR / release branch.
-* Provenance by default. npm attestations via GitHub Actions OIDC; temporary NPM_TOKEN only for bootstrap if unavoidable.
+* Provenance by default. npm attestations via GitHub Actions OIDC. Authentication is OIDC trusted publishing with staged publishing: CI stages, and a human approves. NPM_TOKEN is used only to bootstrap a brand-new package.
 * Multi-package correctness. Only changed public packages version and publish; private workspace packages never publish.
 
 ⸻
@@ -60,8 +60,8 @@ Lock these in:
 * Private packages stay private.
 * Changesets determine package versions.
 * CI is the only thing allowed to publish.
-* OIDC trusted publishing is preferred.
-* If NPM_TOKEN is used at all, it is only for bootstrap and should be removed once trusted publishing is configured per package.
+* OIDC trusted publishing with staged publishing is the only publish path. CI stages versions, and a maintainer approves them on npm.
+* If NPM_TOKEN is used at all, it is only for bootstrapping a brand-new package and is removed straight afterwards.
 
 ⸻
 
@@ -241,8 +241,9 @@ The release workflow should:
 5. if there are pending changesets:
     * create/update a Version Packages PR
 6. if versions have just been merged and packages are ready:
-    * publish changed public packages
-7. optionally create a GitHub Release and/or annotated tag for the release batch
+    * stage changed public packages (`npm stage publish`, see "Provenance and authentication")
+7. create the git tags and GitHub Releases for the staged packages
+8. (manual, outside CI) a maintainer approves the staged versions on npm
 
 It must not
 
@@ -390,7 +391,7 @@ For Cyoda Workflow Editor, this is the cleanest practical policy:
 1. normal PRs land on main with changesets
 2. Changesets action maintains a version PR
 3. merge the version PR when ready
-4. CI publishes changed public packages
+4. CI stages changed public packages, and a maintainer approves them on npm
 5. use prerelease mode when you want RCs
 6. use release branches only when you need consolidation/stabilization
 7. use tags/releases as markers, not as the version authority

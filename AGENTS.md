@@ -29,4 +29,6 @@ When changing release automation:
 
 - Keep workflows aligned with real root scripts.
 - Treat repo tags and GitHub Releases as release markers, not the source of package versions.
-- Prefer trusted publishing/OIDC. Use token-based npm auth only as a temporary bootstrap fallback.
+- npm auth is OIDC trusted publishing with **staged publishing**: CI runs `npm stage publish` (`scripts/release-publish.mjs`), and a maintainer approves each version on npm. Do not switch back to `changeset publish` / `pnpm publish` / `npm publish`, which the trusted publisher refuses with `E403`. Do not suggest enabling "Allow npm publish" on the trusted publishers.
+- Do not add an `NPM_TOKEN` back. The one exception is the first publish of a brand-new package, which uses a short-lived token (see `ai/npm-release-mechanism.md`).
+- A release isn't finished until its staged versions are approved and visible on `npm view`. Say so to the user instead of calling a release with old `npm view` versions broken.
